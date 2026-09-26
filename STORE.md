@@ -29,8 +29,22 @@ These apply to the name, subtitle, promo text, description, keywords, screenshot
 - **No film, character, or celebrity voice claims.** Do not write Rocky, Balboa, or any movie-trademark persona into customer-facing text. In the product the voice is short and spare. On the store it is a coach voice. Nothing else.
 - **No medical or cure claims.** No VO₂ promises, no “fixes your fitness”, no treatment language. A coaching timer. Not medical advice. Ride within your limits.
 - **No streak guilt and no nagging.** No “don’t break the chain”, no badges that scold a missed day, no daily push to come back.
-- **No fake watts.** Planned targets on Home come from the rider’s FTP. A live number appears only after a real power-meter packet. Never invent a wattage for a screenshot.
+- **No fake watts.** Planned targets in the description come from the rider’s FTP. Store frames do not show them. A live number appears in the product only after a real power-meter packet, and not in the listing until that is true.
 - **No login-wall screenshots.** The first screen is Home and Start. Account is optional and stays off the store frames.
+
+---
+
+## War room locks
+
+Unanimous pass. If another line in this file disagrees with this section, this section wins.
+
+**Voice.** Keep the sparse grit. Lines that stay: “sparse coach voice”, “Earn the quiet after.” No cheerleader spam, no Balboa or Rocky trademark, no streak guilt. “Hits on HARD” is product heat — the music and the phase — not a shout at the rider.
+
+**Craft.** Keep the six-shot order. In every frame, kill TARGET and watts, Rocky captions, streak badges, a login wall, and a second call to action. Shot 5: the countdown stays the visual hero. The ears-free line sits in the margin and does not cover the clock. Shot 6: an honest session list only.
+
+**Flow.** “Open. Start. Ride.” stands. Starting without an account is the honest path. Kill any frame where login appears before Start, and any tip or carousel that covers the orange Start pill.
+
+**Power.** Rønnestad 30/15 and offline stay. Kill the live-watt dial, a %FTP hero, and green/red on-target chrome. Until BLE is real, the only color on the clock is phase glow.
 
 ---
 
@@ -73,7 +87,7 @@ Limit 170. This string is **136** characters. Promo text can change without a ne
 Huge countdown. Sparse coach voice. Music that hits on HARD. 30/15 micro-intervals you can run offline — even with another app in front.
 ```
 
-Ship this sentence only when both claims are true in the build you submit: the music bed actually moves on HARD, and a session keeps running with another app in front. Until then, use the fallback (**133** characters):
+“Hits on HARD” means the bed and the phase heat up. It does not cheer the rider on. Ship this sentence only when both claims are true in the build you submit: the music bed actually moves on HARD, and a session keeps running with another app in front. Until then, use the fallback (**133** characters):
 
 ```text
 Huge countdown. Sparse coach voice. A beep ladder on every edge. 30/15 micro-intervals you can run offline, with no account required.
@@ -132,66 +146,69 @@ Fallback if the music bed is not in 1.0 (**141** characters):
 
 ## Screenshots
 
-Six frames. One idea each. Caption sits in the negative space, large, and never competes with the clock. Capture the real UI. Do not composite a fake screen.
+Six frames, in this order. One idea each. The caption sits in the margin, smaller than the clock, and never covers it. Capture the real UI. Crop a real screen rather than draw a new one.
 
 `supportsTablet` is true, so App Store Connect will also ask for iPad. Use the same story and the same restraint. Confirm the required device sizes in App Store Connect at submit time and shoot the largest iPhone size it asks for.
 
-Order is the store order.
+Every frame, no exceptions: no TARGET label, no watt numeral, no %FTP, no Rocky or persona caption, no streak badge, no login wall, no second button.
 
 ### 1 — Hero HARD
 
 - **Caption:** The clock you can feel
-- **On screen:** An in-progress HARD interval. The remaining seconds are the largest type on the phone. Warm glow behind the number. Phase label reads HARD. Almost nothing else.
-- **Color:** HARD red `#FF453A` on `#070708`, glow kept soft.
+- **On screen:** An in-progress HARD interval. The remaining seconds are the largest type on the phone. Phase label reads HARD. Warm phase glow behind the number. Nothing else.
+- **Color:** HARD `#FF453A` as glow on `#070708`. Phase glow only.
 
 ### 2 — EASY recovery
 
 - **Caption:** 15 seconds to come back
-- **On screen:** The fifteen. Cool blue. Same giant clock, quieter light. The rider can see it is recovery, not a second hard effort.
-- **Color:** EASY `#64D2FF`.
+- **On screen:** The fifteen. Same giant clock. Cool phase glow, so the recovery reads as recovery.
+- **Color:** EASY `#64D2FF` as glow. Phase glow only.
 
 ### 3 — Home, Start
 
 - **Caption:** Open. Start. Ride.
-- **On screen:** Home. FTP, HARD and EASY targets, one orange Start. No account prompt, no streak, no modal.
-- **Color:** Start `#FF7A1A`. Dark glass, lots of empty space.
+- **On screen:** The orange Start pill, clear. No login before it. No tip, carousel, or coach line covering it. No second button beside it or under it. FTP, %FTP, and watt targets stay out of this frame — crop them off if the live Home leads with them.
+- **Color:** Start `#FF7A1A`. Dark glass, empty space around the pill.
 
 ### 4 — Finish
 
 - **Caption:** Earn the quiet after
-- **On screen:** Done. The bloom after the last interval. No confetti, no share sheet, no “share your streak”.
-- **Color:** The done state already in the app, calm green `#30D158`, still on the dark ground.
+- **On screen:** Done. The bloom after the last interval. One quiet end. No share sheet, no second button, no badge.
+- **Color:** The quiet done bloom, `#30D158`, on the dark ground. That green is the end of the session, not an on-target lamp.
 
-### 5 — Audio, eyes free
+### 5 — Ears free
 
 - **Caption:** Coach in your ears. Eyes free.
-- **On screen:** The ride itself. Phone in a pocket, on the bar, or face-down is fine if the clock is still the product. The frame should say the voice and the music are doing the work so the rider can look up.
-- **Do not show:** a waveform toy, a music-app logo, a celebrity, or a caption that names a voice persona.
+- **On screen:** The countdown is still the hero, same scale as shots 1 and 2. The ears-free line is the story, set in the margin, and it does not sit on the number or outrank it. Voice and music are why the rider can look up. The picture remains the clock.
+- **Leave out:** a waveform, a music-app logo, a celebrity, a persona name, and any caption treatment larger than the countdown.
 
 ### 6 — History
 
 - **Caption:** Your work, remembered
-- **On screen:** A short, honest list. Day, duration, FTP, finished or stopped. Empty-state copy is acceptable for a second crop, not for the only history frame.
-- **Do not show:** streaks, calories, invented power charts, or a sign-in gate.
+- **On screen:** The session list only. Day, duration, finished or stopped. That is the whole frame.
+- **Leave out:** watts, %FTP, TARGET, charts, calories, badges, and a sign-in gate. An empty state is a second crop, never the only history frame.
 
 ### Art direction
 
-- Ground: `#070708`. Cards barely lighter. Borders are hairlines, not boxes.
-- Type: huge, light weight, tabular figures on the clock. Captions are short enough to read at arm’s length.
-- HARD is warm (`#FF453A`). EASY is cool (`#64D2FF`). Start is orange (`#FF7A1A`) and is the only saturated action color on Home.
-- Dark glass, glow used as atmosphere, negative space doing as much work as the type.
+- Ground: `#070708`. Cards barely lighter. Borders are hairlines.
+- Type: huge, light weight, tabular figures on the clock. One caption per frame, in the margin.
+- HARD glows warm (`#FF453A`). EASY glows cool (`#64D2FF`). Start is orange (`#FF7A1A`) and is the only action on the Home frame.
+- Until a real BLE meter is in the build, do not add a live-watt dial, a %FTP hero, or green/red on-target chrome. Color means the phase.
+- Dark glass, glow as atmosphere, negative space doing as much work as the type.
 - Status bar clean. No debug banners, no Expo chrome, no “cloud table missing” notes.
 
 ### Kill list
 
 Do not ship a frame that contains any of these:
 
-- Tiny type, or a settings dump of every field
-- A login, sign-up, or “create account to continue” wall
+- TARGET, watts, %FTP, a live-watt dial, or green/red “on target” chrome
+- A second call to action, or a tip or carousel over the orange Start pill
+- Login, sign-up, or any account step before Start
+- Rocky captions, a film character, or cheerleader lines (“you got this”, “crush it”, and the like)
 - Streaks, flames, badges, or guilt copy
+- Tiny type, or a settings dump of every field
 - Competitor logos, trainer brands, or another app’s UI
-- Fake BLE watts, a simulated power trace, or a number that is not the FTP target or a real meter packet
-- Medical claims, heart-rate promises, or a film character
+- Medical claims or a heart-rate promise
 
 ---
 
@@ -201,14 +218,14 @@ Do not ship a frame that contains any of these:
 
 | Time | Picture | Sound |
 |---|---|---|
-| 0–3s | Home. Orange Start. Finger presses it. | Quiet |
-| 3–10s | HARD. Giant countdown, warm glow. | Music hits. One short coach line, then silence |
-| 10–16s | EASY. Cool blue. Fifteen seconds. | Music settles. Beep at the edge, not a speech |
-| 16–22s | Eyes up. The phone is not the subject; the clock still reads if it is in frame. | Bed only |
-| 22–27s | Done, then one history row. | Bed fades |
+| 0–3s | Home. Orange Start pill, clear. Finger presses it. | Quiet |
+| 3–10s | HARD. Giant countdown, warm phase glow. | Music hits — the bed, not a cheer. One short coach line, then silence |
+| 10–16s | EASY. Cool phase glow. Fifteen seconds. | Music settles. Beep at the edge |
+| 16–22s | Eyes up. If the phone is in frame, the countdown is still the hero. | Bed only |
+| 22–27s | Done, then one honest history row. No watts on it. | Bed fades |
 | 27–30s | Wordmark on `#070708`. | Out |
 
-Cut the eyes-up shot before any claim that audio continues under another app, unless that build actually does it. No wattage overlay. No login. No streak.
+Same frame kills as the stills: no login before Start, no tip over the pill, no second button, no TARGET, no watt dial, no %FTP, no green/red on-target chrome, no streak, no persona. Cut the eyes-up shot before any claim that audio continues under another app, unless that build actually does it.
 
 ---
 
@@ -270,9 +287,13 @@ Copyright line, on the age-rating and app-information forms: the owner’s name.
 ## Before you submit
 
 - [ ] Name is exactly `30/15`. Subtitle is one of the three lines above.
-- [ ] Promo, description, What’s New, captions, and the preview contain no film character, no celebrity, no medical claim, no streak, no fake watts.
+- [ ] Promo, description, What’s New, captions, and the preview contain no film character, no celebrity, no cheerleader line, no medical claim, no streak, no fake watts.
+- [ ] “Hits on HARD” still reads as music and phase heat.
 - [ ] Music-bed lines and “another app in front” are still true of this binary. If they are not, the fallbacks in this file are the ones that ship.
-- [ ] Screenshots are the six-frame story, in order, from the real app. Home has Start, not a login wall.
+- [ ] Screenshots are the six-shot order, from the real app. Every frame is free of TARGET, watts, %FTP, a second button, Rocky captions, streak badges, and a login wall.
+- [ ] Shot 3: orange Start is clear. No login before it. No tip or carousel on the pill. The frame shows start-without-account.
+- [ ] Shot 5: the countdown is larger than the ears-free caption. Shot 6: the session list only.
+- [ ] Clock color is phase glow only, until a real BLE meter is in the build.
 - [ ] iPad frames exist, because the app supports iPad.
 - [ ] “Your data can be deleted” matches a control in the build, local and cloud.
 - [ ] Support URL is live. Privacy Policy URL is live if anything leaves the phone.
