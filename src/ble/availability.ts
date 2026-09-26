@@ -37,12 +37,12 @@ export function bleGateCopy(reason: BleGate | 'unavailable' | 'bluetooth-off' | 
     case 'no-devices':
       return {
         title: 'Nothing in range',
-        body: 'Wake the trainer or power meter and put it in pairing mode. Scan again.',
+        body: 'Pedal the crank to wake the meter, then scan again. Live watts stay off until a meter sends them.',
       };
     case 'no-power':
       return {
         title: 'No power service',
-        body: 'That device does not expose FTMS or the cycling power service. Live watts stay off.',
+        body: 'That device does not expose the cycling power service or FTMS. Live watts stay off.',
       };
     default:
       return {

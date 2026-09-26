@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { PowerMeterPanel } from '../components/PowerMeterPanel';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
+import { usePowerMeter } from '../state/PowerMeterContext';
 import { syncProfile } from '../storage/cloud';
 import { eraseThisDevice, requestAccountDelete, clearQueuedOutboxes } from '../storage/deletion';
 import {
@@ -89,6 +91,7 @@ function Toggle({
 export function SettingsScreen() {
   const { settings, update } = useSettings();
   const history = useHistory();
+  const meter = usePowerMeter();
   const auth = useAuth();
   const [draft, setDraft] = useState(settings);
   const [dataNote, setDataNote] = useState<string | null>(null);
@@ -142,6 +145,7 @@ export function SettingsScreen() {
     if (acting) return;
     setActing(true);
     try {
+      await meter.forget();
       const historyCloud = await history.clearSessions();
       const deviceCloud = await eraseThisDevice();
       const next = { ...DEFAULT_SETTINGS };
@@ -208,6 +212,9 @@ export function SettingsScreen() {
         </Text>
         <NumField label="Hard % of FTP" value={draft.hardPct} onChange={(n) => patch('hardPct', Math.round(n))} suffix="%" min={100} max={200} step={5} />
         <NumField label="Easy % of FTP" value={draft.easyPct} onChange={(n) => patch('easyPct', Math.round(n))} suffix="%" min={20} max={80} step={5} />
+
+        <Text style={styles.section}>Power meter</Text>
+        <PowerMeterPanel variant="settings" />
 
         <Text style={styles.section}>Structure</Text>
         <NumField label="Warm-up" value={draft.warmupMin} onChange={(n) => patch('warmupMin', Math.round(n))} suffix="min" min={5} max={30} />

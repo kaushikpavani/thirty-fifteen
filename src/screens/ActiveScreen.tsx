@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
-import { bleGate } from '../ble/availability';
 import { Atmosphere } from '../components/Atmosphere';
 import { DigitClock, FadeLabel } from '../components/MotionText';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { SegmentRail } from '../components/SegmentRail';
+import { PowerMeterPanel } from '../components/PowerMeterPanel';
 import { useHistory } from '../state/HistoryContext';
-import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { bedRate, roundWon, varietySalt } from '../audio/spirit';
@@ -170,7 +169,7 @@ export function ActiveScreen() {
           <FinishTitle title={finishTitle(varietySalt(state.startedAt))} reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
           <PrimaryButton label="Done" onPress={leave} testID="done" />
-          <FinishMeter />
+          <PowerMeterPanel variant="finish" />
         </View>
       </Screen>
     );
@@ -470,51 +469,6 @@ function FinishTitle({ title, reduceMotion }: { title: string; reduceMotion: boo
   );
 }
 
-function FinishMeter() {
-  const meter = usePowerMeter();
-  const [open, setOpen] = useState(false);
-  if (bleGate()) return null;
-
-  return (
-    <View style={styles.meter}>
-      <Pressable onPress={() => setOpen((value) => !value)} testID="finish-power">
-        <Text style={styles.meterLink}>{open ? 'Hide power meter' : 'Power meter'}</Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.meterBody}>
-          <Text style={styles.doneMeta}>
-            {meter.phase.phase === 'connected'
-              ? meter.phase.name
-              : 'Optional. Watts show up only when a meter sends them.'}
-          </Text>
-          {meter.live ? (
-            <Text style={styles.meterLive} testID="finish-live-watts">
-              {meter.live.watts} W
-              {meter.live.speedKph != null ? ` · ${meter.live.speedKph.toFixed(1)} km/h` : ''}
-            </Text>
-          ) : null}
-          {meter.devices.map((device) => (
-            <Pressable key={device.id} onPress={() => meter.pick(device)}>
-              <Text style={styles.meterLink}>{device.name}</Text>
-            </Pressable>
-          ))}
-          {meter.phase.phase === 'connected' ? (
-            <PrimaryButton variant="quiet" label="Disconnect" onPress={() => void meter.disconnect()} />
-          ) : (
-            <PrimaryButton
-              variant="hairline"
-              label={meter.phase.phase === 'scanning' ? 'Scanning…' : 'Scan'}
-              onPress={meter.connect}
-              disabled={meter.phase.phase === 'scanning' || meter.phase.phase === 'connecting'}
-              testID="finish-scan"
-            />
-          )}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 function hardOrdinalAt(segments: { kind: string }[], index: number): number {
   let count = 0;
   const end = Math.min(Math.max(0, index), segments.length);
@@ -621,9 +575,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 18,
   },
-  meter: { marginTop: 28, gap: 8 },
-  meterLink: { color: colors.textDim, fontSize: 15 },
-  meterBody: { gap: 10, marginTop: 8 },
-  meterLive: { color: colors.text, fontSize: 28, fontWeight: '300', fontVariant: ['tabular-nums'] },
   idle: { flex: 1, backgroundColor: colors.bg },
 });
