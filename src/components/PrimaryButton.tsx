@@ -79,11 +79,11 @@ export function PrimaryButton({
       then?.();
       return;
     }
-    Animated.timing(scale, {
+    Animated.spring(scale, {
       toValue: to,
-      duration: 150,
-      easing: Easing.out(Easing.cubic),
       useNativeDriver: native,
+      speed: 24,
+      bounciness: 0,
     }).start(({ finished }) => {
       if (finished) then?.();
     });

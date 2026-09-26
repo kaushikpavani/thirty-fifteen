@@ -39,7 +39,7 @@ export function Atmosphere({
       breath.setValue(1);
       return;
     }
-    const half = paused ? 5200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4400 : 2800;
+    const half = paused ? 5200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4600 : 3200;
     const easing = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
@@ -107,8 +107,8 @@ export function Atmosphere({
 }
 
 function PhaseLight({ color, id, heat }: { color: string; id: string; heat: 'hot' | 'cool' }) {
-  const core = heat === 'cool' ? '0.24' : '0.35';
-  const mid = heat === 'cool' ? '0.11' : '0.16';
+  const core = heat === 'cool' ? '0.5' : '0.72';
+  const mid = heat === 'cool' ? '0.22' : '0.32';
   return (
     <Svg width="100%" height="100%">
       <Defs>
