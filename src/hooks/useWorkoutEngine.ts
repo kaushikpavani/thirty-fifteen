@@ -29,8 +29,10 @@ import {
 } from '../audio/spirit';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
-import { cuesDue, type DueCue } from '../workout/cueCatchup';
-import { nextPlayhead, runningElapsed } from '../workout/wallClock';
+import { takeCue, type DueCue } from '../workout/cueCatchup';
+import { reduceAppPresence } from '../workout/appPresence';
+import { planCatchUp } from '../workout/playhead';
+import { runningElapsed } from '../workout/wallClock';
 import {
   restartTargetMs,
   rockyKeysToRearm,
@@ -96,11 +98,10 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   }, []);
 
   const playDue = useCallback((cue: DueCue, salt: number) => {
+    if (!takeCue(firedStartRef.current, firedRockyRef.current, cue)) return;
     const s = settingsRef.current;
     const segs = workoutRef.current.segments;
     if (cue.type === 'chirp') {
-      if (firedStartRef.current.has(cue.key)) return;
-      firedStartRef.current.add(cue.key);
       if (s.hapticsEnabled) {
         const heavy = cue.kind === 'hard' || cue.kind === 'accel';
         void Haptics.impactAsync(
@@ -125,27 +126,20 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       return;
     }
     if (cue.type === 'warn') {
-      if (firedStartRef.current.has(cue.key)) return;
-      firedStartRef.current.add(cue.key);
       if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void playBeep(s, 'warn', ladderDuckMs('three'));
       return;
     }
     if (cue.type === 'ladder') {
-      if (firedStartRef.current.has(cue.key)) return;
-      firedStartRef.current.add(cue.key);
       if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void playLadder(s, cue.step, ladderTexture(cue.approach, salt), ladderDuckMs(cue.step));
       return;
     }
-    if (firedRockyRef.current.has(cue.key)) return;
-    firedRockyRef.current.add(cue.key);
     speakCue(cue, s);
   }, []);
 
   const deliver = useCallback(
-    (fromMs: number, toMs: number) => {
-      const segs = workoutRef.current.segments;
+    (toMs: number, cues: DueCue[]) => {
       const salt = varietySalt(startedAtRef.current);
       const pos = resolvePosition(toMs);
       if (pos.segment && toMs < workoutRef.current.totalMs) {
@@ -159,15 +153,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       const elapsedIn = pos.segment ? pos.segment.durationMs - pos.remaining : 0;
       const silent = pos.segment ? inSegmentSilence(elapsedIn, pos.segment.durationMs) : false;
       if (silent) stopSpeech();
-      const due = cuesDue({
-        segments: segs,
-        fromMs,
-        toMs,
-        firedClock: firedStartRef.current,
-        firedRocky: firedRockyRef.current,
-        salt,
-      });
-      for (const cue of due) {
+      for (const cue of cues) {
         if (cue.type === 'rocky' && silent) continue;
         playDue(cue, salt);
       }
@@ -194,17 +180,24 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const applyWall = useCallback(
     (wall: number) => {
       if (statusRef.current !== 'running') return;
-      const total = workoutRef.current.totalMs;
-      const to = nextPlayhead(lastCueRef.current, wall, total);
-      const from = lastCueRef.current;
-      if (to === from && wall < total) return;
+      const plan = planCatchUp({
+        segments: workoutRef.current.segments,
+        fromMs: lastCueRef.current,
+        wallMs: wall,
+        totalMs: workoutRef.current.totalMs,
+        firedClock: firedStartRef.current,
+        firedRocky: firedRockyRef.current,
+        salt: varietySalt(startedAtRef.current),
+      });
+      if (!plan.step.commit) return;
+      const to = plan.step.toMs;
       lastCueRef.current = to;
       elapsedRef.current = to;
       setElapsedMs(to);
       const pos = resolvePosition(to);
       setSegmentIndex(pos.index);
-      if (to > from) deliver(from, to);
-      if (wall >= total) finishRunning();
+      if (plan.step.deliver) deliver(to, plan.cues);
+      if (plan.step.finished) finishRunning();
     },
     [deliver, finishRunning, resolvePosition],
   );
@@ -224,14 +217,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     }, TICK_MS);
 
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'background') sawBackground.current = true;
-      if (next !== 'active') return;
-      const leftApp = sawBackground.current;
-      sawBackground.current = false;
-      if (statusRef.current !== 'running' || anchorWallRef.current == null) return;
+      const reduced = reduceAppPresence(
+        { sawBackground: sawBackground.current },
+        next,
+        { running: statusRef.current === 'running', anchored: anchorWallRef.current != null },
+      );
+      sawBackground.current = reduced.state.sawBackground;
+      if (reduced.effect === 'none') return;
       const anchor = anchorWallRef.current;
+      if (anchor == null) return;
       applyWall(runningElapsed(Date.now(), anchor, pausedAccumRef.current));
-      if (!leftApp) {
+      if (reduced.effect === 'snap') {
         kickBed();
         return;
       }
