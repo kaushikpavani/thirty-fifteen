@@ -66,6 +66,10 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. Rocky stays quiet from 3 seconds before a change through 1 second after it. The clock still marks those edges: a soft warn beep and haptic at T−3, and a phase chirp with a stronger haptic at the flip.
 
+On the way into each HARD, including the first one after the warm-up accelerations, Rocky counts "three, two, one" instead of the warn beep. The flip chirp still fires. Every other boundary keeps the warn beep and the chirp. The digits go hard-red for that count. There is no caption.
+
+A generated instrumental bed starts with the ride. Drive (brighter, louder) under HARD and the accelerations. Recover under the spin, the fifteens, set rest, and the cool-down. The bed ducks under Rocky, the count, and the beeps, then comes back. Settings → Music turns it off. Default is on. The phone's silent switch still lets the ride play, same as the cues, so a pocketed phone does not eat the count.
+
 The four lines are recorded (a direct neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate. Skip, shorten, and restart do not speak.
 
 ## During the ride
@@ -116,13 +120,13 @@ Install that build (not Expo Go). Finish a session, then open Power meter. Wake 
 
 ## Audio cues
 
-Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. A warn beep fires at T−3 and a phase chirp fires when the segment flips. Rocky does not talk over either one.
+Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. A warn beep fires at T−3 and a phase chirp fires when the segment flips. Into HARD, the spoken count takes the warn beep's place. Rocky does not talk over the clock. The beds are short original loops in the app, not a streaming service. Nothing in the ride invents watts.
 
 ---
 
 ## Settings
 
-FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, voice rate, haptics. Stored in AsyncStorage.
+FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, speech, voice rate, haptics. Stored in AsyncStorage. The finish screen's primary button says Done.
 
 ---
 

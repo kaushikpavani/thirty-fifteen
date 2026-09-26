@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  CLOCK_HIT_MS,
+  WARN_BEFORE_MS,
   clockHit,
   inSegmentSilence,
   rockyCue,
@@ -9,6 +11,16 @@ import {
   ROCKY_HARD,
   ROCKY_WELCOME,
 } from '../audio/rocky.ts';
+import {
+  BED_VOLUME,
+  DUCK_GAIN,
+  bedForKind,
+  countdownArmed,
+  countdownWord,
+  countKeys,
+  roundWon,
+  warnYieldsToCountdown,
+} from '../audio/spirit.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
@@ -23,6 +35,9 @@ import {
 
 test('default FTP 125 derives 150 hard and 63 easy', () => {
   assert.equal(DEFAULT_SETTINGS.ftpWatts, 125);
+  assert.equal(DEFAULT_SETTINGS.hardPct, 120);
+  assert.equal(DEFAULT_SETTINGS.easyPct, 50);
+  assert.equal(DEFAULT_SETTINGS.musicEnabled, true);
   assert.deepEqual(derivedWatts(125, 120, 50), { hard: 150, easy: 63 });
   const built = buildWorkout(DEFAULT_SETTINGS);
   assert.equal(built.hardWatts, 150);
@@ -117,6 +132,59 @@ test('rocky speaks only outside the silence window', () => {
   assert.equal(finish?.key, 'finish');
   assert.equal(finish?.line, ROCKY_FINISH);
   assert.equal(rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome', 'finish']) }), null);
+});
+
+test('drive bed is for hard and accel, and it ducks harder than it speaks', () => {
+  assert.equal(bedForKind('hard'), 'drive');
+  assert.equal(bedForKind('accel'), 'drive');
+  for (const kind of ['warmup', 'easy', 'set_rest', 'cooldown', 'done']) {
+    assert.equal(bedForKind(kind), 'recover');
+  }
+  assert.ok(BED_VOLUME.drive > BED_VOLUME.recover);
+  assert.ok(DUCK_GAIN <= 0.1);
+});
+
+test('spoken 3-2-1 only into HARD and inside the Rocky silence', () => {
+  const built = buildWorkout(DEFAULT_SETTINGS);
+  const firstHard = built.segments.findIndex((segment) => segment.kind === 'hard');
+  const settle = built.segments[firstHard - 1];
+  assert.equal(settle?.kind, 'warmup');
+  assert.equal(built.segments[firstHard - 2]?.kind, 'accel');
+  assert.ok(settle);
+  assert.equal(countdownArmed(settle.durationMs, 'hard'), true);
+  assert.equal(countdownWord(settle.durationMs - WARN_BEFORE_MS, settle.durationMs, 'hard'), 'three');
+  assert.equal(countdownWord(settle.durationMs - WARN_BEFORE_MS + CLOCK_HIT_MS, settle.durationMs, 'hard'), null);
+  assert.equal(countdownWord(settle.durationMs - 2900, settle.durationMs, 'hard'), 'three');
+  assert.equal(countdownWord(settle.durationMs - 1900, settle.durationMs, 'hard'), 'two');
+  assert.equal(countdownWord(settle.durationMs - 900, settle.durationMs, 'hard'), 'one');
+  assert.equal(countdownWord(200, settle.durationMs, 'hard'), null);
+  assert.equal(countdownWord(settle.durationMs - 2900, settle.durationMs, 'warmup'), null);
+  assert.equal(countdownWord(100, 2_000, 'hard'), null);
+  assert.equal(clockHit(settle.durationMs - 2900, settle.durationMs), 'warn');
+  assert.equal(warnYieldsToCountdown('hard', true), true);
+  assert.equal(warnYieldsToCountdown('hard', false), false);
+  assert.equal(warnYieldsToCountdown('easy', true), false);
+
+  for (const at of [2900, 1900, 900]) {
+    const elapsed = settle.durationMs - at;
+    assert.equal(inSegmentSilence(elapsed, settle.durationMs), true);
+    assert.equal(countdownWord(elapsed, settle.durationMs, 'hard') !== null, at === 2900 || at === 1900 || at === 900);
+  }
+
+  const easy = built.segments.find((segment) => segment.kind === 'easy');
+  assert.ok(easy);
+  assert.equal(countdownWord(easy.durationMs - 2900, easy.durationMs, 'hard'), 'three');
+  assert.equal(rockyCue({
+    elapsedMs: easy.durationMs - 1500,
+    segments: [easy],
+    fired: new Set(),
+  }), null);
+
+  assert.equal(roundWon('hard', 'easy'), true);
+  assert.equal(roundWon('hard', 'set_rest'), false);
+  assert.equal(roundWon('accel', 'warmup'), false);
+  assert.equal(roundWon(null, 'easy'), false);
+  assert.deepEqual(countKeys('hard-1'), ['count:hard-1:three', 'count:hard-1:two', 'count:hard-1:one']);
 });
 
 test('restart, shorten, and skip move the playhead without ending early', () => {

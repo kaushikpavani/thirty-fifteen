@@ -1,5 +1,7 @@
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
+import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
+import { BEEP_DUCK_MS, COUNT_DUCK_MS, rockyDuckMs, type CountWord } from './spirit';
 
 const beepModules = {
   go: require('../../assets/beep-go.wav'),
@@ -15,8 +17,15 @@ const rockyModules = {
   finish: require('../../assets/rocky/finish.mp3'),
 } as const;
 
+const countModules = {
+  three: require('../../assets/count/three.mp3'),
+  two: require('../../assets/count/two.mp3'),
+  one: require('../../assets/count/one.mp3'),
+} as const;
+
 type BeepKind = keyof typeof beepModules;
 type RockyKind = keyof typeof rockyModules;
+type CountKind = keyof typeof countModules;
 type ExpoAudioModule = Pick<typeof import('expo-audio'), 'createAudioPlayer' | 'setAudioModeAsync'>;
 type Player = ReturnType<ExpoAudioModule['createAudioPlayer']>;
 
@@ -24,6 +33,7 @@ let expoAudio: ExpoAudioModule | null | undefined;
 let audioReady = false;
 let beepsUnavailable = false;
 let rockyReady = false;
+let countReady = false;
 let initPromise: Promise<void> | null = null;
 let voicePromise: Promise<void> | null = null;
 let voiceResolved = false;
@@ -31,6 +41,7 @@ let voiceId: string | undefined;
 let rockyToken = 0;
 const cache: Partial<Record<BeepKind, Player>> = {};
 const rockyCache: Partial<Record<RockyKind, Player>> = {};
+const countCache: Partial<Record<CountKind, Player>> = {};
 
 const NOVELTY =
   /eloquence|bad news|bahh|bells|boing|bubbles|cellos|zarvox|trinoids|whisper|organ|superstar|jester|\bflo\b|grandma|grandpa|junior|kathy|ralph|albert/i;
@@ -67,8 +78,18 @@ function releasePlayers(): void {
     }
     delete rockyCache[key];
   }
+  for (const key of Object.keys(countCache) as CountKind[]) {
+    try {
+      countCache[key]?.remove();
+    } catch {
+      // ignore
+    }
+    delete countCache[key];
+  }
+  releaseMusicPlayers();
   audioReady = false;
   rockyReady = false;
+  countReady = false;
 }
 
 function rockyKind(key: string): RockyKind | null {
@@ -150,6 +171,25 @@ async function preparePlayers(): Promise<void> {
       }
       rockyReady = false;
     }
+    try {
+      for (const key of Object.keys(countModules) as CountKind[]) {
+        const player = audio.createAudioPlayer(countModules[key]);
+        player.volume = 1;
+        countCache[key] = player;
+      }
+      countReady = true;
+    } catch {
+      for (const key of Object.keys(countCache) as CountKind[]) {
+        try {
+          countCache[key]?.remove();
+        } catch {
+          // ignore
+        }
+        delete countCache[key];
+      }
+      countReady = false;
+    }
+    attachMusicPlayers((source) => audio.createAudioPlayer(source));
   } catch {
     releasePlayers();
     beepsUnavailable = true;
@@ -203,9 +243,11 @@ export function speakCue(cue: { key: string; line: string }, settings: WorkoutSe
   const kind = rockyKind(cue.key);
   const player = kind && rockyReady ? rockyCache[kind] : undefined;
   if (!player) {
+    duckMusic(rockyDuckMs(cue.key));
     speakFallback(cue.line, settings);
     return;
   }
+  duckMusic(rockyDuckMs(cue.key));
   const token = ++rockyToken;
   try {
     Speech.stop();
@@ -292,12 +334,81 @@ export function unlockRockyFromGesture(): void {
   }
 }
 
+export function playCountdown(word: CountWord, settings: WorkoutSettings): void {
+  if (!settings.speechEnabled) return;
+  duckMusic(COUNT_DUCK_MS);
+  const player = countReady ? countCache[word] : undefined;
+  if (!player) {
+    speakFallback(word, settings);
+    return;
+  }
+  try {
+    Speech.stop();
+  } catch {
+    // ignore
+  }
+  try {
+    player.volume = 1;
+    void player.seekTo(0).then(() => {
+      swallowPlayRejections(() => {
+        player.play();
+      });
+    }).catch(() => {
+      speakFallback(word, settings);
+    });
+  } catch {
+    speakFallback(word, settings);
+  }
+}
+
+export function stopCountdown(): void {
+  for (const key of Object.keys(countCache) as CountKind[]) {
+    try {
+      countCache[key]?.pause();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/** Web only. Prime the count clips on the Start tap so they can speak later. */
+export function unlockCountdownFromGesture(): void {
+  if (typeof document === 'undefined' || !countReady) return;
+  for (const key of Object.keys(countCache) as CountKind[]) {
+    const player = countCache[key];
+    if (!player) continue;
+    try {
+      player.volume = 0;
+      swallowPlayRejections(() => {
+        player.play();
+      });
+    } catch {
+      // ignore
+    }
+  }
+  setTimeout(() => {
+    for (const key of Object.keys(countCache) as CountKind[]) {
+      const player = countCache[key];
+      if (!player) continue;
+      try {
+        if (player.volume !== 0) continue;
+        player.pause();
+        void player.seekTo(0);
+        player.volume = 1;
+      } catch {
+        // ignore
+      }
+    }
+  }, 80);
+}
+
 export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go'): Promise<void> {
   if (!settings.beepsEnabled || beepsUnavailable) return;
   try {
     if (!audioReady) await initAudio();
     const player = cache[kind];
     if (!player) return;
+    duckMusic(BEEP_DUCK_MS);
     await player.seekTo(0);
     player.play();
   } catch {

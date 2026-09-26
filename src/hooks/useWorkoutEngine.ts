@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, playBeep, speakCue, stopSpeech, unlockRockyFromGesture } from '../audio/cues';
+import {
+  initAudio,
+  playBeep,
+  playCountdown,
+  speakCue,
+  stopCountdown,
+  stopSpeech,
+  unlockCountdownFromGesture,
+  unlockRockyFromGesture,
+} from '../audio/cues';
+import { armMusicFromGesture, pauseMusic, releaseDuck, stopMusic, syncMusic } from '../audio/music';
 import { clockHit, inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
+import { countdownWord, countKeys, warnYieldsToCountdown } from '../audio/spirit';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
 import {
@@ -73,18 +84,22 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     let acc = 0;
     let current: { seg: Segment; elapsedIn: number } | null = null;
 
+    let nextKind: string | null = null;
     for (let i = 0; i < segs.length; i++) {
       const seg = segs[i];
       const start = acc;
       const end = acc + seg.durationMs;
       if (elapsed >= start && elapsed < end) {
         current = { seg, elapsedIn: elapsed - start };
+        nextKind = segs[i + 1]?.kind ?? null;
         break;
       }
       acc = end;
     }
 
     if (!current) return;
+
+    syncMusic(current.seg.kind, s.musicEnabled);
 
     const hit = clockHit(current.elapsedIn, current.seg.durationMs);
     if (hit) {
@@ -101,13 +116,25 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
                 : Haptics.ImpactFeedbackStyle.Medium,
           );
         }
-        const chirp =
-          current.seg.kind === 'easy' || current.seg.kind === 'set_rest'
-            ? 'easy'
-            : current.seg.kind === 'cooldown'
-              ? 'done'
-              : 'go';
-        void playBeep(s, hit === 'warn' ? 'warn' : chirp);
+        const spokenCount = hit === 'warn' && warnYieldsToCountdown(nextKind, s.speechEnabled);
+        if (!spokenCount) {
+          const chirp =
+            current.seg.kind === 'easy' || current.seg.kind === 'set_rest'
+              ? 'easy'
+              : current.seg.kind === 'cooldown'
+                ? 'done'
+                : 'go';
+          void playBeep(s, hit === 'warn' ? 'warn' : chirp);
+        }
+      }
+    }
+
+    const word = countdownWord(current.elapsedIn, current.seg.durationMs, nextKind);
+    if (word) {
+      const key = `count:${current.seg.id}:${word}`;
+      if (!firedStartRef.current.has(key)) {
+        firedStartRef.current.add(key);
+        playCountdown(word, s);
       }
     }
 
@@ -146,6 +173,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (wall >= workoutRef.current.totalMs) {
         setStatus('finished');
         setElapsedMs(workoutRef.current.totalMs);
+        stopMusic();
         void deactivateKeepAwake('workout');
       }
     }, TICK_MS);
@@ -164,6 +192,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setSegmentIndex(0);
     anchorWallRef.current = null;
     unlockRockyFromGesture();
+    unlockCountdownFromGesture();
+    armMusicFromGesture(settingsRef.current.musicEnabled);
     try {
       await activateKeepAwakeAsync('workout');
     } catch {
@@ -173,6 +203,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = Date.now();
     pausedAccumRef.current = 0;
     setStatus('running');
+    const opening = workoutRef.current.segments[0];
+    if (opening) syncMusic(opening.kind, settingsRef.current.musicEnabled);
   }, []);
 
   const pause = useCallback(() => {
@@ -184,13 +216,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = null;
     setStatus('paused');
     stopSpeech();
+    stopCountdown();
+    pauseMusic();
   }, []);
 
   const resume = useCallback(() => {
     if (statusRef.current !== 'paused') return;
     anchorWallRef.current = Date.now();
     setStatus('running');
-  }, []);
+    const current = resolvePosition(elapsedRef.current).segment;
+    if (current) syncMusic(current.kind, settingsRef.current.musicEnabled);
+  }, [resolvePosition]);
 
   const seekTo = useCallback(
     (targetMs: number, rearmCurrent: boolean) => {
@@ -199,10 +235,13 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       const total = workoutRef.current.totalMs;
       const current = resolvePosition(elapsedRef.current);
       stopSpeech();
+      stopCountdown();
+      releaseDuck();
 
       if (rearmCurrent && current.segment) {
         firedStartRef.current.delete(`chirp:${current.segment.id}`);
         firedStartRef.current.delete(`warn:${current.segment.id}`);
+        for (const key of countKeys(current.segment.id)) firedStartRef.current.delete(key);
         for (const key of rockyKeysToRearm(current.segment, segmentStartMs(segs, current.index))) {
           firedRockyRef.current.delete(key);
         }
@@ -220,15 +259,21 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
         setElapsedMs(total);
         setSegmentIndex(Math.max(0, segs.length - 1));
         setStatus('finished');
+        stopMusic();
         void deactivateKeepAwake('workout');
         return;
       }
+
+      const landed = resolvePosition(next);
 
       elapsedRef.current = next;
       pausedAccumRef.current = next;
       anchorWallRef.current = statusRef.current === 'running' ? Date.now() : null;
       setElapsedMs(next);
-      setSegmentIndex(resolvePosition(next).index);
+      setSegmentIndex(landed.index);
+      if (statusRef.current === 'running' && landed.segment) {
+        syncMusic(landed.segment.kind, settingsRef.current.musicEnabled);
+      }
     },
     [resolvePosition],
   );
@@ -253,6 +298,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
   const stop = useCallback(() => {
     stopSpeech();
+    stopCountdown();
+    stopMusic();
     armedRef.current = false;
     anchorWallRef.current = null;
     pausedAccumRef.current = 0;

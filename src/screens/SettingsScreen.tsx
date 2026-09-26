@@ -50,7 +50,17 @@ function NumField({
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  label,
+  value,
+  onChange,
+  testID,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  testID?: string;
+}) {
   return (
     <View style={styles.toggleRow}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -59,6 +69,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
         onValueChange={onChange}
         trackColor={{ false: colors.bgSoft, true: colors.textDim }}
         thumbColor={value ? colors.white : colors.textMuted}
+        testID={testID}
       />
     </View>
   );
@@ -121,6 +132,7 @@ export function SettingsScreen() {
         <NumField label="Cool-down" value={draft.cooldownMin} onChange={(n) => patch('cooldownMin', Math.round(n))} suffix="min" min={3} max={20} />
 
         <Text style={styles.section}>Audio</Text>
+        <Toggle label="Music" value={draft.musicEnabled} onChange={(v) => patch('musicEnabled', v)} testID="music-toggle" />
         <Toggle label="Spoken cues" value={draft.speechEnabled} onChange={(v) => patch('speechEnabled', v)} />
         <NumField label="Voice rate" value={draft.voiceRate} onChange={(n) => patch('voiceRate', n)} min={0.7} max={1.4} step={0.05} />
         <Toggle label="Haptics" value={draft.hapticsEnabled} onChange={(v) => patch('hapticsEnabled', v)} />

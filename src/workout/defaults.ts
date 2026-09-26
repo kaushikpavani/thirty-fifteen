@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   cueLeadMs: 800,
   beepsEnabled: true,
   hapticsEnabled: true,
+  musicEnabled: true,
 };
 
 export const TIP = 'Light pressure on the fifteens. Stay turning.';

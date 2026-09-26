@@ -14,6 +14,8 @@ type Props = {
   /** Easy and rest breathe slower and a notch quieter than hard. */
   heat?: 'hot' | 'cool';
   reduceMotion?: boolean;
+  /** Increments on a round won, and on the finish screen. One glow punch, then still. */
+  punch?: number;
 };
 
 /**
@@ -26,8 +28,11 @@ export function Atmosphere({
   paused = false,
   heat = 'hot',
   reduceMotion = false,
+  punch = 0,
 }: Props) {
   const breath = useRef(new Animated.Value(1)).current;
+  const burst = useRef(new Animated.Value(0)).current;
+  const punchSeen = useRef<number | null>(null);
   const aOpacity = useRef(new Animated.Value(1)).current;
   const bOpacity = useRef(new Animated.Value(0)).current;
   const [aColor, setAColor] = useState(color);
@@ -72,6 +77,23 @@ export function Atmosphere({
     }
   }, [aColor, aOpacity, bColor, bOpacity, color, reduceMotion]);
 
+  useEffect(() => {
+    if (punchSeen.current === punch) return;
+    const first = punchSeen.current === null;
+    punchSeen.current = punch;
+    if (reduceMotion || (first && punch === 0)) {
+      burst.setValue(0);
+      return;
+    }
+    burst.setValue(1);
+    Animated.timing(burst, {
+      toValue: 0,
+      duration: 520,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: native,
+    }).start();
+  }, [burst, punch, reduceMotion]);
+
   const scale = breath.interpolate({
     inputRange: [0, 1],
     outputRange: reduceMotion || paused ? [1, 1] : [1, heat === 'cool' ? 1.05 : 1.08],
@@ -98,6 +120,22 @@ export function Atmosphere({
             </Animated.View>
             <Animated.View style={[styles.fill, { opacity: bOpacity }]} pointerEvents="none">
               <PhaseLight color={bColor} id="phase-b" heat={heat} />
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.fill,
+                {
+                  opacity: burst,
+                  transform: [
+                    {
+                      scale: burst.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <PhaseLight color={colors.go} id="round-won" heat="hot" />
             </Animated.View>
           </>
         )}

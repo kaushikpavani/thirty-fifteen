@@ -11,6 +11,7 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
+import { countdownArmed, roundWon } from '../audio/spirit';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
@@ -25,6 +26,8 @@ export function ActiveScreen() {
   const reduceMotion = useReduceMotion();
   const savedRef = useRef<number | null>(null);
   const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
+  const [won, setWon] = useState(0);
+  const prevKind = useRef<string | null>(null);
 
   const { state } = engine;
   const seg = state.segment;
@@ -36,6 +39,21 @@ export function ActiveScreen() {
   const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
   const heroSize = Math.min(160, Math.round(width * 0.4));
   const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
+  const intoHard =
+    state.status === 'running' &&
+    countdownArmed(duration, state.nextSegment?.kind) &&
+    remaining <= 3000 &&
+    remaining > 0;
+
+  useEffect(() => {
+    if (state.status === 'idle') {
+      prevKind.current = null;
+      return;
+    }
+    const previous = prevKind.current;
+    prevKind.current = kind;
+    if (roundWon(previous, kind)) setWon((value) => value + 1);
+  }, [kind, seg?.id, state.status]);
 
   useEffect(() => {
     if (!engine.armedRef.current) router.replace('/home');
@@ -132,10 +150,12 @@ export function ActiveScreen() {
   if (state.status === 'finished') {
     return (
       <Screen bottom>
+        <Atmosphere color={colors.go} heat="hot" punch={1} reduceMotion={reduceMotion} />
+        <SegmentRail progress={1} color={colors.go} flash={1} reduceMotion={reduceMotion} />
         <View style={styles.done}>
-          <Text style={styles.doneTitle}>Done.</Text>
+          <FinishTitle reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
-          <PrimaryButton label="Home" onPress={leave} testID="done-home" />
+          <PrimaryButton label="Done" onPress={leave} testID="done" />
           <FinishMeter />
         </View>
       </Screen>
@@ -148,13 +168,25 @@ export function ActiveScreen() {
 
   return (
     <Screen bottom>
-      <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
-      <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
+      <Atmosphere
+        color={accent}
+        paused={paused}
+        heat={cool ? 'cool' : 'hot'}
+        punch={won}
+        reduceMotion={reduceMotion}
+      />
+      <SegmentRail
+        progress={segmentProgress}
+        color={accent}
+        paused={paused}
+        flash={won}
+        reduceMotion={reduceMotion}
+      />
       <View style={styles.body}>
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
         <DigitClock
           value={clock}
-          color={colors.text}
+          color={intoHard ? colors.hard : colors.text}
           fontSize={fontSize}
           dim={paused}
           phase={kind}
@@ -372,6 +404,23 @@ function PauseResume({
         <Animated.Text style={[styles.pauseLabel, { color: textColor, opacity: textOpacity }]}>{word}</Animated.Text>
       </Pressable>
     </Animated.View>
+  );
+}
+
+function FinishTitle({ reduceMotion }: { reduceMotion: boolean }) {
+  const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.94)).current;
+  const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0.35)).current;
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    Animated.parallel([
+      Animated.timing(scale, { toValue: 1, duration: 460, useNativeDriver: nativeMotion }),
+      Animated.timing(opacity, { toValue: 1, duration: 380, useNativeDriver: nativeMotion }),
+    ]).start();
+  }, [opacity, reduceMotion, scale]);
+
+  return (
+    <Animated.Text style={[styles.doneTitle, { opacity, transform: [{ scale }] }]}>Done.</Animated.Text>
   );
 }
 
