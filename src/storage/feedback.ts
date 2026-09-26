@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice, track } from './cloud';
-import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem } from './cloudRow';
+import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, withoutSent } from './cloudRow';
 import { createId } from './id';
 
 const KEY = '@thirtyfifteen/feedback-outbox/v1';
@@ -118,8 +118,13 @@ async function flushFeedbackUnsafe(): Promise<number> {
   }
   if (sent.size === 0) return 0;
   const latest = await loadOutbox();
-  await saveOutbox(latest.filter((note) => !sent.has(note.id)));
+  await saveOutbox(withoutSent(latest, sent));
   return sent.size;
+}
+
+/** Drop notes that have not left the phone. */
+export async function clearFeedbackOutbox(): Promise<void> {
+  await saveOutbox([]);
 }
 
 export async function submitFeedback(
