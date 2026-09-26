@@ -1,10 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { useAuth } from '../auth/AuthContext';
+import { useHistory } from '../state/HistoryContext';
 import { syncProfile } from '../storage/cloud';
+import { eraseThisDevice, requestAccountDelete, clearQueuedOutboxes } from '../storage/deletion';
+import {
+  accountDeleteNote,
+  deviceEraseNote,
+  historyDeleteNote,
+  outboxClearNote,
+  settingsResetNote,
+} from '../storage/deletionState';
 import { useSettings } from '../state/SettingsContext';
 import { colors } from '../theme/colors';
 import type { WorkoutSettings } from '../types';
@@ -79,8 +88,11 @@ function Toggle({
 
 export function SettingsScreen() {
   const { settings, update } = useSettings();
+  const history = useHistory();
   const auth = useAuth();
   const [draft, setDraft] = useState(settings);
+  const [dataNote, setDataNote] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
   const watts = useMemo(
     () => derivedWatts(draft.ftpWatts, draft.hardPct, draft.easyPct),
     [draft.ftpWatts, draft.hardPct, draft.easyPct],
@@ -95,6 +107,77 @@ export function SettingsScreen() {
     await update(draft);
     if (auth.user) void syncProfile(auth.user);
     router.back();
+  };
+
+  const resetSettings = async () => {
+    const next = { ...DEFAULT_SETTINGS };
+    setDraft(next);
+    await update(next);
+    setDataNote(settingsResetNote());
+  };
+
+  const deleteHistory = async () => {
+    if (acting) return;
+    setActing(true);
+    try {
+      const cloud = await history.clearSessions();
+      setDataNote(historyDeleteNote(cloud));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const clearQueues = async () => {
+    if (acting) return;
+    setActing(true);
+    try {
+      await clearQueuedOutboxes();
+      setDataNote(outboxClearNote());
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const erasePhone = async () => {
+    if (acting) return;
+    setActing(true);
+    try {
+      const historyCloud = await history.clearSessions();
+      const deviceCloud = await eraseThisDevice();
+      const next = { ...DEFAULT_SETTINGS };
+      setDraft(next);
+      await update(next);
+      await auth.setLocalName('');
+      setDataNote(`${historyDeleteNote(historyCloud)} ${deviceEraseNote(deviceCloud)}`);
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const deleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This removes your cloud profile, sessions, analytics, and notes, then signs you out. Sessions still on this phone stay until you delete workout history. If the phone is offline, you stay signed in until the delete finishes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (acting) return;
+              setActing(true);
+              try {
+                const cloud = await requestAccountDelete();
+                setDataNote(accountDeleteNote(cloud));
+              } finally {
+                setActing(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -193,8 +276,46 @@ export function SettingsScreen() {
         )}
         {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
 
+        <Text style={styles.section}>Your data</Text>
+        <View style={styles.block}>
+          <Text style={styles.accountMeta}>
+            Sessions, FTP, and notes live on this phone. You can delete them here. An account is optional and copies finished sessions when you are online. This coach is free.
+          </Text>
+          <PrimaryButton
+            variant="hairline"
+            label="Delete workout history"
+            onPress={() => void deleteHistory()}
+            disabled={acting}
+            testID="delete-history"
+          />
+          <PrimaryButton
+            variant="hairline"
+            label="Clear queued notes and analytics"
+            onPress={() => void clearQueues()}
+            disabled={acting}
+            testID="clear-outbox"
+          />
+          <PrimaryButton
+            variant="hairline"
+            label="Erase data on this phone"
+            onPress={() => void erasePhone()}
+            disabled={acting}
+            testID="erase-device"
+          />
+          {auth.user ? (
+            <PrimaryButton
+              variant="danger"
+              label="Delete account and cloud data"
+              onPress={deleteAccount}
+              disabled={acting}
+              testID="delete-account"
+            />
+          ) : null}
+          {dataNote ? <Text style={styles.accountMeta}>{dataNote}</Text> : null}
+        </View>
+
         <PrimaryButton label="Save" onPress={() => void save()} testID="save-settings" />
-        <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => setDraft({ ...DEFAULT_SETTINGS })} />
+        <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => void resetSettings()} testID="reset-settings" />
       </ScrollView>
     </Screen>
   );

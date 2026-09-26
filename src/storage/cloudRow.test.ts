@@ -8,6 +8,7 @@ import {
   feedbackDeviceProblem,
   legacyWorkoutSessionWrite,
   trimOutbox,
+  withoutSent,
   workoutRowsForRetry,
   workoutSessionWrite,
 } from './cloudRow.ts';
@@ -73,6 +74,17 @@ test('a retried outbox row is not a new failure', () => {
   assert.equal(clientColumnMissing('client_id', "Could not find the 'client_id' column of 'app_feedback' in the schema cache"), true);
   assert.equal(clientColumnMissing('client_event_id', 'Failed to fetch'), false);
   assert.deepEqual(trimOutbox([1, 2, 3], 2), [1, 2]);
+  const sent = new Set(['a']);
+  assert.deepEqual(
+    withoutSent(
+      [
+        { id: 'b', name: 'added-while-flushing' },
+        { id: 'a', name: 'sent' },
+      ],
+      sent,
+    ).map((row) => row.id),
+    ['b'],
+  );
 });
 
 test('feedback can fall back when device_id is not in the table yet', () => {
