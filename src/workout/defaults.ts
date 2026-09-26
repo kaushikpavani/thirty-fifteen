@@ -1,7 +1,7 @@
 import type { WorkoutSettings } from '../types';
 
 export const DEFAULT_SETTINGS: WorkoutSettings = {
-  ftpWatts: 120,
+  ftpWatts: 125,
   hardPct: 120,
   easyPct: 50,
   warmupMin: 12,

@@ -1,5 +1,5 @@
-import { WelcomeScreen } from '../screens/WelcomeScreen';
+import { HomeScreen } from '../screens/HomeScreen';
 
-export default function WelcomeRoute() {
-  return <WelcomeScreen />;
+export default function IndexRoute() {
+  return <HomeScreen />;
 }

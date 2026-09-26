@@ -1,39 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
-import { useHistory } from '../state/HistoryContext';
-import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
-import { hasCompletedFtpOnboarding, markFtpOnboardingDone } from '../storage/settings';
+import { markFtpOnboardingDone } from '../storage/settings';
 import { sessionSummary } from '../workout/builder';
 import { derivedWatts, TIP } from '../workout/defaults';
 
 export function HomeScreen() {
   const { settings, update } = useSettings();
-  const history = useHistory();
-  const meter = usePowerMeter();
   const engine = useWorkout();
   const [ftpOpen, setFtpOpen] = useState(false);
-  const [ftpMode, setFtpMode] = useState<'onboard' | 'edit'>('onboard');
   const summary = sessionSummary(settings);
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
-
-  useEffect(() => {
-    let cancelled = false;
-    void hasCompletedFtpOnboarding().then((done) => {
-      if (cancelled || done) return;
-      setFtpMode('onboard');
-      setFtpOpen(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const saveFtp = async (ftp: number) => {
     await update({ ...settings, ftpWatts: ftp });
@@ -51,19 +34,11 @@ export function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.top}>
           <Text style={styles.brand}>30/15</Text>
-          {history.streak > 0 ? (
-            <Text style={styles.streak}>
-              {history.streak} {history.streak === 1 ? 'DAY' : 'DAYS'}
-            </Text>
-          ) : null}
         </View>
 
         <Pressable
           style={styles.hero}
-          onPress={() => {
-            setFtpMode('edit');
-            setFtpOpen(true);
-          }}
+          onPress={() => setFtpOpen(true)}
           testID="edit-ftp"
         >
           <Text style={styles.kicker}>FTP</Text>
@@ -89,29 +64,13 @@ export function HomeScreen() {
         </Text>
         <Text style={styles.tip}>{TIP}</Text>
 
-        {meter.live ? (
-          <Text style={styles.live} testID="home-live-watts">
-            Live {meter.live.watts} W
-            {meter.live.speedKph != null ? ` · ${meter.live.speedKph.toFixed(1)} km/h` : ''}
-          </Text>
-        ) : null}
-
         <View style={styles.goWrap}>
           <PrimaryButton label="GO" onPress={() => void start()} testID="go" />
         </View>
 
         <View style={styles.links}>
-          <Pressable onPress={() => router.push('/history')} testID="open-history">
-            <Text style={styles.link}>History</Text>
-          </Pressable>
           <Pressable onPress={() => router.push('/settings')} testID="open-settings">
             <Text style={styles.link}>Settings</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/about')} testID="open-about">
-            <Text style={styles.link}>Science</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/feedback')} testID="open-feedback">
-            <Text style={styles.link}>Feedback</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -121,7 +80,7 @@ export function HomeScreen() {
         initialFtp={settings.ftpWatts}
         hardPct={settings.hardPct}
         easyPct={settings.easyPct}
-        mode={ftpMode}
+        mode="edit"
         onConfirm={(ftp) => {
           void saveFtp(ftp);
         }}

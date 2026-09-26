@@ -45,7 +45,7 @@ export function HistoryScreen() {
         {groups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>No sessions yet.</Text>
-            <Text style={styles.emptyBody}>The leaderboard is empty.</Text>
+            <Text style={styles.emptyBody}>Finish a session and it will show up here.</Text>
           </View>
         ) : (
           groups.map((group) => (

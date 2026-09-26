@@ -32,47 +32,27 @@ Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go 
 
 ### Default power (editable)
 
-- **FTP = 120 W** (asked once, always editable)
-- **HARD** = 120% FTP → **144 W**
-- **EASY** = 50% FTP → **60 W**
+- **FTP = 125 W** (editable, never a gate)
+- **HARD** = 120% FTP → **150 W**
+- **EASY** = 50% FTP → **63 W**
 
-A saved FTP is left alone. Only a fresh install starts at 120 W.
+A saved FTP is left alone. A fresh install starts at 125 W. Open the app and press **GO**. That is the start. There is no sign-in before the first hard interval.
 
 ---
 
-## Welcome, account, history
+## Start
 
-The first screen greets you by time of day. A streak of completed sessions replaces that line. If you are signed in, the name comes from Google or Facebook. Otherwise type one. It stays on the phone.
+The first screen is home: FTP, the hard and easy targets, and **GO**. No account, no name, no streak. Settings holds the structure, spoken cues, past sessions, and an optional note.
 
-Sessions are written to **AsyncStorage** when a workout finishes, or when you stop after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. A streak counts **finished** sessions on consecutive days. Today can still be empty; yesterday’s chain still counts.
+## History
 
-### Google and Facebook (Supabase)
+Sessions are written to **AsyncStorage** when a workout finishes, or when you end one after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. Open them from Settings. The home screen does not keep a streak.
 
-Sign-in uses [Supabase Auth](https://supabase.com/docs/guides/auth) with `expo-auth-session` / `expo-web-browser`. That path works in Expo Go. Native Google and Facebook SDKs do not.
-
-1. Create a project at [database.new](https://database.new).
-2. Copy `.env.example` to `.env.local`:
-
-```bash
-EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
-```
-
-`EXPO_PUBLIC_SUPABASE_ANON_KEY` is accepted if you still have the older anon key name.
-
-3. In Supabase, enable **Google** and **Facebook** under Authentication → Providers.
-   - Google Cloud: create a **Web** OAuth client. Authorized redirect URI: `https://YOUR_PROJECT.supabase.co/auth/v1/callback`
-   - Facebook: add the same Supabase callback as a valid OAuth redirect. Development mode only allows test users.
-4. Authentication → URL configuration → add the redirect the app shows on the sign-in note. In Expo Go it looks like `exp://127.0.0.1:8081/--/auth-callback`. Also add `thirtyfifteen://auth-callback` for a dev or store build.
-5. Open the SQL editor and run [`supabase/workout_sessions.sql`](supabase/workout_sessions.sql).
-
-Restart Expo after changing env vars (`npx expo start`). The session is stored in AsyncStorage, so the rider stays signed in.
-
-Without those env vars the app still rides. Google and Facebook explain what is missing. History stays on the device.
+There is no sign-in on this path. The workout does not wait on an account.
 
 ### Feedback
 
-Home and Settings both open a free-form note. It is optional. Riders can be rude, kind, or specific. No rating, no account.
+Settings → Leave a note. It is optional and free-form. No rating. No account.
 
 When Supabase is configured, Send writes a row to `app_feedback`. Run [`supabase/app_feedback.sql`](supabase/app_feedback.sql) in the SQL editor. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
 
@@ -80,11 +60,15 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 ---
 
+## Audio
+
+Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. From 3 seconds before a change through 1 second after it, the clock is silent.
+
 ## Power meter
 
-The app speaks **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Speed is shown only when the trainer sends it. Nothing is simulated.
+The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. The workout screen shows the target only.
 
-**Expo Go and the browser cannot connect.** Open Settings → Power meter → Connect and the screen says a development build is required.
+**Expo Go and the browser have no pair sheet and no power strip.** On a development build, Finish offers an optional power meter after you are done.
 
 To connect a real meter:
 
@@ -109,7 +93,7 @@ npx eas-cli@latest build --profile development --platform ios
 npx expo start --dev-client
 ```
 
-Install that build (not Expo Go). Settings → Power meter → Connect. Wake the trainer, pick it from the list. On the workout screen, **LIVE** watts replace the target as the power readout. The target stays underneath. If the radio drops for more than a few seconds, the screen falls back to target watts.
+Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The workout clock itself stays on target watts.
 
 `react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
@@ -117,22 +101,22 @@ Install that build (not Expo Go). Settings → Power meter → Connect. Wake the
 
 ## Audio cues
 
-Spoken cues use **expo-speech**. Beeps use **expo-audio** (not expo-av). They fire about 0.8s early. Beeps mix with other audio and play with the ringer switch off.
+Spoken cues use **expo-speech**. The player module is **expo-audio** (not expo-av). Transition beeps are not fired: the three seconds before a change and the second after it stay quiet.
 
 ---
 
 ## Settings
 
-FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, voice rate, beeps, haptics, cue lead. Stored in AsyncStorage.
+FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, voice rate, haptics. Stored in AsyncStorage.
 
 ---
 
 ## Limitations
 
 - The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
-- Cloud history sync needs the Supabase table and a signed-in session. Failures stay local and say so.
+- History on this path stays on the phone. There is no account step before the workout.
 - Feedback reaches you only after `app_feedback` exists. Until then the note stays on the phone.
-- Bluetooth needs a development build. Expo Go is honest about that.
+- A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
 
 ---
 

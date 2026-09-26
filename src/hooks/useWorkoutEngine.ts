@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, playBeep, speak, stopSpeech } from '../audio/cues';
+import { initAudio, speak, stopSpeech } from '../audio/cues';
+import { inSegmentSilence, rockyCue } from '../audio/rocky';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
 
@@ -32,7 +33,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const anchorWallRef = useRef<number | null>(null);
   const pausedAccumRef = useRef(0);
   const firedStartRef = useRef<Set<string>>(new Set());
-  const firedEndRef = useRef<Set<string>>(new Set());
+  const firedRockyRef = useRef<Set<string>>(new Set());
   const settingsRef = useRef(settings);
   const workoutRef = useRef(workout);
 
@@ -62,65 +63,49 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const fireCuesFor = useCallback((elapsed: number) => {
     const s = settingsRef.current;
     const segs = workoutRef.current.segments;
-    const lead = s.cueLeadMs ?? 800;
     let acc = 0;
+    let current: { seg: Segment; elapsedIn: number } | null = null;
 
     for (let i = 0; i < segs.length; i++) {
       const seg = segs[i];
       const start = acc;
       const end = acc + seg.durationMs;
-
-      // Start cue shortly after segment begins
-      if (elapsed >= start && elapsed < start + 400) {
-        const key = `start:${seg.id}`;
-        if (!firedStartRef.current.has(key)) {
-          firedStartRef.current.add(key);
-          const beepKind =
-            seg.kind === 'hard' || seg.kind === 'accel'
-              ? 'go'
-              : seg.kind === 'easy' || seg.kind === 'set_rest' || seg.kind === 'cooldown'
-                ? 'easy'
-                : 'warn';
-          void playBeep(s, beepKind);
-          if (seg.startCue) speak(seg.startCue, s);
-          if (s.hapticsEnabled) {
-            void Haptics.impactAsync(
-              seg.kind === 'hard' || seg.kind === 'accel'
-                ? Haptics.ImpactFeedbackStyle.Heavy
-                : Haptics.ImpactFeedbackStyle.Medium,
-            );
-          }
-        }
+      if (elapsed >= start && elapsed < end) {
+        current = { seg, elapsedIn: elapsed - start };
+        break;
       }
-
-      // End / next cue fires a beat early
-      const cueAt = end - lead;
-      if (elapsed >= cueAt && elapsed < end) {
-        const key = `end:${seg.id}`;
-        if (!firedEndRef.current.has(key)) {
-          firedEndRef.current.add(key);
-          void playBeep(s, 'warn');
-          if (seg.endCue) speak(seg.endCue, s);
-          if (s.hapticsEnabled) {
-            void Haptics.selectionAsync();
-          }
-        }
-      }
-
       acc = end;
     }
 
-    if (elapsed >= workoutRef.current.totalMs) {
-      const key = 'done';
-      if (!firedEndRef.current.has(key)) {
-        firedEndRef.current.add(key);
-        void playBeep(s, 'done');
-        speak('Workout complete.', s);
+    if (!current) return;
+
+    if (current.elapsedIn < 400) {
+      const key = `start:${current.seg.id}`;
+      if (!firedStartRef.current.has(key)) {
+        firedStartRef.current.add(key);
         if (s.hapticsEnabled) {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          void Haptics.impactAsync(
+            current.seg.kind === 'hard' || current.seg.kind === 'accel'
+              ? Haptics.ImpactFeedbackStyle.Heavy
+              : Haptics.ImpactFeedbackStyle.Light,
+          );
         }
       }
     }
+
+    if (inSegmentSilence(current.elapsedIn, current.seg.durationMs)) {
+      stopSpeech();
+      return;
+    }
+
+    const cue = rockyCue({
+      elapsedMs: elapsed,
+      segments: segs,
+      fired: firedRockyRef.current,
+    });
+    if (!cue || firedRockyRef.current.has(cue.key)) return;
+    firedRockyRef.current.add(cue.key);
+    speak(cue.line, s);
   }, []);
 
   useEffect(() => {
@@ -152,7 +137,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
   const start = useCallback(async () => {
     firedStartRef.current = new Set();
-    firedEndRef.current = new Set();
+    firedRockyRef.current = new Set();
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
     armedRef.current = true;
@@ -197,7 +182,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setSegmentIndex(0);
     setStatus('idle');
     firedStartRef.current = new Set();
-    firedEndRef.current = new Set();
+    firedRockyRef.current = new Set();
     void deactivateKeepAwake('workout');
   }, []);
 

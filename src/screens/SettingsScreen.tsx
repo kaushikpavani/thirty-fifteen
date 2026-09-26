@@ -1,11 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { AuthSetupNote } from '../components/AuthSetupNote';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
-import { useAuth } from '../auth/AuthContext';
-import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { colors } from '../theme/colors';
 import type { WorkoutSettings } from '../types';
@@ -69,10 +66,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 
 export function SettingsScreen() {
   const { settings, update } = useSettings();
-  const auth = useAuth();
-  const meter = usePowerMeter();
   const [draft, setDraft] = useState(settings);
-  const [nameDraft, setNameDraft] = useState(auth.localName ?? '');
   const watts = useMemo(
     () => derivedWatts(draft.ftpWatts, draft.hardPct, draft.easyPct),
     [draft.ftpWatts, draft.hardPct, draft.easyPct],
@@ -84,7 +78,6 @@ export function SettingsScreen() {
 
   const save = async () => {
     await update(draft);
-    if (!auth.user) await auth.setLocalName(nameDraft);
     router.back();
   };
 
@@ -97,101 +90,6 @@ export function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
       </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.section}>Account</Text>
-        {auth.user ? (
-          <View style={styles.block}>
-            <Text style={styles.accountName}>{auth.user.name ?? 'Signed in'}</Text>
-            <Text style={styles.accountMeta}>
-              {auth.user.provider}
-              {auth.user.email ? ` · ${auth.user.email}` : ''}
-            </Text>
-            <PrimaryButton variant="hairline" label="Sign out" onPress={() => void auth.signOut()} testID="sign-out" />
-          </View>
-        ) : (
-          <View style={styles.block}>
-            <PrimaryButton
-              variant="hairline"
-              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
-              onPress={() => void auth.signIn('google')}
-              disabled={auth.busy != null}
-            />
-            <PrimaryButton
-              variant="hairline"
-              label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
-              onPress={() => void auth.signIn('facebook')}
-              disabled={auth.busy != null}
-            />
-            <TextInput
-              value={nameDraft}
-              onChangeText={setNameDraft}
-              placeholder="Your name"
-              placeholderTextColor={colors.textDim}
-              autoCapitalize="words"
-              style={styles.nameInput}
-            />
-            {auth.needsSetup ? <AuthSetupNote /> : null}
-          </View>
-        )}
-        {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
-
-        <Text style={styles.section}>Power meter</Text>
-        <View style={styles.block}>
-          <Text style={styles.accountName}>
-            {meter.phase.phase === 'connected'
-              ? meter.phase.name
-              : meter.phase.phase === 'connecting'
-                ? `Connecting ${meter.phase.name}`
-                : meter.phase.phase === 'scanning'
-                  ? 'Scanning'
-                  : 'Not connected'}
-          </Text>
-          {meter.live ? (
-            <Text style={styles.accountMeta} testID="settings-live-watts">
-              {meter.live.watts} W
-              {meter.live.speedKph != null ? ` · ${meter.live.speedKph.toFixed(1)} km/h` : ''}
-            </Text>
-          ) : (
-            <Text style={styles.accountMeta}>
-              {meter.phase.phase === 'connected'
-                ? 'Waiting for a power packet.'
-                : 'Live watts appear only from a real meter.'}
-            </Text>
-          )}
-          {meter.phase.phase === 'scanning' || meter.phase.phase === 'list'
-            ? meter.devices.map((device) => (
-                <Pressable key={device.id} style={styles.device} onPress={() => meter.pick(device)}>
-                  <Text style={styles.deviceName}>{device.name}</Text>
-                  <Text style={styles.accountMeta}>{device.rssi != null ? `${device.rssi} dBm` : 'Tap to connect'}</Text>
-                </Pressable>
-              ))
-            : null}
-          {meter.gateCopy ? (
-            <View>
-              <Text style={styles.accountName}>{meter.gateCopy.title}</Text>
-              <Text style={styles.accountMeta}>{meter.gateCopy.body}</Text>
-              {meter.phase.phase === 'blocked' && meter.phase.detail ? (
-                <Text style={styles.error}>{meter.phase.detail}</Text>
-              ) : null}
-            </View>
-          ) : null}
-          {meter.phase.phase === 'connected' ? (
-            <PrimaryButton variant="hairline" label="Disconnect" onPress={() => void meter.disconnect()} testID="disconnect-power" />
-          ) : (
-            <PrimaryButton
-              variant="hairline"
-              label={meter.phase.phase === 'scanning' ? 'Scanning…' : 'Connect'}
-              onPress={meter.connect}
-              disabled={meter.phase.phase === 'scanning' || meter.phase.phase === 'connecting'}
-              testID="connect-power"
-            />
-          )}
-          {meter.phase.phase !== 'idle' && meter.phase.phase !== 'connected' ? (
-            <Pressable onPress={meter.dismiss}>
-              <Text style={styles.back}>Close</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
         <Text style={styles.section}>Power</Text>
         <NumField
           label="FTP"
@@ -220,9 +118,12 @@ export function SettingsScreen() {
         <Text style={styles.section}>Audio</Text>
         <Toggle label="Spoken cues" value={draft.speechEnabled} onChange={(v) => patch('speechEnabled', v)} />
         <NumField label="Voice rate" value={draft.voiceRate} onChange={(n) => patch('voiceRate', n)} min={0.7} max={1.4} step={0.05} />
-        <Toggle label="Beep tones" value={draft.beepsEnabled} onChange={(v) => patch('beepsEnabled', v)} />
         <Toggle label="Haptics" value={draft.hapticsEnabled} onChange={(v) => patch('hapticsEnabled', v)} />
-        <NumField label="Cue lead" value={draft.cueLeadMs} onChange={(n) => patch('cueLeadMs', Math.round(n))} suffix="ms" min={400} max={1500} step={100} />
+
+        <Text style={styles.section}>History</Text>
+        <Pressable onPress={() => router.push('/history')} testID="open-history">
+          <Text style={styles.accountName}>Past sessions</Text>
+        </Pressable>
 
         <Text style={styles.section}>Feedback</Text>
         <Pressable onPress={() => router.push('/feedback')} testID="settings-feedback">

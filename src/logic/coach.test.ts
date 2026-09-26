@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { inSegmentSilence, rockyCue, ROCKY_FINISH, ROCKY_WELCOME } from '../audio/rocky.ts';
 import { motivationLine } from '../copy/motivation.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { completionStreak } from '../history/streak.ts';
@@ -7,11 +8,12 @@ import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults.ts';
 
-test('default FTP 120 derives 144 hard and 60 easy', () => {
-  assert.deepEqual(derivedWatts(120, 120, 50), { hard: 144, easy: 60 });
+test('default FTP 125 derives 150 hard and 63 easy', () => {
+  assert.equal(DEFAULT_SETTINGS.ftpWatts, 125);
+  assert.deepEqual(derivedWatts(125, 120, 50), { hard: 150, easy: 63 });
   const built = buildWorkout(DEFAULT_SETTINGS);
-  assert.equal(built.hardWatts, 144);
-  assert.equal(built.easyWatts, 60);
+  assert.equal(built.hardWatts, 150);
+  assert.equal(built.easyWatts, 63);
   const hard = built.segments.filter((segment) => segment.kind === 'hard');
   const easy = built.segments.filter((segment) => segment.kind === 'easy');
   assert.equal(hard.length, 39);
@@ -57,6 +59,40 @@ test('motivation uses the streak once it is real', () => {
   assert.match(motivationLine(evening, 0), /KOM|Lights|session/i);
   assert.equal(motivationLine(evening, 2), 'Two days. The habit is the weapon.');
   assert.match(motivationLine(evening, 4), /4 days straight/);
+});
+
+test('rocky speaks only outside the silence window', () => {
+  const segments = [
+    { id: 'h1', kind: 'hard', durationMs: 30_000, repNumber: 1 },
+    { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
+    { id: 'cd', kind: 'cooldown', durationMs: 600_000 },
+  ];
+  const none = new Set<string>();
+
+  assert.equal(inSegmentSilence(500, 30_000), true);
+  assert.equal(inSegmentSilence(28_000, 30_000), true);
+  assert.equal(inSegmentSilence(11_000, 30_000), false);
+  assert.equal(rockyCue({ elapsedMs: 500, segments, fired: none }), null);
+  assert.equal(rockyCue({ elapsedMs: 28_000, segments, fired: none }), null);
+
+  const welcome = rockyCue({ elapsedMs: 1500, segments, fired: none });
+  assert.equal(welcome?.key, 'welcome');
+  assert.equal(welcome?.line, ROCKY_WELCOME);
+  assert.equal(rockyCue({ elapsedMs: 1500, segments, fired: new Set(['welcome']) }), null);
+
+  const hard = rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) });
+  assert.equal(hard?.key, 'hard:h1');
+  assert.ok(hard && hard.line.length > 0);
+
+  const easy = rockyCue({ elapsedMs: 30_000 + 2000, segments, fired: new Set(['welcome']) });
+  assert.equal(easy?.key, 'easy:e1');
+  assert.equal(rockyCue({ elapsedMs: 30_000 + 500, segments, fired: none }), null);
+
+  const finishAt = 30_000 + 15_000 + 1500;
+  const finish = rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome']) });
+  assert.equal(finish?.key, 'finish');
+  assert.equal(finish?.line, ROCKY_FINISH);
+  assert.equal(rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome', 'finish']) }), null);
 });
 
 test('feedback keeps free-form text and drops empty notes', () => {

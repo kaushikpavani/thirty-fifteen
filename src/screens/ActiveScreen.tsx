@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
+import { bleGate } from '../ble/availability';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { useHistory } from '../state/HistoryContext';
@@ -14,9 +15,9 @@ export function ActiveScreen() {
   const engine = useWorkout();
   const history = useHistory();
   const { settings } = useSettings();
-  const meter = usePowerMeter();
   const { width } = useWindowDimensions();
   const savedRef = useRef<number | null>(null);
+  const [endArmed, setEndArmed] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
   const nativeDriver = Platform.OS !== 'web';
 
@@ -114,18 +115,15 @@ export function ActiveScreen() {
     return (
       <Screen bottom>
         <View style={styles.done}>
-          <Text style={styles.doneKicker}>LOGGED</Text>
           <Text style={styles.doneTitle}>Done.</Text>
-          <Text style={styles.doneMeta}>
-            {formatClock(state.workout.totalMs)} · FTP {settings.ftpWatts} · Complete
-          </Text>
+          <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
           <PrimaryButton label="Home" onPress={leave} testID="done-home" />
+          <FinishMeter />
         </View>
       </Screen>
     );
   }
 
-  const live = meter.live;
   const target = seg?.targetWatts;
 
   return (
@@ -151,19 +149,7 @@ export function ActiveScreen() {
         >
           {clock}
         </Animated.Text>
-        {live ? (
-          <View style={styles.wattsBlock}>
-            <Text style={styles.wattsKicker}>LIVE</Text>
-            <Text style={styles.watts} testID="live-watts">
-              {live.watts}
-            </Text>
-            <Text style={styles.caption}>
-              {target != null ? `Target ${target}` : caption}
-              {live.speedKph != null ? `  ·  ${live.speedKph.toFixed(1)} km/h` : ''}
-            </Text>
-            {target != null ? <Text style={styles.caption}>{caption}</Text> : null}
-          </View>
-        ) : target != null ? (
+        {target != null ? (
           <View style={styles.wattsBlock}>
             <Text style={styles.wattsKicker}>TARGET</Text>
             <Text style={styles.watts} testID="target-watts">
@@ -177,9 +163,15 @@ export function ActiveScreen() {
       </View>
       <WorkoutControls
         running={state.status === 'running'}
-        onPause={onPausePress}
+        endArmed={endArmed}
+        onPause={() => {
+          setEndArmed(false);
+          onPausePress();
+        }}
         onResume={onResumePress}
-        onStop={onStopPress}
+        onArmEnd={() => setEndArmed(true)}
+        onCancelEnd={() => setEndArmed(false)}
+        onConfirmEnd={onStopPress}
       />
     </Screen>
   );
@@ -187,14 +179,20 @@ export function ActiveScreen() {
 
 const WorkoutControls = React.memo(function WorkoutControls({
   running,
+  endArmed,
   onPause,
   onResume,
-  onStop,
+  onArmEnd,
+  onCancelEnd,
+  onConfirmEnd,
 }: {
   running: boolean;
+  endArmed: boolean;
   onPause: () => void;
   onResume: () => void;
-  onStop: () => void;
+  onArmEnd: () => void;
+  onCancelEnd: () => void;
+  onConfirmEnd: () => void;
 }) {
   return (
     <View style={styles.controls}>
@@ -203,10 +201,66 @@ const WorkoutControls = React.memo(function WorkoutControls({
       ) : (
         <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
       )}
-      <PrimaryButton variant="danger" label="Stop" onPress={onStop} style={styles.control} testID="stop" />
+      {endArmed ? (
+        <View style={styles.endSlot}>
+          <Pressable onPress={onCancelEnd} testID="end-cancel">
+            <Text style={styles.endCancel}>Keep going</Text>
+          </Pressable>
+          <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
+            <Text style={styles.chipText}>End session</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
+      )}
     </View>
   );
 });
+
+function FinishMeter() {
+  const meter = usePowerMeter();
+  const [open, setOpen] = useState(false);
+  if (bleGate()) return null;
+
+  return (
+    <View style={styles.meter}>
+      <Pressable onPress={() => setOpen((value) => !value)} testID="finish-power">
+        <Text style={styles.meterLink}>{open ? 'Hide power meter' : 'Power meter'}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.meterBody}>
+          <Text style={styles.doneMeta}>
+            {meter.phase.phase === 'connected'
+              ? meter.phase.name
+              : 'Optional. Watts show up only when a meter sends them.'}
+          </Text>
+          {meter.live ? (
+            <Text style={styles.meterLive} testID="finish-live-watts">
+              {meter.live.watts} W
+              {meter.live.speedKph != null ? ` · ${meter.live.speedKph.toFixed(1)} km/h` : ''}
+            </Text>
+          ) : null}
+          {meter.devices.map((device) => (
+            <Pressable key={device.id} onPress={() => meter.pick(device)}>
+              <Text style={styles.meterLink}>{device.name}</Text>
+            </Pressable>
+          ))}
+          {meter.phase.phase === 'connected' ? (
+            <PrimaryButton variant="quiet" label="Disconnect" onPress={() => void meter.disconnect()} />
+          ) : (
+            <PrimaryButton
+              variant="hairline"
+              label={meter.phase.phase === 'scanning' ? 'Scanning…' : 'Scan'}
+              onPress={meter.connect}
+              disabled={meter.phase.phase === 'scanning' || meter.phase.phase === 'connecting'}
+              testID="finish-scan"
+            />
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 function PhaseWash({ color }: { color: string }) {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -285,17 +339,20 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   control: { flex: 1 },
+  endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
+  endCancel: { color: colors.textDim, fontSize: 14, paddingVertical: 6 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.bgSoft,
+  },
+  chipText: { color: colors.hard, fontSize: 15, fontWeight: '600' },
   done: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 28,
     gap: 12,
-  },
-  doneKicker: {
-    color: colors.done,
-    letterSpacing: 2,
-    fontSize: 12,
-    fontWeight: '600',
   },
   doneTitle: {
     color: colors.text,
@@ -308,5 +365,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 18,
   },
+  meter: { marginTop: 28, gap: 8 },
+  meterLink: { color: colors.textDim, fontSize: 15 },
+  meterBody: { gap: 10, marginTop: 8 },
+  meterLive: { color: colors.text, fontSize: 28, fontWeight: '300', fontVariant: ['tabular-nums'] },
   idle: { flex: 1, backgroundColor: colors.bg },
 });
