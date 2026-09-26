@@ -7,6 +7,10 @@ export const ROCKY_WELCOME = "Let's go. Time to get better.";
 export const ROCKY_HARD = 'Dig in — this is the round that builds you.';
 export const ROCKY_EASY = "Yes. Breathe fire. You're not done.";
 export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
+/** One syllable on the first HARD chirp. Then silence. */
+export const ROCKY_GO = 'Go.';
+/** Once, when the last easy of a set opens the set rest. Audio only. */
+export const ROCKY_ROUND = 'Round won. Stay sharp.';
 
 /** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
 export const CLOCK_HIT_MS = 400;

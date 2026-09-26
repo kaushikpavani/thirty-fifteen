@@ -8,18 +8,23 @@ import {
   rockyCue,
   ROCKY_EASY,
   ROCKY_FINISH,
+  ROCKY_GO,
   ROCKY_HARD,
+  ROCKY_ROUND,
   ROCKY_WELCOME,
 } from '../audio/rocky.ts';
 import {
   BED_VOLUME,
   DUCK_GAIN,
+  HARD_OPEN_DUCK_MS,
   bedForKind,
-  countdownArmed,
-  countdownWord,
-  countKeys,
+  boundaryChirp,
+  isFirstHard,
+  ladderArmed,
+  ladderDuckMs,
+  ladderKeys,
+  ladderStep,
   roundWon,
-  warnYieldsToCountdown,
 } from '../audio/spirit.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
@@ -90,7 +95,7 @@ test('rocky lines are grit without guilt or comparison', () => {
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
     { id: 'cd', kind: 'cooldown', durationMs: 600_000 },
   ];
-  const lines = [ROCKY_WELCOME, ROCKY_HARD, ROCKY_EASY, ROCKY_FINISH];
+  const lines = [ROCKY_WELCOME, ROCKY_HARD, ROCKY_EASY, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND];
   assert.equal(rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_HARD);
   assert.equal(rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_EASY);
   for (const line of lines) {
@@ -141,50 +146,67 @@ test('drive bed is for hard and accel, and it ducks harder than it speaks', () =
     assert.equal(bedForKind(kind), 'recover');
   }
   assert.ok(BED_VOLUME.drive > BED_VOLUME.recover);
-  assert.ok(DUCK_GAIN <= 0.1);
+  assert.equal(DUCK_GAIN, 0);
 });
 
-test('spoken 3-2-1 only into HARD and inside the Rocky silence', () => {
+test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into EASY', () => {
   const built = buildWorkout(DEFAULT_SETTINGS);
   const firstHard = built.segments.findIndex((segment) => segment.kind === 'hard');
   const settle = built.segments[firstHard - 1];
   assert.equal(settle?.kind, 'warmup');
   assert.equal(built.segments[firstHard - 2]?.kind, 'accel');
   assert.ok(settle);
-  assert.equal(countdownArmed(settle.durationMs, 'hard'), true);
-  assert.equal(countdownWord(settle.durationMs - WARN_BEFORE_MS, settle.durationMs, 'hard'), 'three');
-  assert.equal(countdownWord(settle.durationMs - WARN_BEFORE_MS + CLOCK_HIT_MS, settle.durationMs, 'hard'), null);
-  assert.equal(countdownWord(settle.durationMs - 2900, settle.durationMs, 'hard'), 'three');
-  assert.equal(countdownWord(settle.durationMs - 1900, settle.durationMs, 'hard'), 'two');
-  assert.equal(countdownWord(settle.durationMs - 900, settle.durationMs, 'hard'), 'one');
-  assert.equal(countdownWord(200, settle.durationMs, 'hard'), null);
-  assert.equal(countdownWord(settle.durationMs - 2900, settle.durationMs, 'warmup'), null);
-  assert.equal(countdownWord(100, 2_000, 'hard'), null);
+  assert.equal(isFirstHard(firstHard, built.segments), true);
+  assert.equal(isFirstHard(firstHard + 2, built.segments), false);
+  assert.equal(ladderArmed(settle.durationMs, 'hard'), true);
+  assert.equal(ladderStep(settle.durationMs - WARN_BEFORE_MS, settle.durationMs, 'hard'), 'three');
+  assert.equal(ladderStep(settle.durationMs - WARN_BEFORE_MS + CLOCK_HIT_MS, settle.durationMs, 'hard'), null);
+  assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'hard'), 'three');
+  assert.equal(ladderStep(settle.durationMs - 1900, settle.durationMs, 'hard'), 'two');
+  assert.equal(ladderStep(settle.durationMs - 900, settle.durationMs, 'hard'), 'one');
+  assert.equal(ladderStep(200, settle.durationMs, 'hard'), null);
+  assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'easy'), null);
+  assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'warmup'), null);
+  assert.equal(ladderStep(100, 2_000, 'hard'), null);
+  assert.equal(ladderDuckMs('three'), 4000);
+  assert.equal(ladderDuckMs('two'), 3000);
+  assert.equal(ladderDuckMs('one'), 2000);
+  assert.equal(HARD_OPEN_DUCK_MS, 1000);
   assert.equal(clockHit(settle.durationMs - 2900, settle.durationMs), 'warn');
-  assert.equal(warnYieldsToCountdown('hard', true), true);
-  assert.equal(warnYieldsToCountdown('hard', false), false);
-  assert.equal(warnYieldsToCountdown('easy', true), false);
+  assert.equal(boundaryChirp('hard'), 'go');
+  assert.equal(boundaryChirp('easy'), null);
+  assert.equal(boundaryChirp('cooldown'), null);
+  assert.equal(boundaryChirp('set_rest'), 'win');
+  assert.equal(ROCKY_GO, 'Go.');
+  assert.equal(ROCKY_ROUND, 'Round won. Stay sharp.');
 
   for (const at of [2900, 1900, 900]) {
     const elapsed = settle.durationMs - at;
     assert.equal(inSegmentSilence(elapsed, settle.durationMs), true);
-    assert.equal(countdownWord(elapsed, settle.durationMs, 'hard') !== null, at === 2900 || at === 1900 || at === 900);
+    assert.equal(ladderStep(elapsed, settle.durationMs, 'hard') !== null, at === 2900 || at === 1900 || at === 900);
   }
 
-  const easy = built.segments.find((segment) => segment.kind === 'easy');
-  assert.ok(easy);
-  assert.equal(countdownWord(easy.durationMs - 2900, easy.durationMs, 'hard'), 'three');
+  const hard = built.segments[firstHard];
+  assert.ok(hard);
+  assert.equal(ladderStep(hard.durationMs - 2900, hard.durationMs, 'easy'), null);
+  const easy = built.segments[firstHard + 1];
+  assert.equal(easy?.kind, 'easy');
+  assert.equal(ladderStep(easy.durationMs - 2900, easy.durationMs, 'hard'), 'three');
   assert.equal(rockyCue({
     elapsedMs: easy.durationMs - 1500,
     segments: [easy],
     fired: new Set(),
   }), null);
 
-  assert.equal(roundWon('hard', 'easy'), true);
-  assert.equal(roundWon('hard', 'set_rest'), false);
-  assert.equal(roundWon('accel', 'warmup'), false);
-  assert.equal(roundWon(null, 'easy'), false);
-  assert.deepEqual(countKeys('hard-1'), ['count:hard-1:three', 'count:hard-1:two', 'count:hard-1:one']);
+  const rest = built.segments.findIndex((segment) => segment.kind === 'set_rest');
+  assert.equal(built.segments[rest - 1]?.kind, 'easy');
+  assert.equal(roundWon('easy', 'set_rest'), true);
+  assert.equal(roundWon('hard', 'easy'), false);
+  assert.equal(roundWon('easy', 'hard'), false);
+  assert.equal(roundWon('easy', 'cooldown'), false);
+  assert.equal(roundWon(null, 'set_rest'), false);
+  assert.equal(ladderStep(built.segments[rest].durationMs - 2900, built.segments[rest].durationMs, 'hard'), 'three');
+  assert.deepEqual(ladderKeys('easy-1'), ['ladder:easy-1:three', 'ladder:easy-1:two', 'ladder:easy-1:one']);
 });
 
 test('restart, shorten, and skip move the playhead without ending early', () => {

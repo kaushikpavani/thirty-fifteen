@@ -44,7 +44,7 @@ A saved FTP is left alone. A fresh install starts at 125 W. Open the app and pre
 
 ## Start
 
-The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, spoken cues, past sessions, and an optional note.
+The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, and an optional note.
 
 ## History
 
@@ -64,11 +64,13 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 ## Audio
 
-Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. Rocky stays quiet from 3 seconds before a change through 1 second after it. The clock still marks those edges: a soft warn beep and haptic at T−3, and a phase chirp with a stronger haptic at the flip.
+Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. Rocky stays quiet from 3 seconds before a change through 1 second after it.
 
-On the way into each HARD, including the first one after the warm-up accelerations, Rocky counts "three, two, one" instead of the warn beep. The flip chirp still fires. Every other boundary keeps the warn beep and the chirp. The digits go hard-red for that count. There is no caption.
+Into each HARD, including the first one after the warm-up, three rising ticks land at 3, 2, and 1. The existing go chirp and a heavy haptic land on the flip. The first HARD of the session adds one syllable, "Go.", on that chirp, then silence. EASY does not get a beep. There is no spoken count and no caption.
 
-A generated instrumental bed starts with the ride. Drive (brighter, louder) under HARD and the accelerations. Recover under the spin, the fifteens, set rest, and the cool-down. The bed ducks under Rocky, the count, and the beeps, then comes back. Settings → Music turns it off. Default is on. The phone's silent switch still lets the ride play, same as the cues, so a pocketed phone does not eat the count.
+When the last easy of a set opens the set rest, one win chirp plays with "Round won. Stay sharp." The clock punches once and the rail flashes, then the rest breathes cool. The finish line sits on a heavier done beep. The screen blooms once in the go color, then holds. The button says Done.
+
+A generated instrumental bed starts with the ride. Drive (hotter) under HARD and the accelerations. Recover (cooler) under the spin, the fifteens, set rest, and the cool-down. The bed drops out while Rocky speaks and from T−3 through T+1, then comes back. Settings → Music turns it off. Default is on. Nothing on Home plays the bed before Start. The phone's silent switch still lets the ride play, same as the cues.
 
 The four lines are recorded (a direct neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate. Skip, shorten, and restart do not speak.
 
@@ -120,7 +122,7 @@ Install that build (not Expo Go). Finish a session, then open Power meter. Wake 
 
 ## Audio cues
 
-Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. A warn beep fires at T−3 and a phase chirp fires when the segment flips. Into HARD, the spoken count takes the warn beep's place. Rocky does not talk over the clock. The beds are short original loops in the app, not a streaming service. Nothing in the ride invents watts.
+Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. Rising ticks at T−3, T−2, and T−1 lead only into HARD, then the go chirp. EASY stays quiet. The set-break line and "Go." are recorded the same way. Rocky does not talk over the clock. The beds are short original loops in the app, not a streaming service. Nothing in the ride invents watts.
 
 ---
 

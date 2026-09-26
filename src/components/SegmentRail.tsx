@@ -10,7 +10,7 @@ type Props = {
   color: string;
   paused?: boolean;
   reduceMotion?: boolean;
-  /** Increments when an easy interval starts after a hard one. */
+  /** Increments when the last easy of a set opens the rest. One fill, then the rail is quiet. */
   flash?: number;
 };
 
@@ -57,17 +57,16 @@ export function SegmentRail({ progress, color, paused = false, reduceMotion = fa
       return;
     }
     hit.setValue(1);
-    Animated.timing(hit, { toValue: 0, duration: 420, useNativeDriver: native }).start();
+    Animated.timing(hit, { toValue: 0, duration: 220, useNativeDriver: native }).start();
   }, [flash, hit, reduceMotion]);
 
   const pct = width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
   const head = life.interpolate({ inputRange: [0, 1], outputRange: paused ? [0.35, 0.55] : [0.55, 1] });
 
-  const flashOpacity = hit.interpolate({ inputRange: [0, 1], outputRange: [0, 0.95] });
-  const flashScale = hit.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] });
+  const flashOpacity = hit.interpolate({ inputRange: [0, 1], outputRange: [0, 0.92] });
 
   return (
-    <Animated.View style={[styles.track, { transform: [{ scaleY: flashScale }] }]}>
+    <Animated.View style={styles.track}>
       <Animated.View style={[styles.fill, { width: pct, backgroundColor: color, opacity: paused ? 0.45 : 1 }]}>
         <Animated.View style={[styles.head, { opacity: head }]}>
           <LinearGradient

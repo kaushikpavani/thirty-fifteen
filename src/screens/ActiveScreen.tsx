@@ -11,7 +11,7 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { countdownArmed, roundWon } from '../audio/spirit';
+import { roundWon } from '../audio/spirit';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
@@ -39,15 +39,11 @@ export function ActiveScreen() {
   const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
   const heroSize = Math.min(160, Math.round(width * 0.4));
   const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
-  const intoHard =
-    state.status === 'running' &&
-    countdownArmed(duration, state.nextSegment?.kind) &&
-    remaining <= 3000 &&
-    remaining > 0;
 
   useEffect(() => {
     if (state.status === 'idle') {
       prevKind.current = null;
+      setWon(0);
       return;
     }
     const previous = prevKind.current;
@@ -150,8 +146,8 @@ export function ActiveScreen() {
   if (state.status === 'finished') {
     return (
       <Screen bottom>
-        <Atmosphere color={colors.go} heat="hot" punch={1} reduceMotion={reduceMotion} />
-        <SegmentRail progress={1} color={colors.go} flash={1} reduceMotion={reduceMotion} />
+        <Atmosphere color={colors.go} heat="hot" punch={1} bloomMs={400} still reduceMotion={reduceMotion} />
+        <SegmentRail progress={1} color={colors.go} reduceMotion={reduceMotion} />
         <View style={styles.done}>
           <FinishTitle reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
@@ -172,7 +168,6 @@ export function ActiveScreen() {
         color={accent}
         paused={paused}
         heat={cool ? 'cool' : 'hot'}
-        punch={won}
         reduceMotion={reduceMotion}
       />
       <SegmentRail
@@ -186,7 +181,7 @@ export function ActiveScreen() {
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
         <DigitClock
           value={clock}
-          color={intoHard ? colors.hard : colors.text}
+          color={colors.text}
           fontSize={fontSize}
           dim={paused}
           phase={kind}

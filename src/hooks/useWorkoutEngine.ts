@@ -4,16 +4,21 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import {
   initAudio,
   playBeep,
-  playCountdown,
   speakCue,
-  stopCountdown,
   stopSpeech,
-  unlockCountdownFromGesture,
   unlockRockyFromGesture,
 } from '../audio/cues';
 import { armMusicFromGesture, pauseMusic, releaseDuck, stopMusic, syncMusic } from '../audio/music';
-import { clockHit, inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
-import { countdownWord, countKeys, warnYieldsToCountdown } from '../audio/spirit';
+import { clockHit, inSegmentSilence, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND, rockyCue } from '../audio/rocky';
+import {
+  HARD_OPEN_DUCK_MS,
+  ROUND_DUCK_MS,
+  boundaryChirp,
+  isFirstHard,
+  ladderDuckMs,
+  ladderKeys,
+  ladderStep,
+} from '../audio/spirit';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
 import {
@@ -85,6 +90,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     let current: { seg: Segment; elapsedIn: number } | null = null;
 
     let nextKind: string | null = null;
+    let index = -1;
     for (let i = 0; i < segs.length; i++) {
       const seg = segs[i];
       const start = acc;
@@ -92,6 +98,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (elapsed >= start && elapsed < end) {
         current = { seg, elapsedIn: elapsed - start };
         nextKind = segs[i + 1]?.kind ?? null;
+        index = i;
         break;
       }
       acc = end;
@@ -101,47 +108,50 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
     syncMusic(current.seg.kind, s.musicEnabled);
 
+    const silent = inSegmentSilence(current.elapsedIn, current.seg.durationMs);
+    if (silent) stopSpeech();
+
     const hit = clockHit(current.elapsedIn, current.seg.durationMs);
-    if (hit) {
-      const key = `${hit}:${current.seg.id}`;
+    if (hit === 'chirp') {
+      const key = `chirp:${current.seg.id}`;
       if (!firedStartRef.current.has(key)) {
         firedStartRef.current.add(key);
         if (s.hapticsEnabled) {
           const heavy = current.seg.kind === 'hard' || current.seg.kind === 'accel';
           void Haptics.impactAsync(
-            hit === 'warn'
-              ? Haptics.ImpactFeedbackStyle.Light
-              : heavy
-                ? Haptics.ImpactFeedbackStyle.Heavy
-                : Haptics.ImpactFeedbackStyle.Medium,
+            heavy ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium,
           );
         }
-        const spokenCount = hit === 'warn' && warnYieldsToCountdown(nextKind, s.speechEnabled);
-        if (!spokenCount) {
-          const chirp =
-            current.seg.kind === 'easy' || current.seg.kind === 'set_rest'
-              ? 'easy'
-              : current.seg.kind === 'cooldown'
-                ? 'done'
-                : 'go';
-          void playBeep(s, hit === 'warn' ? 'warn' : chirp);
+        const chirp = boundaryChirp(current.seg.kind);
+        if (chirp === 'go') {
+          void playBeep(s, 'go', current.seg.kind === 'hard' ? HARD_OPEN_DUCK_MS : undefined);
+          if (isFirstHard(index, segs) && !firedRockyRef.current.has('go')) {
+            firedRockyRef.current.add('go');
+            speakCue({ key: 'go', line: ROCKY_GO }, s);
+          }
+        } else if (chirp === 'win') {
+          void playBeep(s, 'win', ROUND_DUCK_MS);
+          const roundKey = `round:${current.seg.id}`;
+          if (!firedRockyRef.current.has(roundKey)) {
+            firedRockyRef.current.add(roundKey);
+            speakCue({ key: roundKey, line: ROCKY_ROUND }, s);
+          }
         }
       }
     }
 
-    const word = countdownWord(current.elapsedIn, current.seg.durationMs, nextKind);
-    if (word) {
-      const key = `count:${current.seg.id}:${word}`;
+    const step = ladderStep(current.elapsedIn, current.seg.durationMs, nextKind);
+    if (step) {
+      const key = `ladder:${current.seg.id}:${step}`;
       if (!firedStartRef.current.has(key)) {
         firedStartRef.current.add(key);
-        playCountdown(word, s);
+        if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const rung = step === 'three' ? 'rung3' : step === 'two' ? 'rung2' : 'rung1';
+        void playBeep(s, rung, ladderDuckMs(step));
       }
     }
 
-    if (inSegmentSilence(current.elapsedIn, current.seg.durationMs)) {
-      stopSpeech();
-      return;
-    }
+    if (silent) return;
 
     const cue = rockyCue({
       elapsedMs: elapsed,
@@ -192,7 +202,6 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setSegmentIndex(0);
     anchorWallRef.current = null;
     unlockRockyFromGesture();
-    unlockCountdownFromGesture();
     armMusicFromGesture(settingsRef.current.musicEnabled);
     try {
       await activateKeepAwakeAsync('workout');
@@ -215,8 +224,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setElapsedMs(wall);
     anchorWallRef.current = null;
     setStatus('paused');
-    stopSpeech();
-    stopCountdown();
+    stopSpeech(true);
     pauseMusic();
   }, []);
 
@@ -234,14 +242,12 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       const segs = workoutRef.current.segments;
       const total = workoutRef.current.totalMs;
       const current = resolvePosition(elapsedRef.current);
-      stopSpeech();
-      stopCountdown();
+      stopSpeech(true);
       releaseDuck();
 
       if (rearmCurrent && current.segment) {
         firedStartRef.current.delete(`chirp:${current.segment.id}`);
-        firedStartRef.current.delete(`warn:${current.segment.id}`);
-        for (const key of countKeys(current.segment.id)) firedStartRef.current.delete(key);
+        for (const key of ladderKeys(current.segment.id)) firedStartRef.current.delete(key);
         for (const key of rockyKeysToRearm(current.segment, segmentStartMs(segs, current.index))) {
           firedRockyRef.current.delete(key);
         }
@@ -297,8 +303,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   }, [resolvePosition, seekTo]);
 
   const stop = useCallback(() => {
-    stopSpeech();
-    stopCountdown();
+    stopSpeech(true);
     stopMusic();
     armedRef.current = false;
     anchorWallRef.current = null;

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate the bundled spirit-high audio. No samples from other records.
 
-Beds are original synthesis (loop-safe WAV). The HARD count is a short neural
-read, trimmed, then encoded like the Rocky clips. Re-run from the repo root:
+Beds are original synthesis (loop-safe WAV). The HARD ladder, win chirp, and
+heavy done beep are synthesized ticks. Optional neural reads cover the one-syllable
+"Go." and the set-break line. Re-run from the repo root:
 
   python3 scripts/gen-spirit-audio.py
   python3 scripts/gen-spirit-audio.py --speech
@@ -303,25 +304,68 @@ def write_mp3(path: Path, samples: np.ndarray, sr: int) -> None:
     )
 
 
-async def write_count() -> None:
+BEEP_SR = 22050
+
+
+def tick(freq: float, seconds: float, gain: float, decay: float, sr: int = BEEP_SR) -> np.ndarray:
+    n = int(sr * seconds)
+    t = np.arange(n) / sr
+    env = np.exp(-t * decay)
+    attack = max(1, int(0.002 * sr))
+    env[:attack] *= np.linspace(0.0, 1.0, attack)
+    body = np.sin(2 * np.pi * freq * t) * 0.82 + np.sin(2 * np.pi * freq * 2.02 * t) * 0.18
+    return (body * env * gain).astype(np.float64)
+
+
+def write_marks() -> None:
+    """Rising ticks into HARD, one win chirp, one heavier done beep. No speech."""
+    out = ROOT / "assets"
+    rungs = (
+        ("beep-rung-3.wav", 660.0, 0.07, 0.34, 34.0),
+        ("beep-rung-2.wav", 880.0, 0.075, 0.48, 30.0),
+        ("beep-rung-1.wav", 1174.0, 0.085, 0.66, 26.0),
+    )
+    for name, freq, seconds, gain, decay in rungs:
+        audio = tick(freq, seconds, gain, decay)
+        write_wav(out / name, audio, BEEP_SR)
+        print(f"{name}: {seconds:.3f}s peak {float(np.max(np.abs(audio))):.2f}")
+
+    win = np.concatenate([tick(988.0, 0.07, 0.5, 32.0), tick(1480.0, 0.09, 0.62, 24.0)])
+    write_wav(out / "beep-win.wav", win, BEEP_SR)
+    print(f"beep-win.wav: {len(win) / BEEP_SR:.3f}s peak {float(np.max(np.abs(win))):.2f}")
+
+    done = tick(196.0, 0.28, 0.72, 8.0)
+    overtone = tick(392.0, 0.22, 0.28, 10.0)
+    done[: len(overtone)] += overtone
+    peak = float(np.max(np.abs(done))) or 1.0
+    done = done * (0.55 / peak)
+    write_wav(out / "beep-done-heavy.wav", done, BEEP_SR)
+    print(f"beep-done-heavy.wav: {len(done) / BEEP_SR:.3f}s peak {float(np.max(np.abs(done))):.2f}")
+
+
+async def write_lines() -> None:
     import edge_tts
 
     voice = "en-US-SteffanNeural"
-    out_dir = ROOT / "assets" / "count"
-    tmp = ROOT / "assets" / "count" / "_tmp"
+    lines = {
+        "go": ("Go.", "+4%", "-10Hz"),
+        "round": ("Round won. Stay sharp.", "+0%", "-8Hz"),
+    }
+    out_dir = ROOT / "assets" / "rocky"
+    tmp = out_dir / "_tmp"
     tmp.mkdir(parents=True, exist_ok=True)
-    for word in ("three", "two", "one"):
-        src = tmp / f"{word}.mp3"
-        communicate = edge_tts.Communicate(word.capitalize(), voice, rate="+6%", pitch="-8Hz")
+    for name, (text, rate, pitch) in lines.items():
+        src = tmp / f"{name}.mp3"
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
         await communicate.save(str(src))
         raw = subprocess.check_output(
             ["ffmpeg", "-v", "error", "-i", str(src), "-f", "f32le", "-ac", "1", "-ar", "24000", "-"]
         )
         audio = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
         trimmed = trim_voice(audio, 24000)
-        dest = out_dir / f"{word}.mp3"
+        dest = out_dir / f"{name}.mp3"
         write_mp3(dest, trimmed, 24000)
-        print(f"{word}: {len(trimmed) / 24000:.2f}s")
+        print(f"{name}: {len(trimmed) / 24000:.2f}s")
     for child in tmp.iterdir():
         child.unlink()
     tmp.rmdir()
@@ -329,11 +373,12 @@ async def write_count() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--speech", action="store_true", help="Also regenerate the 3-2-1 mp3s")
+    parser.add_argument("--speech", action="store_true", help="Regenerate Go. and the set-break line")
     args = parser.parse_args()
     write_beds()
+    write_marks()
     if args.speech:
-        asyncio.run(write_count())
+        asyncio.run(write_lines())
 
 
 if __name__ == "__main__":

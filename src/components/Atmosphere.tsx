@@ -14,8 +14,12 @@ type Props = {
   /** Easy and rest breathe slower and a notch quieter than hard. */
   heat?: 'hot' | 'cool';
   reduceMotion?: boolean;
-  /** Increments on a round won, and on the finish screen. One glow punch, then still. */
+  /** One glow, then still. Finish passes 1. */
   punch?: number;
+  /** How long the finish bloom lasts. */
+  bloomMs?: number;
+  /** No breath. The bloom plays once and the light stays put. */
+  still?: boolean;
 };
 
 /**
@@ -29,6 +33,8 @@ export function Atmosphere({
   heat = 'hot',
   reduceMotion = false,
   punch = 0,
+  bloomMs = 520,
+  still = false,
 }: Props) {
   const breath = useRef(new Animated.Value(1)).current;
   const burst = useRef(new Animated.Value(0)).current;
@@ -40,7 +46,7 @@ export function Atmosphere({
   const front = useRef<'a' | 'b'>('a');
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || still) {
       breath.setValue(1);
       return;
     }
@@ -54,7 +60,7 @@ export function Atmosphere({
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, heat, paused, reduceMotion, variant]);
+  }, [breath, heat, paused, reduceMotion, still, variant]);
 
   useEffect(() => {
     const current = front.current === 'a' ? aColor : bColor;
@@ -88,11 +94,11 @@ export function Atmosphere({
     burst.setValue(1);
     Animated.timing(burst, {
       toValue: 0,
-      duration: 520,
+      duration: bloomMs,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: native,
     }).start();
-  }, [burst, punch, reduceMotion]);
+  }, [bloomMs, burst, punch, reduceMotion]);
 
   const scale = breath.interpolate({
     inputRange: [0, 1],
