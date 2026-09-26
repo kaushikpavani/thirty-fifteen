@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice, track } from './cloud';
-import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, withoutSent } from './cloudRow';
+import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox, withoutSent } from './cloudRow';
 import { createId } from './id';
+import { createQueue } from './queue';
 
 const KEY = '@thirtyfifteen/feedback-outbox/v1';
 
@@ -36,11 +37,13 @@ async function loadOutbox(): Promise<FeedbackNote[]> {
   }
 }
 
+const noteWrites = createQueue();
+
 async function saveOutbox(notes: FeedbackNote[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEY, JSON.stringify(notes.slice(0, 40)));
+    await AsyncStorage.setItem(KEY, JSON.stringify(trimOutbox(notes, 40)));
   } catch {
-    // ignore
+    // The in-memory send still returns queued or sent from what we could store.
   }
 }
 
@@ -106,7 +109,7 @@ export function flushFeedbackOutbox(): Promise<number> {
 }
 
 async function flushFeedbackUnsafe(): Promise<number> {
-  const queued = await loadOutbox();
+  const queued = await noteWrites(() => loadOutbox());
   if (queued.length === 0) return 0;
   const sent = new Set<string>();
   for (const note of queued) {
@@ -117,14 +120,18 @@ async function flushFeedbackUnsafe(): Promise<number> {
     }
   }
   if (sent.size === 0) return 0;
-  const latest = await loadOutbox();
-  await saveOutbox(withoutSent(latest, sent));
+  await noteWrites(async () => {
+    const latest = await loadOutbox();
+    await saveOutbox(withoutSent(latest, sent));
+  });
   return sent.size;
 }
 
 /** Drop notes that have not left the phone. */
 export async function clearFeedbackOutbox(): Promise<void> {
-  await saveOutbox([]);
+  await noteWrites(async () => {
+    await saveOutbox([]);
+  });
 }
 
 export async function submitFeedback(
@@ -135,8 +142,10 @@ export async function submitFeedback(
     id: createId(),
     createdAt: new Date().toISOString(),
   };
-  const queued = await loadOutbox();
-  await saveOutbox([note, ...queued.filter((item) => item.id !== note.id)]);
+  await noteWrites(async () => {
+    const queued = await loadOutbox();
+    await saveOutbox([note, ...queued.filter((item) => item.id !== note.id)]);
+  });
   const flush = flushFeedbackOutbox();
   const finished = await Promise.race([flush.then(() => true), delay(SEND_WAIT_MS).then(() => false)]);
   const left = finished ? await loadOutbox() : null;

@@ -211,7 +211,7 @@ npx eas-cli@latest build --profile development --platform ios
 npx expo start --dev-client
 ```
 
-Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The workout clock itself stays on target watts.
+Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The countdown stays the only number on the clock. Planned watts stay on Home.
 
 `react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 

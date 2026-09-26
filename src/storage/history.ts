@@ -7,6 +7,7 @@ import { workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } fr
 import { loadDeletionState } from './deletionStore';
 import { createId } from './id';
 import { applyCloudMerge } from './merge';
+import { createQueue } from './queue';
 
 export { mergeRecords } from './merge';
 
@@ -48,22 +49,17 @@ export async function loadHistory(): Promise<WorkoutRecord[]> {
   }
 }
 
-let historyWrite: Promise<void> = Promise.resolve();
+const historyWrites = createQueue();
 
 export async function saveHistory(sessions: WorkoutRecord[]): Promise<void> {
   const payload = JSON.stringify(sessions.slice(0, 200));
-  const run = historyWrite.then(async () => {
+  await historyWrites(async () => {
     try {
       await AsyncStorage.setItem(KEY, payload);
     } catch {
       // The in-memory list is still what the screen shows.
     }
   });
-  historyWrite = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
 }
 
 /** Drop every session stored on this phone. Does not talk to the cloud. */

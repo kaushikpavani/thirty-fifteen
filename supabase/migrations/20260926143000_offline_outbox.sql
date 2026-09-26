@@ -7,6 +7,10 @@
 -- The phone is the source of truth. These columns let a later flush retry
 -- without inserting the same analytics event or feedback note twice.
 -- The workout does not read this database to start, keep time, speak, or play music.
+--
+-- No new read policy. Row level security from the foundation script still
+-- applies: anon and authenticated may insert events and feedback, and
+-- neither role may select those tables.
 
 alter table public.app_events add column if not exists client_event_id text;
 alter table public.app_feedback add column if not exists client_id text;

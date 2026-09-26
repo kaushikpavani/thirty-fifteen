@@ -8,6 +8,7 @@ import { isAnalyticsEvent, sanitizeEventProperties, type EventProperties } from 
 import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox, withoutSent } from './cloudRow';
 import { createId, isInstallId } from './id';
 import { profileWrite } from './profileWrite';
+import { createQueue } from './queue';
 import { loadSettings } from './settings';
 
 const DEVICE_KEY = '@thirtyfifteen/device_id/v1';
@@ -28,6 +29,9 @@ let clientSessionId: string | null = null;
 let notedOpen = false;
 let flushingEvents: Promise<void> | null = null;
 let eventsNeedAnotherPass = false;
+let deviceMemory: string | null = null;
+const deviceWrites = createQueue();
+const eventWrites = createQueue();
 
 function sessionId(): string {
   if (!clientSessionId) clientSessionId = createId();
@@ -62,25 +66,35 @@ async function saveEvents(events: QueuedEvent[]): Promise<void> {
 
 /** Stable id for this install. Stored on the phone even when the cloud is off. */
 export async function localDeviceId(): Promise<string | null> {
-  try {
-    const existing = await AsyncStorage.getItem(DEVICE_KEY);
-    if (existing && isInstallId(existing)) return existing;
-    const id = createId();
-    if (!isInstallId(id)) return null;
-    await AsyncStorage.setItem(DEVICE_KEY, id);
-    return id;
-  } catch {
-    return null;
-  }
+  return deviceWrites(async () => {
+    if (deviceMemory && isInstallId(deviceMemory)) return deviceMemory;
+    try {
+      const existing = await AsyncStorage.getItem(DEVICE_KEY);
+      if (existing && isInstallId(existing)) {
+        deviceMemory = existing;
+        return existing;
+      }
+      const id = createId();
+      if (!isInstallId(id)) return null;
+      await AsyncStorage.setItem(DEVICE_KEY, id);
+      deviceMemory = id;
+      return id;
+    } catch {
+      return null;
+    }
+  });
 }
 
 /** Forget this install id. The next read creates a new one. Local only. */
 export async function forgetDeviceId(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(DEVICE_KEY);
-  } catch {
-    // The in-memory ride does not need the id.
-  }
+  await deviceWrites(async () => {
+    deviceMemory = null;
+    try {
+      await AsyncStorage.removeItem(DEVICE_KEY);
+    } catch {
+      // The in-memory ride does not need the id.
+    }
+  });
 }
 
 /**
@@ -162,7 +176,7 @@ export function flushEvents(): Promise<void> {
 }
 
 async function flushEventsUnsafe(): Promise<void> {
-  const queued = await loadEvents();
+  const queued = await eventWrites(() => loadEvents());
   if (queued.length === 0 || !getSupabase()) return;
   const cloudDeviceId = await ensureDevice();
   const sent = new Set<string>();
@@ -174,13 +188,17 @@ async function flushEventsUnsafe(): Promise<void> {
     }
   }
   if (sent.size === 0) return;
-  const latest = await loadEvents();
-  await saveEvents(withoutSent(latest, sent));
+  await eventWrites(async () => {
+    const latest = await loadEvents();
+    await saveEvents(withoutSent(latest, sent));
+  });
 }
 
 /** Drop analytics that have not left the phone. */
 export async function clearEventOutbox(): Promise<void> {
-  await saveEvents([]);
+  await eventWrites(async () => {
+    await saveEvents([]);
+  });
 }
 
 /**
@@ -200,8 +218,10 @@ export async function track(eventName: string, properties: EventProperties = {})
       properties: sanitizeEventProperties(properties),
       createdAt: new Date().toISOString(),
     };
-    const existing = await loadEvents();
-    await saveEvents([event, ...existing.filter((item) => item.id !== event.id)]);
+    await eventWrites(async () => {
+      const existing = await loadEvents();
+      await saveEvents([event, ...existing.filter((item) => item.id !== event.id)]);
+    });
   } catch {
     return;
   }
