@@ -13,21 +13,35 @@ Spoken cues fire a beat early (~0.8s), big countdown UI, dark cycling aesthetic,
 
 Prefer the **same Wi‑Fi** as your computer. Avoid relying on tunnels if certificates fail.
 
+From a fresh clone on a Mac:
+
 ```bash
-cd /workspace/thirty-fifteen   # or your local clone path
+git clone https://github.com/kaushikpavani/thirty-fifteen.git
+cd thirty-fifteen
 npm install
-npx expo start
+npx expo start -c --lan
 ```
 
-1. Install **Expo Go** from the App Store.
-2. Scan the QR code from the terminal / browser (Camera app or Expo Go).
-3. Keep phone and computer on the same network.
+The dev command is **`npx expo`**, not `npm expo`. There is no npm script named `expo`, so `npm expo` fails immediately. `npm start` also works; it runs the same `expo start` script.
 
-Optional:
+`npm install` may print moderate vulnerability warnings and suggest `npm audit fix`. **Ignore that.** Do not run `npm audit` or `npm audit fix`. Those commands can upgrade packages off the Expo SDK 57 set.
+
+If `npx expo start` then reports `Cannot find module 'expo/config-plugins'`, the install tree is stale. Reinstall without audit fixes:
 
 ```bash
-npx expo start --lan     # LAN (recommended)
-# npx expo start --tunnel  # only if LAN cannot connect
+rm -rf node_modules
+npm install
+npx expo start -c --lan
+```
+
+1. Install **Expo Go** from the App Store (the build that matches SDK 57).
+2. Scan the QR code from the terminal (Camera app or Expo Go).
+3. Keep the phone and the Mac on the same network.
+
+`--lan` is the recommended connection. Use a tunnel only if the phone cannot reach the computer:
+
+```bash
+npx expo start -c --tunnel
 ```
 
 ---
@@ -61,7 +75,7 @@ After pulling this change, reinstall dependencies and restart Metro with a clean
 
 ```bash
 npm install
-npx expo start -c
+npx expo start -c --lan
 ```
 
 Reload the project in **current Expo Go** (the App Store build that matches SDK 57). A custom development build is not required for beeps.
