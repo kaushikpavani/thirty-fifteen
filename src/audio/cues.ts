@@ -1,7 +1,7 @@
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
 import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
-import { BEEP_DUCK_MS, rockyDuckMs } from './spirit';
+import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 
 const beepModules = {
   go: require('../../assets/beep-go.wav'),
@@ -9,19 +9,33 @@ const beepModules = {
   warn: require('../../assets/beep-warn.wav'),
   done: require('../../assets/beep-done.wav'),
   rung3: require('../../assets/beep-rung-3.wav'),
+  rung3b: require('../../assets/beep-rung-3b.wav'),
+  rung3c: require('../../assets/beep-rung-3c.wav'),
   rung2: require('../../assets/beep-rung-2.wav'),
+  rung2b: require('../../assets/beep-rung-2b.wav'),
+  rung2c: require('../../assets/beep-rung-2c.wav'),
   rung1: require('../../assets/beep-rung-1.wav'),
+  rung1b: require('../../assets/beep-rung-1b.wav'),
+  rung1c: require('../../assets/beep-rung-1c.wav'),
   win: require('../../assets/beep-win.wav'),
   doneHeavy: require('../../assets/beep-done-heavy.wav'),
 } as const;
 
 const rockyModules = {
   welcome: require('../../assets/rocky/welcome.mp3'),
-  hard: require('../../assets/rocky/hard.mp3'),
-  easy: require('../../assets/rocky/easy.mp3'),
-  finish: require('../../assets/rocky/finish.mp3'),
   go: require('../../assets/rocky/go.mp3'),
-  round: require('../../assets/rocky/round.mp3'),
+  hard0: require('../../assets/rocky/hard.mp3'),
+  hard1: require('../../assets/rocky/hard-1.mp3'),
+  hard2: require('../../assets/rocky/hard-2.mp3'),
+  hard3: require('../../assets/rocky/hard-3.mp3'),
+  easy0: require('../../assets/rocky/easy.mp3'),
+  easy1: require('../../assets/rocky/easy-1.mp3'),
+  easy2: require('../../assets/rocky/easy-2.mp3'),
+  easy3: require('../../assets/rocky/easy-3.mp3'),
+  round0: require('../../assets/rocky/round.mp3'),
+  round1: require('../../assets/rocky/round-1.mp3'),
+  finish0: require('../../assets/rocky/finish.mp3'),
+  finish1: require('../../assets/rocky/finish-1.mp3'),
 } as const;
 
 type BeepKind = keyof typeof beepModules;
@@ -83,13 +97,14 @@ function releasePlayers(): void {
   boundaryHoldUntil = 0;
 }
 
-function rockyKind(key: string): RockyKind | null {
+function rockyClip(key: string, clip?: string): RockyKind | null {
+  if (clip && clip in rockyModules) return clip as RockyKind;
   if (key === 'welcome') return 'welcome';
-  if (key === 'finish') return 'finish';
+  if (key === 'finish') return 'finish0';
   if (key === 'go') return 'go';
-  if (key === 'round' || key.startsWith('round:')) return 'round';
-  if (key.startsWith('hard:')) return 'hard';
-  if (key.startsWith('easy:')) return 'easy';
+  if (key === 'round' || key.startsWith('round:')) return 'round0';
+  if (key.startsWith('hard:')) return 'hard0';
+  if (key.startsWith('easy:')) return 'easy0';
   return null;
 }
 
@@ -217,14 +232,14 @@ function pauseRocky(): void {
 }
 
 /** Recorded Rocky line when the clip is loaded. Tuned on-device voice if it is not. */
-export function speakCue(cue: { key: string; line: string }, settings: WorkoutSettings): void {
+export function speakCue(cue: { key: string; line: string; clip?: string }, settings: WorkoutSettings): void {
   if (cue.key === 'finish') {
     void playBeep(settings, 'doneHeavy', rockyDuckMs('finish'));
   }
   if (!settings.speechEnabled || !cue.line.trim()) return;
   if (cue.key === 'go') holdBoundary(700);
   if (cue.key === 'round' || cue.key.startsWith('round:')) holdBoundary(rockyDuckMs(cue.key));
-  const kind = rockyKind(cue.key);
+  const kind = rockyClip(cue.key, cue.clip);
   const player = kind && rockyReady ? rockyCache[kind] : undefined;
   if (!player) {
     duckMusic(rockyDuckMs(cue.key));
@@ -320,7 +335,21 @@ export function unlockRockyFromGesture(): void {
   }
 }
 
-const RUNG: Partial<Record<BeepKind, number>> = { rung3: 0.72, rung2: 0.86, rung1: 1 };
+function rungVolume(kind: BeepKind): number | undefined {
+  if (kind.startsWith('rung3')) return 0.72;
+  if (kind.startsWith('rung2')) return 0.86;
+  if (kind.startsWith('rung1')) return 1;
+  return undefined;
+}
+
+export function playLadder(
+  settings: WorkoutSettings,
+  step: LadderStep,
+  tone: 0 | 1 | 2,
+  duckMs: number,
+): Promise<void> {
+  return playBeep(settings, ladderBeep(step, tone) as BeepKind, duckMs);
+}
 
 export async function playBeep(
   settings: WorkoutSettings,
@@ -333,7 +362,7 @@ export async function playBeep(
     const player = cache[kind];
     if (!player) return;
     if (duckMs > 0) duckMusic(duckMs);
-    player.volume = kind === 'doneHeavy' || kind === 'win' ? 1 : (RUNG[kind] ?? 0.85);
+    player.volume = kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85);
     await player.seekTo(0);
     player.play();
   } catch {

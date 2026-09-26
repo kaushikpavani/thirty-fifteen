@@ -4,20 +4,25 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import {
   initAudio,
   playBeep,
+  playLadder,
   speakCue,
   stopSpeech,
   unlockRockyFromGesture,
 } from '../audio/cues';
 import { armMusicFromGesture, pauseMusic, releaseDuck, stopMusic, syncMusic } from '../audio/music';
-import { clockHit, inSegmentSilence, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND, rockyCue } from '../audio/rocky';
+import { clockHit, inSegmentSilence, ROCKY_FINISH, ROCKY_GO, rockyCue, roundTake } from '../audio/rocky';
 import {
   HARD_OPEN_DUCK_MS,
   ROUND_DUCK_MS,
+  bedId,
   boundaryChirp,
   isFirstHard,
   ladderDuckMs,
   ladderKeys,
   ladderStep,
+  ladderTone,
+  varietySalt,
+  type MusicBed,
 } from '../audio/spirit';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
@@ -59,6 +64,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const firedRockyRef = useRef<Set<string>>(new Set());
   const settingsRef = useRef(settings);
   const workoutRef = useRef(workout);
+  const startedAtRef = useRef<number | null>(null);
 
   statusRef.current = status;
   settingsRef.current = settings;
@@ -106,7 +112,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
     if (!current) return;
 
-    syncMusic(current.seg.kind, s.musicEnabled);
+    const salt = varietySalt(startedAtRef.current);
+    syncMusic(bedForSegment(current.seg, salt), s.musicEnabled);
 
     const silent = inSegmentSilence(current.elapsedIn, current.seg.durationMs);
     if (silent) stopSpeech();
@@ -127,14 +134,15 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
           void playBeep(s, 'go', current.seg.kind === 'hard' ? HARD_OPEN_DUCK_MS : undefined);
           if (isFirstHard(index, segs) && !firedRockyRef.current.has('go')) {
             firedRockyRef.current.add('go');
-            speakCue({ key: 'go', line: ROCKY_GO }, s);
+            speakCue({ key: 'go', line: ROCKY_GO, clip: 'go' }, s);
           }
         } else if (chirp === 'win') {
           void playBeep(s, 'win', ROUND_DUCK_MS);
           const roundKey = `round:${current.seg.id}`;
           if (!firedRockyRef.current.has(roundKey)) {
             firedRockyRef.current.add(roundKey);
-            speakCue({ key: roundKey, line: ROCKY_ROUND }, s);
+            const take = roundTake(current.seg.setNumber ?? 1, salt);
+            speakCue({ key: roundKey, line: take.line, clip: take.clip }, s);
           }
         }
       }
@@ -146,8 +154,12 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (!firedStartRef.current.has(key)) {
         firedStartRef.current.add(key);
         if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        const rung = step === 'three' ? 'rung3' : step === 'two' ? 'rung2' : 'rung1';
-        void playBeep(s, rung, ladderDuckMs(step));
+        let approach = 0;
+        const nextIndex = index + 1;
+        for (let i = 0; i < nextIndex; i++) {
+          if (segs[i]?.kind === 'hard') approach += 1;
+        }
+        void playLadder(s, step, ladderTone(approach, salt), ladderDuckMs(step));
       }
     }
 
@@ -157,6 +169,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       elapsedMs: elapsed,
       segments: segs,
       fired: firedRockyRef.current,
+      salt,
     });
     if (!cue || firedRockyRef.current.has(cue.key)) return;
     firedRockyRef.current.add(cue.key);
@@ -197,7 +210,9 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
     armedRef.current = true;
-    setStartedAt(Date.now());
+    const started = Date.now();
+    startedAtRef.current = started;
+    setStartedAt(started);
     setElapsedMs(0);
     setSegmentIndex(0);
     anchorWallRef.current = null;
@@ -213,7 +228,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     pausedAccumRef.current = 0;
     setStatus('running');
     const opening = workoutRef.current.segments[0];
-    if (opening) syncMusic(opening.kind, settingsRef.current.musicEnabled);
+    if (opening) syncMusic(bedForSegment(opening, varietySalt(startedAtRef.current)), settingsRef.current.musicEnabled);
   }, []);
 
   const pause = useCallback(() => {
@@ -233,7 +248,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = Date.now();
     setStatus('running');
     const current = resolvePosition(elapsedRef.current).segment;
-    if (current) syncMusic(current.kind, settingsRef.current.musicEnabled);
+    if (current) syncMusic(bedForSegment(current, varietySalt(startedAtRef.current)), settingsRef.current.musicEnabled);
   }, [resolvePosition]);
 
   const seekTo = useCallback(
@@ -278,7 +293,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       setElapsedMs(next);
       setSegmentIndex(landed.index);
       if (statusRef.current === 'running' && landed.segment) {
-        syncMusic(landed.segment.kind, settingsRef.current.musicEnabled);
+        syncMusic(bedForSegment(landed.segment, varietySalt(startedAtRef.current)), settingsRef.current.musicEnabled);
       }
     },
     [resolvePosition],
@@ -315,6 +330,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setStatus('idle');
     firedStartRef.current = new Set();
     firedRockyRef.current = new Set();
+    startedAtRef.current = null;
     void deactivateKeepAwake('workout');
   }, []);
 
@@ -335,4 +351,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   };
 
   return { state, start, pause, resume, stop, restartSegment, shortenSegment, skipSegment, armedRef };
+}
+
+function bedForSegment(seg: { kind: string; setNumber?: number }, salt: number): MusicBed {
+  return bedId(seg.kind, seg.setNumber, salt);
 }

@@ -1,9 +1,13 @@
-import { BED_VOLUME, DUCK_GAIN, bedForKind, type MusicBed } from './spirit';
+import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
 
 const bedModules = {
   drive: require('../../assets/beds/drive.wav'),
+  driveB: require('../../assets/beds/drive-b.wav'),
   recover: require('../../assets/beds/recover.wav'),
+  recoverB: require('../../assets/beds/recover-b.wav'),
 } as const;
+
+const BEDS = ['drive', 'driveB', 'recover', 'recoverB'] as const;
 
 type Player = {
   volume: number;
@@ -58,7 +62,7 @@ function audibleVolume(): number {
 
 function applyVolume(): void {
   const heard = playing && enabled ? audibleVolume() : 0;
-  for (const key of ['drive', 'recover'] as const) {
+  for (const key of BEDS) {
     const player = players[key];
     if (!player) continue;
     try {
@@ -86,7 +90,7 @@ function scheduleRestore(): void {
 export function attachMusicPlayers(create: CreatePlayer): void {
   if (ready || failed) return;
   try {
-    for (const key of ['drive', 'recover'] as const) {
+    for (const key of BEDS) {
       const player = create(bedModules[key]);
       player.loop = true;
       player.volume = 0;
@@ -95,7 +99,7 @@ export function attachMusicPlayers(create: CreatePlayer): void {
     ready = true;
   } catch {
     failed = true;
-    for (const key of ['drive', 'recover'] as const) {
+    for (const key of BEDS) {
       try {
         players[key]?.remove();
       } catch {
@@ -117,7 +121,7 @@ export function armMusicFromGesture(musicEnabled: boolean): void {
   active = 'recover';
   playing = true;
   duckUntil = 0;
-  for (const key of ['drive', 'recover'] as const) {
+  for (const key of BEDS) {
     const player = players[key];
     if (!player) continue;
     try {
@@ -131,22 +135,26 @@ export function armMusicFromGesture(musicEnabled: boolean): void {
     }
   }
   setTimeout(() => {
-    if (active === 'drive') return;
-    try {
-      players.drive?.pause();
-      void players.drive?.seekTo(0);
-    } catch {
-      // ignore
+    for (const key of BEDS) {
+      if (key === active) continue;
+      try {
+        players[key]?.pause();
+        void players[key]?.seekTo(0);
+      } catch {
+        // ignore
+      }
     }
   }, 80);
 }
 
 function ensurePlaying(restart: boolean): void {
-  const other: MusicBed = active === 'drive' ? 'recover' : 'drive';
-  try {
-    players[other]?.pause();
-  } catch {
-    // ignore
+  for (const key of BEDS) {
+    if (key === active) continue;
+    try {
+      players[key]?.pause();
+    } catch {
+      // ignore
+    }
   }
   playing = true;
   applyVolume();
@@ -165,7 +173,7 @@ function ensurePlaying(restart: boolean): void {
 }
 
 /** Keep the bed on the phase. Restarts the loop when the bed changes so the downbeat meets the chirp. */
-export function syncMusic(kind: string, musicEnabled: boolean): void {
+export function syncMusic(bed: MusicBed, musicEnabled: boolean): void {
   if (!ready) return;
   if (!musicEnabled) {
     enabled = false;
@@ -173,7 +181,7 @@ export function syncMusic(kind: string, musicEnabled: boolean): void {
     return;
   }
   enabled = true;
-  const next = bedForKind(kind);
+  const next = bed;
   const changed = next !== active;
   active = next;
   if (!playing || changed) {
@@ -194,7 +202,7 @@ export function syncMusic(kind: string, musicEnabled: boolean): void {
 export function pauseMusic(): void {
   playing = false;
   clearRestore();
-  for (const key of ['drive', 'recover'] as const) {
+  for (const key of BEDS) {
     try {
       players[key]?.pause();
     } catch {
@@ -222,7 +230,7 @@ export function stopMusic(): void {
   active = 'recover';
   duckUntil = 0;
   clearRestore();
-  for (const key of ['drive', 'recover'] as const) {
+  for (const key of BEDS) {
     const player = players[key];
     if (!player) continue;
     try {
@@ -237,7 +245,7 @@ export function stopMusic(): void {
 
 export function releaseMusicPlayers(): void {
   stopMusic();
-  for (const key of ['drive', 'recover'] as const) {
+  for (const key of BEDS) {
     try {
       players[key]?.remove();
     } catch {

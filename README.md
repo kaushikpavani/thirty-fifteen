@@ -64,13 +64,13 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 ## Audio
 
-Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. Rocky stays quiet from 3 seconds before a change through 1 second after it.
+Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30, rotating through four takes. One line in the first 3 seconds of each easy 15, after the opening second, from four takes — every fourth easy stays quiet. One finish line a second after the last interval, one of two. The set-break line is one of two. The same voice throughout. Rocky stays quiet from 3 seconds before a change through 1 second after it. Which take plays is fixed for the session from the start time. It does not shuffle mid-rep.
 
-Into each HARD, including the first one after the warm-up, three rising ticks land at 3, 2, and 1. The existing go chirp and a heavy haptic land on the flip. The first HARD of the session adds one syllable, "Go.", on that chirp, then silence. EASY does not get a beep. There is no spoken count and no caption.
+Into each HARD, including the first one after the warm-up, three rising ticks land at 3, 2, and 1. The slots do not move. Each approach uses one of three timbres. The existing go chirp and a heavy haptic land on the flip. The first HARD of the session adds one syllable, "Go.", on that chirp, then silence. EASY does not get a beep. There is no spoken count and no caption.
 
 When the last easy of a set opens the set rest, one win chirp plays with "Round won. Stay sharp." The clock punches once and the rail flashes, then the rest breathes cool. The finish line sits on a heavier done beep. The screen blooms once in the go color, then holds. The button says Done.
 
-A generated instrumental bed starts with the ride. Drive (hotter) under HARD and the accelerations. Recover (cooler) under the spin, the fifteens, set rest, and the cool-down. The bed drops out while Rocky speaks and from T−3 through T+1, then comes back. Settings → Music turns it off. Default is on. Nothing on Home plays the bed before Start. The phone's silent switch still lets the ride play, same as the cues.
+A generated instrumental bed starts with the ride. Drive (hotter) under HARD and the accelerations. Recover (cooler) under the spin, the fifteens, set rest, and the cool-down. Each family has a second loop, and the set picks which one. The HARD glow steps through three warm reds, one per set. The bed drops out while Rocky speaks and from T−3 through T+1, then comes back. Settings → Music turns it off. Default is on. Nothing on Home plays the bed before Start. The phone's silent switch still lets the ride play, same as the cues.
 
 The four lines are recorded (a direct neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate. Skip, shorten, and restart do not speak.
 

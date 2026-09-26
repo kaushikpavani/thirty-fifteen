@@ -38,11 +38,20 @@ export type PhaseKind =
   | 'cooldown'
   | 'done';
 
-export function phaseColor(kind: PhaseKind): string {
+/** Warm reds. A set steps the hue, never out of the hot family. */
+export const HARD_FAMILY = ['#FF453A', '#FF5A38', '#FF3E32'] as const;
+const HARD_GAIN = [1, 0.94, 1.06] as const;
+
+function familyIndex(setNumber: number, salt: number): number {
+  const set = Number.isFinite(setNumber) && setNumber > 0 ? setNumber : 1;
+  return (set - 1 + salt) % HARD_FAMILY.length;
+}
+
+export function phaseColor(kind: PhaseKind, setNumber = 1, salt = 0): string {
   switch (kind) {
     case 'hard':
     case 'accel':
-      return colors.hard;
+      return HARD_FAMILY[familyIndex(setNumber, salt)];
     case 'easy':
       return colors.easy;
     case 'set_rest':
@@ -56,6 +65,12 @@ export function phaseColor(kind: PhaseKind): string {
     default:
       return colors.text;
   }
+}
+
+/** Slight intensity nudge for HARD. Easy and rest stay put. */
+export function phaseIntensity(kind: PhaseKind, setNumber = 1, salt = 0): number {
+  if (kind === 'hard' || kind === 'accel') return HARD_GAIN[familyIndex(setNumber, salt)];
+  return 1;
 }
 
 export function phaseGlow(kind: PhaseKind): string {

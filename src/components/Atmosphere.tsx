@@ -20,6 +20,8 @@ type Props = {
   bloomMs?: number;
   /** No breath. The bloom plays once and the light stays put. */
   still?: boolean;
+  /** HARD set nudge. 1 is the locked level. */
+  intensity?: number;
 };
 
 /**
@@ -35,6 +37,7 @@ export function Atmosphere({
   punch = 0,
   bloomMs = 520,
   still = false,
+  intensity = 1,
 }: Props) {
   const breath = useRef(new Animated.Value(1)).current;
   const burst = useRef(new Animated.Value(0)).current;
@@ -122,10 +125,10 @@ export function Atmosphere({
         ) : (
           <>
             <Animated.View style={[styles.fill, { opacity: aOpacity }]} pointerEvents="none">
-              <PhaseLight color={aColor} id="phase-a" heat={heat} />
+              <PhaseLight color={aColor} id="phase-a" heat={heat} intensity={intensity} />
             </Animated.View>
             <Animated.View style={[styles.fill, { opacity: bOpacity }]} pointerEvents="none">
-              <PhaseLight color={bColor} id="phase-b" heat={heat} />
+              <PhaseLight color={bColor} id="phase-b" heat={heat} intensity={intensity} />
             </Animated.View>
             <Animated.View
               pointerEvents="none"
@@ -150,9 +153,20 @@ export function Atmosphere({
   );
 }
 
-function PhaseLight({ color, id, heat }: { color: string; id: string; heat: 'hot' | 'cool' }) {
-  const core = heat === 'cool' ? '0.5' : '0.72';
-  const mid = heat === 'cool' ? '0.22' : '0.32';
+function PhaseLight({
+  color,
+  id,
+  heat,
+  intensity = 1,
+}: {
+  color: string;
+  id: string;
+  heat: 'hot' | 'cool';
+  intensity?: number;
+}) {
+  const gain = Number.isFinite(intensity) ? Math.min(1.12, Math.max(0.85, intensity)) : 1;
+  const core = String((heat === 'cool' ? 0.5 : 0.72) * gain);
+  const mid = String((heat === 'cool' ? 0.22 : 0.32) * gain);
   return (
     <Svg width="100%" height="100%">
       <Defs>

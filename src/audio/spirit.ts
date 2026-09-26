@@ -2,14 +2,16 @@
 const CLOCK_HIT_MS = 400;
 const WARN_BEFORE_MS = 3000;
 
-export type MusicBed = 'drive' | 'recover';
+export type MusicBed = 'drive' | 'driveB' | 'recover' | 'recoverB';
 export type LadderStep = 'three' | 'two' | 'one';
 export type BoundaryChirp = 'go' | 'win';
 
-/** Drive is the hot bed. Recover is the cool one. */
+/** Drive is the hot bed. The B takes are the same family, a notch hotter or cooler. */
 export const BED_VOLUME: Record<MusicBed, number> = {
   drive: 0.55,
+  driveB: 0.62,
   recover: 0.22,
+  recoverB: 0.18,
 };
 
 /** Bed goes to silence under Rocky and from T−3 through T+1. */
@@ -17,8 +19,8 @@ export const DUCK_GAIN = 0;
 export const BEEP_DUCK_MS = 340;
 /** The go chirp keeps the bed down through the first second of HARD. */
 export const HARD_OPEN_DUCK_MS = 1000;
-/** Win chirp plus the one set-break line. */
-export const ROUND_DUCK_MS = 2400;
+/** Win chirp plus the longer of the two set-break lines. */
+export const ROUND_DUCK_MS = 4000;
 
 const LADDER_AT_MS: Record<LadderStep, number> = {
   three: 3000,
@@ -29,6 +31,36 @@ const LADDER_AT_MS: Record<LadderStep, number> = {
 /** HARD is hot. Accelerations stay on the drive bed. Everything else is cool. */
 export function bedForKind(kind: string): MusicBed {
   return kind === 'hard' || kind === 'accel' ? 'drive' : 'recover';
+}
+
+/**
+ * Stable offset for one ride. Same start always picks the same takes.
+ * No Math.random — a different Start tap is a different session, not a dice roll mid-rep.
+ */
+export function varietySalt(startedAt: number | null | undefined): number {
+  if (startedAt == null || !Number.isFinite(startedAt)) return 0;
+  return Math.abs(Math.floor(startedAt / 1000)) % 12;
+}
+
+/** Alternate bed per set, still inside the hot or cool family. */
+export function bedId(kind: string, setNumber: number | null | undefined, salt = 0): MusicBed {
+  const set = setNumber != null && setNumber > 0 ? setNumber : 1;
+  const alt = (set - 1 + salt) % 2 === 1;
+  if (kind === 'hard' || kind === 'accel') return alt ? 'driveB' : 'drive';
+  return alt ? 'recoverB' : 'recover';
+}
+
+/** Which rising-tick timbre this HARD approach uses. Slots stay on the clock. */
+export function ladderTone(approach: number, salt = 0): 0 | 1 | 2 {
+  const n = Math.abs(Math.floor(approach) + salt) % 3;
+  return n as 0 | 1 | 2;
+}
+
+export function ladderBeep(step: LadderStep, tone: 0 | 1 | 2): string {
+  const base = step === 'three' ? 'rung3' : step === 'two' ? 'rung2' : 'rung1';
+  if (tone === 1) return `${base}b`;
+  if (tone === 2) return `${base}c`;
+  return base;
 }
 
 /** From this rung through one second after the flip into HARD. */

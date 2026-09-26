@@ -11,9 +11,9 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { roundWon } from '../audio/spirit';
+import { roundWon, varietySalt } from '../audio/spirit';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { colors, phaseColor, phaseLabel } from '../theme/colors';
+import { colors, phaseColor, phaseIntensity, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
 
 const nativeMotion = Platform.OS !== 'web';
@@ -32,7 +32,9 @@ export function ActiveScreen() {
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
-  const accent = phaseColor(kind);
+  const salt = varietySalt(state.startedAt);
+  const accent = phaseColor(kind, seg?.setNumber, salt);
+  const intensity = phaseIntensity(kind, seg?.setNumber, salt);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
@@ -168,6 +170,7 @@ export function ActiveScreen() {
         color={accent}
         paused={paused}
         heat={cool ? 'cool' : 'hot'}
+        intensity={intensity}
         reduceMotion={reduceMotion}
       />
       <SegmentRail
