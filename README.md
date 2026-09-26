@@ -240,9 +240,11 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 
 ## Checks
 
+From the repo root:
+
 ```bash
 npx tsc --noEmit
 npm test
 ```
 
-GitHub Actions runs the same two commands on pull requests and on pushes to `main`.
+`npm test` runs the unit tests for the coach, history merge, outbox retry, analytics (no personal data), profile writes, deletion, and the offline gates. `npx tsc --noEmit` typechecks the app. GitHub Actions runs `npm ci`, then those two commands, on every pull request and on every push to `main`.

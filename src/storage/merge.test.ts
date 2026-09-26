@@ -46,6 +46,24 @@ test('merge caps at 200 sessions', () => {
   assert.equal(mergeRecords(local, []).length, 200);
 });
 
+test('an equal endedAt keeps the phone copy', () => {
+  const local = ride('same', '2026-09-26T09:00:00.000Z', 200);
+  const remote = ride('same', '2026-09-26T09:00:00.000Z', 100);
+  const merged = mergeRecords([local], [remote]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]?.ftpWatts, 200);
+});
+
+test('a history watermark hides the ride that ends on the cutoff', () => {
+  const onCutoff = ride('edge', '2026-09-26T09:00:00.000Z');
+  const after = ride('later', '2026-09-26T09:00:00.001Z');
+  const merged = applyCloudMerge([onCutoff], [onCutoff, after], '2026-09-26T09:00:00.000Z');
+  assert.deepEqual(
+    merged.map((row) => row.id),
+    ['later'],
+  );
+});
+
 test('a history watermark hides deleted rides and keeps a later one', () => {
   const wiped = ride('old', '2026-09-26T08:00:00.000Z');
   const kept = ride('new', '2026-09-26T12:00:00.000Z');

@@ -6,6 +6,7 @@ import { ensureDevice } from './cloud';
 import { workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
 import { loadDeletionState } from './deletionStore';
 import { createId } from './id';
+import { shouldUploadSession } from './historyGate';
 import { applyCloudMerge } from './merge';
 import { createQueue } from './queue';
 
@@ -115,9 +116,8 @@ export async function pushSession(record: WorkoutRecord): Promise<string | null>
     const supabase = getSupabase();
     if (!supabase) return null;
     const user = await loadCachedAuthUser();
-    if (!user) return null;
     const gate = await loadDeletionState();
-    if (gate.historyDeletedThrough && record.endedAt <= gate.historyDeletedThrough) return null;
+    if (!user || !shouldUploadSession(true, user.id, record.endedAt, gate.historyDeletedThrough)) return null;
     const userId = user.id;
     const deviceId = await ensureDevice();
     const message = await upsertWorkoutRows([workoutSessionWrite(record, userId, deviceId)]);

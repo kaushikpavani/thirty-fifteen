@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { PII_PROPERTY_KEYS } from './analytics.ts';
 import {
   accountDeleteNote,
+  deviceEraseNote,
   EMPTY_DELETION,
   enqueueCloudJob,
   historyDeleteNote,
@@ -26,6 +27,9 @@ test('a history wipe arms two cloud passes and a later cutoff wins', () => {
   assert.equal(later.historyDeletedThrough, '2026-09-26T09:00:00.000Z');
   const healed = noteSessionDeleteSuccess(noteSessionDeleteSuccess(later));
   assert.equal(healed.sessionDeletesLeft, 0);
+  const older = markHistoryDeleted(later, '2026-09-26T07:00:00.000Z');
+  assert.equal(older.historyDeletedThrough, '2026-09-26T09:00:00.000Z');
+  assert.equal(older.sessionDeletesLeft, 2);
 });
 
 test('cloud jobs are one-per-kind and drop only after success', () => {
@@ -69,6 +73,11 @@ test('queued deletes do not claim the cloud is already gone', () => {
   assert.match(accountDeleteNote('queued'), /still there/i);
   assert.match(accountDeleteNote('done'), /signed out/i);
   assert.match(accountDeleteNote('unconfigured'), /no account/i);
+  assert.doesNotMatch(historyDeleteNote('skipped'), /cloud/i);
+  assert.match(deviceEraseNote('queued'), /still there/i);
+  assert.doesNotMatch(deviceEraseNote('queued'), /was removed/i);
+  assert.match(deviceEraseNote('done'), /was removed/i);
+  assert.doesNotMatch(deviceEraseNote('skipped'), /cloud/i);
 });
 
 test('account delete SQL removes rider data before the auth user', () => {

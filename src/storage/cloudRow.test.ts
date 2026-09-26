@@ -6,6 +6,7 @@ import {
   cloudDuplicate,
   cloudExtensionMissing,
   feedbackDeviceProblem,
+  insertAccepted,
   legacyWorkoutSessionWrite,
   trimOutbox,
   withoutSent,
@@ -66,11 +67,16 @@ test('older workout tables retry without the new columns', () => {
   assert.equal('device_id' in fk[0] && fk[0].device_id, null);
   assert.equal('source' in fk[0] && fk[0].source, 'manual');
   assert.equal(workoutRowsForRetry([row], 'Failed to fetch'), null);
+  assert.equal(workoutRowsForRetry([row], ''), null);
 });
 
 test('a retried outbox row is not a new failure', () => {
   assert.equal(cloudDuplicate('duplicate key value violates unique constraint "app_events_client_event_id_key"'), true);
   assert.equal(cloudDuplicate('Failed to fetch'), false);
+  assert.equal(insertAccepted(null), true);
+  assert.equal(insertAccepted('duplicate key value violates unique constraint "app_feedback_client_id_key"'), true);
+  assert.equal(insertAccepted('Failed to fetch'), false);
+  assert.equal(insertAccepted('relation "app_events" does not exist'), false);
   assert.equal(clientColumnMissing('client_id', "Could not find the 'client_id' column of 'app_feedback' in the schema cache"), true);
   assert.equal(clientColumnMissing('client_event_id', 'Failed to fetch'), false);
   assert.deepEqual(trimOutbox([1, 2, 3], 2), [1, 2]);
@@ -84,6 +90,17 @@ test('a retried outbox row is not a new failure', () => {
       sent,
     ).map((row) => row.id),
     ['b'],
+  );
+  assert.deepEqual(trimOutbox([1], -1), []);
+  assert.deepEqual(
+    withoutSent(
+      [
+        { id: 'a', name: 'sent' },
+        { id: 'b', name: 'also' },
+      ],
+      new Set(['a', 'b']),
+    ),
+    [],
   );
 });
 

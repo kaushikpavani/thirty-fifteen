@@ -19,6 +19,14 @@ test('analytics properties drop names, note text, and email addresses', () => {
   for (const key of PII_PROPERTY_KEYS) {
     assert.equal(Object.hasOwn(clean, key), false);
   }
+  const mixed = sanitizeEventProperties({
+    Email: 'rider@example.com',
+    Display_Name: 'Ada',
+    BODY: 'note text',
+    completed: false,
+    completion_pct: 0,
+  });
+  assert.deepEqual(mixed, { completed: false, completion_pct: 0 });
 });
 
 test('event names stay on the known list', () => {
@@ -39,10 +47,18 @@ test('profile upsert copies ftp from the phone and omits email', () => {
   const high = profileWrite({ id: 'user-1', name: 'x'.repeat(100) }, 601, '2026-09-26T08:00:00.000Z');
   assert.equal(high.display_name?.length, 80);
   assert.equal('ftp_watts' in high, false);
+  const bounds = profileWrite({ id: 'user-1', name: '   ' }, 50, '2026-09-26T08:00:00.000Z');
+  assert.equal(bounds.display_name, null);
+  assert.equal(bounds.ftp_watts, 50);
+  const top = profileWrite({ id: 'user-1', name: 'A' }, 600, '2026-09-26T08:00:00.000Z');
+  assert.equal(top.ftp_watts, 600);
+  assert.equal(top.display_name, 'A');
 });
 
 test('a blank Supabase config stays fully local', () => {
   assert.equal(hasCloudConfig('', ''), false);
   assert.equal(hasCloudConfig('https://example.supabase.co', ''), false);
   assert.equal(hasCloudConfig(' https://example.supabase.co ', ' publishable '), true);
+  assert.equal(hasCloudConfig('   ', 'publishable'), false);
+  assert.equal(hasCloudConfig('https://example.supabase.co', '   '), false);
 });

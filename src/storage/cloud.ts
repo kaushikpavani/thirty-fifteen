@@ -5,7 +5,7 @@ import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
 import type { AuthUser } from '../types';
 import { isAnalyticsEvent, sanitizeEventProperties, type EventProperties } from './analytics';
-import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox, withoutSent } from './cloudRow';
+import { clientColumnMissing, feedbackDeviceProblem, insertAccepted, trimOutbox, withoutSent } from './cloudRow';
 import { createId, isInstallId } from './id';
 import { profileWrite } from './profileWrite';
 import { createQueue } from './queue';
@@ -126,7 +126,7 @@ async function insertEvent(event: QueuedEvent, cloudDeviceId: string | null): Pr
 
   const send = async (row: Record<string, unknown>) => {
     const { error } = await supabase.from('app_events').insert(row);
-    if (!error || cloudDuplicate(error.message)) return { ok: true, message: '' };
+    if (!error || insertAccepted(error.message)) return { ok: true, message: '' };
     return { ok: false, message: error.message };
   };
 

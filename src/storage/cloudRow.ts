@@ -93,6 +93,14 @@ export function cloudDuplicate(message: string): boolean {
   return /duplicate key|unique constraint|23505/i.test(message);
 }
 
+/**
+ * A missing error is success. A duplicate key is also success: the retry
+ * found the row from the previous flush. Any other message stays queued.
+ */
+export function insertAccepted(errorMessage: string | null): boolean {
+  return errorMessage == null || cloudDuplicate(errorMessage);
+}
+
 export function clientColumnMissing(column: 'client_id' | 'client_event_id', message: string): boolean {
   return new RegExp(column, 'i').test(message) && /schema cache|could not find|does not exist/i.test(message);
 }

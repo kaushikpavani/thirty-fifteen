@@ -14,9 +14,10 @@ export function profileWrite(
   ftpWatts: number,
   seenAt: string,
 ): ProfileWrite {
+  const name = user.name?.trim() ?? '';
   const row: ProfileWrite = {
     id: user.id,
-    display_name: user.name ? user.name.slice(0, 80) : null,
+    display_name: name ? name.slice(0, 80) : null,
     last_seen_at: seenAt,
   };
   const ftp = Math.round(ftpWatts);

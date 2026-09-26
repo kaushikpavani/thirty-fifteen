@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice, track } from './cloud';
-import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox, withoutSent } from './cloudRow';
+import { clientColumnMissing, feedbackDeviceProblem, insertAccepted, trimOutbox, withoutSent } from './cloudRow';
 import { createId } from './id';
 import { createQueue } from './queue';
 
@@ -61,7 +61,7 @@ async function insertNote(note: FeedbackNote): Promise<boolean> {
   const deviceId = await ensureDevice();
   const send = async (row: Record<string, unknown>) => {
     const { error } = await supabase.from('app_feedback').insert(row);
-    if (!error || cloudDuplicate(error.message)) return { ok: true, message: '' };
+    if (!error || insertAccepted(error.message)) return { ok: true, message: '' };
     return { ok: false, message: error.message };
   };
 
