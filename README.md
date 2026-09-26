@@ -171,7 +171,7 @@ Into each HARD, including the first one after the warm-up, three ticks land at 3
 
 When the last easy of a set opens the set rest, one win chirp plays with "Round won. Stay sharp." The clock punches once and the rail flashes, then the rest breathes cool. The finish line sits on a heavier done beep. The screen blooms once in the go color, then holds. The button says Done.
 
-A generated instrumental bed starts with the ride. Start picks one of three beds for the session. Drive stays hotter under HARD. Recover stays cooler under the fifteens and rest. The HARD glow steps around the same red, once per interval, and crossfades when the interval opens. Home may show a short tip under the structure. About one open in four shows none. Start is always there. The finish title is one of three lines. The button says Done. The bed drops out while Rocky speaks and from T−3 through T+1, then comes back. Settings → Music turns it off. Default is on. Nothing on Home plays the bed before Start. The phone's silent switch still lets the ride play, same as the cues.
+A generated instrumental bed starts with the ride. Start picks one of three beds for the session. Drive stays hotter under HARD. Recover stays cooler under the fifteens and rest. The HARD glow steps around the same red, once per interval, and crossfades when the interval opens. Home may show a short tip under the structure. About one open in four shows none. Start is always there. The finish title is one of three lines. The button says Done. The bed drops out while Rocky speaks and from T−3 through T+1, then comes back. Settings → Music turns it off. Default is on. Nothing on Home plays the bed before Start. The phone's silent switch still lets the ride play, same as the cues. The bed keeps looping if you leave the app, so the clock and the cues keep their places. See [Background](#background).
 
 The four lines are recorded (a direct neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate. Skip, shorten, and restart do not speak.
 
@@ -196,24 +196,11 @@ To connect a real meter:
 
 ```bash
 npx expo install expo-dev-client
-```
-
-Add `eas.json` if you do not have one:
-
-```json
-{
-  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
-  "build": {
-    "development": { "developmentClient": true, "distribution": "internal" },
-    "production": {}
-  }
-}
-```
-
-```bash
 npx eas-cli@latest build --profile development --platform ios
 npx expo start --dev-client
 ```
+
+The development profile is in [`eas.json`](eas.json).
 
 Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The countdown stays the only number on the clock. Planned watts stay on Home.
 
@@ -227,6 +214,31 @@ Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo
 
 ---
 
+## Background
+
+Leaving the app, or locking the screen, does not pause the ride. Pause still means Pause. The glow and the rail stop moving while another app is in front. The clock does not. Maintainer notes, the catch-up proof, and the platform limits are in [BACKGROUND.md](BACKGROUND.md).
+
+**iOS** mixes with other audio and ducks it only while a cue is already silencing our bed. YouTube keeps playing. There is no lock-screen remote, because that API requires exclusive audio and would pause YouTube for the whole ride.
+
+**Android** takes exclusive audio for a running ride and shows a media notification (segment label, no watts, no seek). Notification pause pauses the workout. Notification play resumes it. YouTube stays paused while the ride is running.
+
+`playsInSilentMode` keeps the ride audible with the iOS silent switch on, and with Android silent or vibrate. Expo Go does not apply this project's native background config. Use a development build. See [BACKGROUND.md](BACKGROUND.md).
+
+### Manual test
+
+1. Install a development build (iOS and, if you can, Android). Not Expo Go.
+2. Start a workout. Confirm the bed is audible.
+3. Switch to YouTube, or lock the screen, for several HARD/EASY pairs (more than a minute, and on Android more than three).
+4. You should hear the T−3 / T−2 / T−1 ladder, the phase chirp, and Rocky on time. On iOS, YouTube should keep playing and dip under each cue. On Android, YouTube pauses while the ride owns audio.
+5. Return to 30/15. The countdown should match the time you were away. The ride should not be paused.
+6. Pause in the app. Cues and the bed stop. Resume. They continue from that second, without replaying a cue whose window already ended.
+7. On Android, pause from the notification. Cues stop. Play from the notification. They continue. On iOS, the lock screen has no remote for this app.
+8. Turn Music off, start again, leave the app. Cues should still arrive. No bed tone.
+
+The OS can still kill a background app. Battery use is higher while the session is held. A phone call can silence the bed until you return to the app. `expo-speech` is not the background path.
+
+---
+
 ## Settings
 
 FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, speech, voice rate, haptics. Stored in AsyncStorage. The finish screen's primary button says Done.
@@ -235,7 +247,7 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 
 ## Limitations
 
-- The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
+- The timer is wall-clock time. While the app is in front, `expo-keep-awake` holds the screen on. In the background the bed (or a silent loop) holds the audio session. If the OS freezes or kills the process, the clock snaps forward on return and does not replay missed cues. See [BACKGROUND.md](BACKGROUND.md).
 - History, FTP, notes, and analytics stay on the phone. Cloud sync is a later best-effort flush. Start, the clock, cues, and the music bed do not wait for it.
 - Feedback reaches the dashboard only after the SQL has been run and the phone can reach it. Until then the note stays in the outbox.
 - A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
@@ -251,4 +263,4 @@ npx tsc --noEmit
 npm test
 ```
 
-`npm test` runs the unit tests for the coach, history merge, outbox retry, analytics (no personal data), profile writes, deletion, and the offline gates. `npx tsc --noEmit` typechecks the app. GitHub Actions runs `npm ci`, then those two commands, on every pull request and on every push to `main`.
+`npm test` runs the unit tests for the coach, history merge, outbox retry, analytics (no personal data), profile writes, deletion, the offline gates, and background catch-up (wall clock, cue windows, no double-fire). `npx tsc --noEmit` typechecks the app. GitHub Actions runs `npm ci`, then those two commands, on every pull request and on every push to `main`. The YouTube check is on a device. The steps are in [BACKGROUND.md](BACKGROUND.md).

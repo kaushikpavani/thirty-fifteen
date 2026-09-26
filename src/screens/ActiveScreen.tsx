@@ -12,6 +12,7 @@ import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { roundWon, varietySalt } from '../audio/spirit';
+import { useAppActive } from '../hooks/useAppActive';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { finishBloom, finishTitle } from '../workout/craft';
@@ -25,6 +26,8 @@ export function ActiveScreen() {
   const { settings } = useSettings();
   const { width } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
+  const foreground = useAppActive();
+  const rideMotion = reduceMotion || !foreground;
   const savedRef = useRef<number | null>(null);
   const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
   const [won, setWon] = useState(0);
@@ -180,14 +183,14 @@ export function ActiveScreen() {
         color={accent}
         paused={paused}
         heat={cool ? 'cool' : 'hot'}
-        reduceMotion={reduceMotion}
+        reduceMotion={rideMotion}
       />
       <SegmentRail
         progress={segmentProgress}
         color={accent}
         paused={paused}
         flash={won}
-        reduceMotion={reduceMotion}
+        reduceMotion={rideMotion}
       />
       <View style={styles.body}>
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
@@ -197,7 +200,7 @@ export function ActiveScreen() {
           fontSize={fontSize}
           dim={paused}
           phase={kind}
-          reduceMotion={reduceMotion}
+          reduceMotion={rideMotion}
           testID="countdown"
         />
         <FadeLabel value={caption} style={styles.caption} />

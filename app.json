@@ -16,7 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
       "infoPlist": {
-        "UIBackgroundModes": [],
+        "UIBackgroundModes": ["audio"],
         "NSBluetoothAlwaysUsageDescription": "30/15 reads power and speed from your bike computer or trainer."
       }
     },
@@ -49,7 +49,7 @@
         {
           "microphonePermission": false,
           "recordAudioAndroid": false,
-          "enableBackgroundPlayback": false,
+          "enableBackgroundPlayback": true,
           "enableBackgroundRecording": false
         }
       ],

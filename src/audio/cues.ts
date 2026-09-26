@@ -1,6 +1,7 @@
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
 import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
+import { configureIdleAudio, holdForeignDuck } from './session';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 
 const beepModules = {
@@ -146,25 +147,28 @@ function prepareVoice(): Promise<void> {
   return voicePromise;
 }
 
+function duckFor(ms: number): void {
+  if (ms <= 0) return;
+  duckMusic(ms);
+  holdForeignDuck(ms);
+}
+
 async function preparePlayers(): Promise<void> {
   if (audioReady || beepsUnavailable) return;
   const audio = loadExpoAudio();
   if (!audio) return;
   try {
-    await audio.setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-      interruptionMode: 'mixWithOthers',
-    });
+    await configureIdleAudio();
+    const playerOptions = { keepAudioSessionActive: true as const };
     for (const key of Object.keys(beepModules) as BeepKind[]) {
-      const player = audio.createAudioPlayer(beepModules[key]);
+      const player = audio.createAudioPlayer(beepModules[key], playerOptions);
       player.volume = 0.85;
       cache[key] = player;
     }
     audioReady = true;
     try {
       for (const key of Object.keys(rockyModules) as RockyKind[]) {
-        const player = audio.createAudioPlayer(rockyModules[key]);
+        const player = audio.createAudioPlayer(rockyModules[key], playerOptions);
         player.volume = 1;
         player.shouldCorrectPitch = true;
         rockyCache[key] = player;
@@ -181,12 +185,16 @@ async function preparePlayers(): Promise<void> {
       }
       rockyReady = false;
     }
-    attachMusicPlayers((source) => audio.createAudioPlayer(source));
+    attachMusicPlayers((source) =>
+      audio.createAudioPlayer(source, { ...playerOptions, updateInterval: 250 }),
+    );
   } catch {
     releasePlayers();
     beepsUnavailable = true;
   }
 }
+
+export { enterWorkoutAudio, leaveWorkoutAudio } from './session';
 
 export function initAudio(): Promise<void> {
   void prepareVoice();
@@ -240,11 +248,11 @@ export function speakCue(cue: { key: string; line: string; clip?: string }, sett
   const kind = rockyClip(cue.key, cue.clip);
   const player = kind && rockyReady ? rockyCache[kind] : undefined;
   if (!player) {
-    duckMusic(rockyDuckMs(cue.key));
+    duckFor(rockyDuckMs(cue.key));
     speakFallback(cue.line, settings);
     return;
   }
-  duckMusic(rockyDuckMs(cue.key));
+  duckFor(rockyDuckMs(cue.key));
   const token = ++rockyToken;
   try {
     Speech.stop();
@@ -369,7 +377,7 @@ export async function playBeep(
     if (!audioReady) await initAudio();
     const player = cache[kind];
     if (!player) return;
-    if (duckMs > 0) duckMusic(duckMs);
+    if (duckMs > 0) duckFor(duckMs);
     player.volume =
       volume ?? (kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85));
     await player.seekTo(0);
