@@ -40,6 +40,11 @@ export async function markFtpOnboardingDone(): Promise<void> {
   }
 }
 
-export function resetSettings(): WorkoutSettings {
-  return { ...DEFAULT_SETTINGS };
+/** Remove saved settings and the FTP prompt flag. The next save writes defaults. */
+export async function clearStoredSettings(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([KEY, ONBOARD_KEY]);
+  } catch {
+    // ignore
+  }
 }

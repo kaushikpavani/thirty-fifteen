@@ -37,7 +37,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/logic/coach.test.ts"
+    "test": "node --experimental-strip-types --test src/logic/coach.test.ts src/storage/cloudRow.test.ts src/storage/merge.test.ts src/storage/analytics.test.ts src/storage/deletionState.test.ts src/storage/queue.test.ts src/storage/historyGate.test.ts src/auth/storageKey.test.ts"
   },
   "private": true
 }
