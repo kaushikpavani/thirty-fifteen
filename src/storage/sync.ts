@@ -1,5 +1,6 @@
 import { loadCachedAuthUser } from '../auth/sessionCache';
 import { flushEvents, syncProfile } from './cloud';
+import { flushCloudDeletes } from './deletion';
 import { flushFeedbackOutbox } from './feedback';
 
 let flushing: Promise<void> | null = null;
@@ -17,6 +18,8 @@ export function scheduleSync(): void {
 
 async function runSync(): Promise<void> {
   try {
+    const deleted = await flushCloudDeletes();
+    if (deleted.account === 'done') return;
     await flushEvents();
     await flushFeedbackOutbox();
     const user = await loadCachedAuthUser();
