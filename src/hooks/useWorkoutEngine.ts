@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, speakCue, stopSpeech, unlockRockyFromGesture } from '../audio/cues';
-import { inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
+import { initAudio, playBeep, speakCue, stopSpeech, unlockRockyFromGesture } from '../audio/cues';
+import { clockHit, inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
 import {
@@ -86,17 +86,28 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
     if (!current) return;
 
-    if (current.elapsedIn < 400) {
-      const key = `start:${current.seg.id}`;
+    const hit = clockHit(current.elapsedIn, current.seg.durationMs);
+    if (hit) {
+      const key = `${hit}:${current.seg.id}`;
       if (!firedStartRef.current.has(key)) {
         firedStartRef.current.add(key);
         if (s.hapticsEnabled) {
+          const heavy = current.seg.kind === 'hard' || current.seg.kind === 'accel';
           void Haptics.impactAsync(
-            current.seg.kind === 'hard' || current.seg.kind === 'accel'
-              ? Haptics.ImpactFeedbackStyle.Heavy
-              : Haptics.ImpactFeedbackStyle.Light,
+            hit === 'warn'
+              ? Haptics.ImpactFeedbackStyle.Light
+              : heavy
+                ? Haptics.ImpactFeedbackStyle.Heavy
+                : Haptics.ImpactFeedbackStyle.Medium,
           );
         }
+        const chirp =
+          current.seg.kind === 'easy' || current.seg.kind === 'set_rest'
+            ? 'easy'
+            : current.seg.kind === 'cooldown'
+              ? 'done'
+              : 'go';
+        void playBeep(s, hit === 'warn' ? 'warn' : chirp);
       }
     }
 
@@ -190,7 +201,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       stopSpeech();
 
       if (rearmCurrent && current.segment) {
-        firedStartRef.current.delete(`start:${current.segment.id}`);
+        firedStartRef.current.delete(`chirp:${current.segment.id}`);
+        firedStartRef.current.delete(`warn:${current.segment.id}`);
         for (const key of rockyKeysToRearm(current.segment, segmentStartMs(segs, current.index))) {
           firedRockyRef.current.delete(key);
         }

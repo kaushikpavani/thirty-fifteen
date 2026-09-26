@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
@@ -11,13 +11,22 @@ type Props = {
   /** Solid phase color. The glow falls off before it reaches the type. */
   color?: string;
   paused?: boolean;
+  /** Easy and rest breathe slower and a notch quieter than hard. */
+  heat?: 'hot' | 'cool';
+  reduceMotion?: boolean;
 };
 
 /**
  * Light under the hero. A radial pool breathes and crossfades with the phase.
  * The brightest part sits below the countdown so the number stays sharp.
  */
-export function Atmosphere({ variant = 'ride', color = '#FFD60A', paused = false }: Props) {
+export function Atmosphere({
+  variant = 'ride',
+  color = '#FFD60A',
+  paused = false,
+  heat = 'hot',
+  reduceMotion = false,
+}: Props) {
   const breath = useRef(new Animated.Value(0)).current;
   const aOpacity = useRef(new Animated.Value(1)).current;
   const bOpacity = useRef(new Animated.Value(0)).current;
@@ -26,44 +35,50 @@ export function Atmosphere({ variant = 'ride', color = '#FFD60A', paused = false
   const front = useRef<'a' | 'b'>('a');
 
   useEffect(() => {
-    const half = paused ? 6200 : variant === 'rest' ? 4600 : 3200;
+    if (reduceMotion) {
+      breath.setValue(1);
+      return;
+    }
+    const half = paused ? 6200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4600 : 3000;
+    const easing = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breath, { toValue: 1, duration: half, useNativeDriver: native }),
-        Animated.timing(breath, { toValue: 0, duration: half, useNativeDriver: native }),
+        Animated.timing(breath, { toValue: 1, duration: half, easing, useNativeDriver: native }),
+        Animated.timing(breath, { toValue: 0, duration: half, easing, useNativeDriver: native }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, paused, variant]);
+  }, [breath, heat, paused, reduceMotion, variant]);
 
   useEffect(() => {
     const current = front.current === 'a' ? aColor : bColor;
     if (color === current) return;
+    const duration = reduceMotion ? 0 : 300;
     if (front.current === 'a') {
       setBColor(color);
       front.current = 'b';
       Animated.parallel([
-        Animated.timing(bOpacity, { toValue: 1, duration: 560, useNativeDriver: native }),
-        Animated.timing(aOpacity, { toValue: 0, duration: 560, useNativeDriver: native }),
+        Animated.timing(bOpacity, { toValue: 1, duration, useNativeDriver: native }),
+        Animated.timing(aOpacity, { toValue: 0, duration, useNativeDriver: native }),
       ]).start();
     } else {
       setAColor(color);
       front.current = 'a';
       Animated.parallel([
-        Animated.timing(aOpacity, { toValue: 1, duration: 560, useNativeDriver: native }),
-        Animated.timing(bOpacity, { toValue: 0, duration: 560, useNativeDriver: native }),
+        Animated.timing(aOpacity, { toValue: 1, duration, useNativeDriver: native }),
+        Animated.timing(bOpacity, { toValue: 0, duration, useNativeDriver: native }),
       ]).start();
     }
-  }, [aColor, aOpacity, bColor, bOpacity, color]);
+  }, [aColor, aOpacity, bColor, bOpacity, color, reduceMotion]);
 
   const scale = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: paused ? [1, 1.04] : [1, 1.08],
+    outputRange: reduceMotion || paused ? [1, 1] : [1, heat === 'cool' ? 1.05 : 1.08],
   });
   const presence = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: paused ? [0.45, 0.62] : [0.78, 1],
+    outputRange: paused ? [0.55, 0.72] : heat === 'cool' ? [0.7, 0.9] : [0.86, 1],
   });
 
   return (

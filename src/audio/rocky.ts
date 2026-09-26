@@ -3,10 +3,29 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = "You're here. That's enough. Let's work.";
-export const ROCKY_HARD = 'Hold it. This is the part that builds you.';
-export const ROCKY_EASY = 'Breathe. Stay ready.';
-export const ROCKY_FINISH = "You showed up and did the hard thing. That's the win.";
+export const ROCKY_WELCOME = "Let's go. Time to get better.";
+export const ROCKY_HARD = 'Dig in — this is the round that builds you.';
+export const ROCKY_EASY = "Yes. Breathe fire. You're not done.";
+export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
+
+/** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
+export const CLOCK_HIT_MS = 400;
+export const WARN_BEFORE_MS = 3000;
+
+export type ClockHit = 'chirp' | 'warn';
+
+/**
+ * Clock hits, separate from Rocky.
+ * Chirp in the first 400ms of a segment. Warn in the 400ms window that opens at T−3.
+ * Segments shorter than the warn lead only chirp, so the two never stack.
+ */
+export function clockHit(elapsedInMs: number, durationMs: number): ClockHit | null {
+  if (elapsedInMs >= 0 && elapsedInMs < CLOCK_HIT_MS) return 'chirp';
+  const remaining = durationMs - elapsedInMs;
+  const warnOpens = durationMs > WARN_BEFORE_MS + CLOCK_HIT_MS;
+  if (warnOpens && remaining <= WARN_BEFORE_MS && remaining > WARN_BEFORE_MS - CLOCK_HIT_MS) return 'warn';
+  return null;
+}
 
 export type RockySegment = {
   id: string;

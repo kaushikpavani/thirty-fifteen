@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, TextStyle, View } from 'react-native';
+import { Animated, Platform, StyleSheet, TextStyle } from 'react-native';
 
 const native = Platform.OS !== 'web';
 
@@ -8,14 +8,31 @@ type ClockProps = {
   color: string;
   fontSize: number;
   dim?: boolean;
+  /** Changes on a phase boundary. One short scale punch, then still. */
+  phase?: string;
+  reduceMotion?: boolean;
   testID?: string;
 };
 
 /** Only the digit that changed moves. The rest of the countdown stays put. */
-export function DigitClock({ value, color, fontSize, dim = false, testID }: ClockProps) {
+export function DigitClock({ value, color, fontSize, dim = false, phase, reduceMotion = false, testID }: ClockProps) {
   const chars = value.split('');
+  const scale = useRef(new Animated.Value(1)).current;
+  const punched = useRef(phase);
+
+  useEffect(() => {
+    if (phase === punched.current) return;
+    punched.current = phase;
+    if (reduceMotion) {
+      scale.setValue(1);
+      return;
+    }
+    scale.setValue(1.06);
+    Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: native }).start();
+  }, [phase, reduceMotion, scale]);
+
   return (
-    <View style={styles.row} testID={testID}>
+    <Animated.View style={[styles.row, { transform: [{ scale }] }]} testID={testID}>
       {chars.map((char, index) => (
         <Digit
           key={`${chars.length}-${index}`}
@@ -23,13 +40,26 @@ export function DigitClock({ value, color, fontSize, dim = false, testID }: Cloc
           color={color}
           fontSize={fontSize}
           dim={dim}
+          reduceMotion={reduceMotion}
         />
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
-function Digit({ char, color, fontSize, dim }: { char: string; color: string; fontSize: number; dim: boolean }) {
+function Digit({
+  char,
+  color,
+  fontSize,
+  dim,
+  reduceMotion,
+}: {
+  char: string;
+  color: string;
+  fontSize: number;
+  dim: boolean;
+  reduceMotion: boolean;
+}) {
   const [shown, setShown] = useState(char);
   const opacity = useRef(new Animated.Value(dim ? 0.55 : 1)).current;
   const shift = useRef(new Animated.Value(0)).current;
@@ -42,22 +72,25 @@ function Digit({ char, color, fontSize, dim }: { char: string; color: string; fo
 
   useEffect(() => {
     if (char === shown) return;
-    if (colon || shown === ':') {
+    if (colon || shown === ':' || reduceMotion) {
       setShown(char);
+      shift.setValue(0);
+      opacity.setValue(dim ? 0.55 : 1);
       return;
     }
-    const fade = Animated.timing(opacity, { toValue: 0.45, duration: 70, useNativeDriver: native });
-    fade.start(({ finished }) => {
-      if (!finished) return;
-      setShown(char);
-      shift.setValue(6);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: dim ? 0.55 : 1, duration: 160, useNativeDriver: native }),
-        Animated.timing(shift, { toValue: 0, duration: 160, useNativeDriver: native }),
-      ]).start();
-    });
-    return () => fade.stop();
-  }, [char, colon, dim, opacity, shift, shown]);
+    shift.setValue(4);
+    opacity.setValue(0.72);
+    const settle = Animated.parallel([
+      Animated.timing(opacity, { toValue: dim ? 0.55 : 1, duration: 90, useNativeDriver: native }),
+      Animated.timing(shift, { toValue: 0, duration: 90, useNativeDriver: native }),
+    ]);
+    const frame = requestAnimationFrame(() => setShown(char));
+    settle.start();
+    return () => {
+      cancelAnimationFrame(frame);
+      settle.stop();
+    };
+  }, [char, colon, dim, opacity, reduceMotion, shift, shown]);
 
   return (
     <Animated.Text

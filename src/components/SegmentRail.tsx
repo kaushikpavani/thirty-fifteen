@@ -9,10 +9,11 @@ type Props = {
   progress: number;
   color: string;
   paused?: boolean;
+  reduceMotion?: boolean;
 };
 
 /** The current interval, filling while the clock runs. Big jumps glide. */
-export function SegmentRail({ progress, color, paused = false }: Props) {
+export function SegmentRail({ progress, color, paused = false, reduceMotion = false }: Props) {
   const width = useRef(new Animated.Value(clamp(progress))).current;
   const life = useRef(new Animated.Value(0)).current;
   const last = useRef(progress);
@@ -29,6 +30,10 @@ export function SegmentRail({ progress, color, paused = false }: Props) {
   }, [progress, width]);
 
   useEffect(() => {
+    if (reduceMotion) {
+      life.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(life, { toValue: 1, duration: paused ? 1800 : 1100, useNativeDriver: native }),
@@ -37,7 +42,7 @@ export function SegmentRail({ progress, color, paused = false }: Props) {
     );
     loop.start();
     return () => loop.stop();
-  }, [life, paused]);
+  }, [life, paused, reduceMotion]);
 
   const pct = width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
   const head = life.interpolate({ inputRange: [0, 1], outputRange: paused ? [0.35, 0.55] : [0.55, 1] });

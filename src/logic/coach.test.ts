@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inSegmentSilence, rockyCue, ROCKY_EASY, ROCKY_FINISH, ROCKY_HARD, ROCKY_WELCOME } from '../audio/rocky.ts';
+import {
+  clockHit,
+  inSegmentSilence,
+  rockyCue,
+  ROCKY_EASY,
+  ROCKY_FINISH,
+  ROCKY_HARD,
+  ROCKY_WELCOME,
+} from '../audio/rocky.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
@@ -47,7 +55,21 @@ test('cycling power measurement reads instantaneous watts only', () => {
   assert.equal(parseCyclingPower(Uint8Array.from([0x10, 0x00, 0xc8, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x08]))?.watts, 200);
 });
 
+test('clock chirps at the phase and warns at T−3', () => {
+  assert.equal(clockHit(0, 30_000), 'chirp');
+  assert.equal(clockHit(350, 30_000), 'chirp');
+  assert.equal(clockHit(500, 30_000), null);
+  assert.equal(clockHit(27_000, 30_000), 'warn');
+  assert.equal(clockHit(27_400, 30_000), null);
+  assert.equal(clockHit(0, 2_000), 'chirp');
+  assert.equal(clockHit(1_700, 2_000), null);
+});
+
 test('rocky lines are grit without guilt or comparison', () => {
+  assert.equal(ROCKY_WELCOME, "Let's go. Time to get better.");
+  assert.equal(ROCKY_HARD, 'Dig in — this is the round that builds you.');
+  assert.equal(ROCKY_EASY, "Yes. Breathe fire. You're not done.");
+  assert.equal(ROCKY_FINISH, "That's how it's done. You showed up and won the work.");
   const segments = [
     { id: 'h1', kind: 'hard', durationMs: 30_000, repNumber: 1 },
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },

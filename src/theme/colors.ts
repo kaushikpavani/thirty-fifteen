@@ -23,6 +23,8 @@ export const colors = {
   done: '#30D158',
 
   danger: '#FF453A',
+  /** Saturated go. Primary actions use this, never white. */
+  go: '#FF7A1A',
   white: '#FFFFFF',
   black: '#000000',
 } as const;

@@ -64,21 +64,24 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 ## Audio
 
-Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. From 3 seconds before a change through 1 second after it, the clock is silent.
+Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. Rocky stays quiet from 3 seconds before a change through 1 second after it. The clock still marks those edges: a soft warn beep and haptic at T−3, and a phase chirp with a stronger haptic at the flip.
 
-The four lines are recorded (a calm neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate.
+The four lines are recorded (a direct neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate. Skip, shorten, and restart do not speak.
 
 ## During the ride
 
-Pause and Resume stay one tap. End asks once, then confirms. Three quieter controls stay on screen the whole time, including while paused:
+While the clock is running, Pause is the only control. Pause opens the rest, top to bottom: Resume, Shorten, Skip, Restart, End.
 
-- **Restart** rewinds the current segment.
-- **Shorten** ends that segment now and continues with the next one.
-- **Skip** leaves the block: warm-up goes to the first hard interval, a hard interval goes to its easy, an easy or set rest goes to the next hard, and cool-down finishes the session.
+- **Shorten** ends the current segment now and continues. One tap.
+- **Skip** leaves the block: warm-up goes to the first hard interval, a hard interval goes to its easy, an easy or set rest goes to the next hard, and cool-down finishes the session. One tap.
+- **Restart** rewinds the current segment after one confirm.
+- **End** asks once (`Cancel` or `End session`).
+
+Planned watts stay on Home. The countdown is the only hero during the ride.
 
 ## Power meter
 
-The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. The workout screen shows the target only.
+The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. Planned watts stay on Home.
 
 **Expo Go and the browser have no pair sheet and no power strip.** On a development build, Finish offers an optional power meter after you are done.
 
@@ -113,7 +116,7 @@ Install that build (not Expo Go). Finish a session, then open Power meter. Wake 
 
 ## Audio cues
 
-Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. Transition beeps are not fired: the three seconds before a change and the second after it stay quiet.
+Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. A warn beep fires at T−3 and a phase chirp fires when the segment flips. Rocky does not talk over either one.
 
 ---
 

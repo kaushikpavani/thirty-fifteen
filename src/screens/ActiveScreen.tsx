@@ -11,6 +11,7 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
 
@@ -21,8 +22,9 @@ export function ActiveScreen() {
   const history = useHistory();
   const { settings } = useSettings();
   const { width } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
   const savedRef = useRef<number | null>(null);
-  const [endArmed, setEndArmed] = useState(false);
+  const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
 
   const { state } = engine;
   const seg = state.segment;
@@ -102,21 +104,24 @@ export function ActiveScreen() {
   actions.current.shorten = engine.shortenSegment;
   actions.current.skip = engine.skipSegment;
   const onPausePress = useCallback(() => {
-    setEndArmed(false);
+    setArmed(null);
     actions.current.pause();
   }, []);
-  const onResumePress = useCallback(() => actions.current.resume(), []);
+  const onResumePress = useCallback(() => {
+    setArmed(null);
+    actions.current.resume();
+  }, []);
   const onStopPress = useCallback(() => actions.current.finish(), []);
-  const onRestartPress = useCallback(() => {
-    setEndArmed(false);
+  const onConfirmRestart = useCallback(() => {
+    setArmed(null);
     actions.current.restart();
   }, []);
   const onShortenPress = useCallback(() => {
-    setEndArmed(false);
+    setArmed(null);
     actions.current.shorten();
   }, []);
   const onSkipPress = useCallback(() => {
-    setEndArmed(false);
+    setArmed(null);
     actions.current.skip();
   }, []);
 
@@ -137,38 +142,36 @@ export function ActiveScreen() {
     );
   }
 
-  const target = seg?.targetWatts;
   const paused = state.status === 'paused';
   const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
+  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
 
   return (
     <Screen bottom>
-      <Atmosphere color={accent} paused={paused} />
-      <SegmentRail progress={segmentProgress} color={accent} paused={paused} />
+      <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
+      <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
       <View style={styles.body}>
         <FadeLabel value={phaseLabel(kind)} style={{ ...styles.phase, color: accent }} testID="phase" />
-        <DigitClock value={clock} color={accent} fontSize={fontSize} dim={paused} testID="countdown" />
-        {target != null ? (
-          <View style={styles.wattsBlock}>
-            <Text style={styles.wattsKicker}>TARGET</Text>
-            <Text style={styles.watts} testID="target-watts">
-              {target}
-            </Text>
-            <FadeLabel value={caption} style={styles.caption} />
-          </View>
-        ) : (
-          <FadeLabel value={caption} style={styles.caption} />
-        )}
+        <DigitClock
+          value={clock}
+          color={colors.text}
+          fontSize={fontSize}
+          dim={paused}
+          phase={kind}
+          reduceMotion={reduceMotion}
+          testID="countdown"
+        />
+        <FadeLabel value={caption} style={styles.caption} />
       </View>
       <WorkoutControls
         running={state.status === 'running'}
-        endArmed={endArmed}
+        armed={armed}
         onPause={onPausePress}
         onResume={onResumePress}
-        onArmEnd={() => setEndArmed(true)}
-        onCancelEnd={() => setEndArmed(false)}
+        onArm={(which) => setArmed(which)}
+        onCancel={() => setArmed(null)}
         onConfirmEnd={onStopPress}
-        onRestart={onRestartPress}
+        onConfirmRestart={onConfirmRestart}
         onShorten={onShortenPress}
         onSkip={onSkipPress}
       />
@@ -178,52 +181,113 @@ export function ActiveScreen() {
 
 const WorkoutControls = React.memo(function WorkoutControls({
   running,
-  endArmed,
+  armed,
   onPause,
   onResume,
-  onArmEnd,
-  onCancelEnd,
+  onArm,
+  onCancel,
   onConfirmEnd,
-  onRestart,
+  onConfirmRestart,
   onShorten,
   onSkip,
 }: {
   running: boolean;
-  endArmed: boolean;
+  armed: 'end' | 'restart' | null;
   onPause: () => void;
   onResume: () => void;
-  onArmEnd: () => void;
-  onCancelEnd: () => void;
+  onArm: (which: 'end' | 'restart') => void;
+  onCancel: () => void;
   onConfirmEnd: () => void;
-  onRestart: () => void;
+  onConfirmRestart: () => void;
   onShorten: () => void;
   onSkip: () => void;
 }) {
+  const open = useRef(new Animated.Value(running ? 0 : 1)).current;
+
+  useEffect(() => {
+    Animated.timing(open, {
+      toValue: running ? 0 : 1,
+      duration: running ? 160 : 240,
+      useNativeDriver: nativeMotion,
+    }).start();
+  }, [open, running]);
+
   return (
     <View style={styles.footer}>
-      <View style={styles.transport}>
-        <TransportChip label="Restart" hint="Restart this segment" onPress={onRestart} testID="restart" />
-        <TransportChip label="Shorten" hint="End this segment and continue" onPress={onShorten} testID="shorten" />
-        <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
-      </View>
-      <View style={styles.controls}>
-        <PauseResume running={running} onPause={onPause} onResume={onResume} />
-        {endArmed ? (
-          <View style={styles.endSlot}>
-            <Pressable onPress={onCancelEnd} testID="end-cancel">
-              <Text style={styles.endCancel}>Keep going</Text>
-            </Pressable>
-            <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
-              <Text style={styles.chipText}>End session</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
-        )}
-      </View>
+      <PauseResume running={running} onPause={onPause} onResume={onResume} />
+      {running ? null : (
+        <Animated.View
+          style={[
+            styles.stack,
+            {
+              opacity: open,
+              transform: [
+                {
+                  translateY: open.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TransportChip label="Shorten" hint="End this segment and continue" onPress={onShorten} testID="shorten" />
+          <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
+          {armed === 'restart' ? (
+            <ConfirmRow
+              cancelID="restart-cancel"
+              confirmID="restart-confirm"
+              confirm="Restart segment"
+              onCancel={onCancel}
+              onConfirm={onConfirmRestart}
+            />
+          ) : (
+            <TransportChip
+              label="Restart"
+              hint="Restart this segment"
+              onPress={() => onArm('restart')}
+              testID="restart"
+            />
+          )}
+          {armed === 'end' ? (
+            <ConfirmRow
+              cancelID="end-cancel"
+              confirmID="end-confirm"
+              confirm="End session"
+              onCancel={onCancel}
+              onConfirm={onConfirmEnd}
+            />
+          ) : (
+            <TransportChip label="End" hint="End the session" onPress={() => onArm('end')} testID="end" />
+          )}
+        </Animated.View>
+      )}
     </View>
   );
 });
+
+function ConfirmRow({
+  cancelID,
+  confirmID,
+  confirm,
+  onCancel,
+  onConfirm,
+}: {
+  cancelID: string;
+  confirmID: string;
+  confirm: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <View style={styles.confirmRow}>
+      <Pressable onPress={onCancel} testID={cancelID} hitSlop={8}>
+        <Text style={styles.endCancel}>Cancel</Text>
+      </Pressable>
+      <Pressable style={styles.chip} onPress={onConfirm} testID={confirmID} hitSlop={8}>
+        <Text style={styles.chipText}>{confirm}</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function TransportChip({
   label,
@@ -285,7 +349,7 @@ function PauseResume({
 
   const backgroundColor = fill.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0)', colors.white],
+    outputRange: ['rgba(255,255,255,0)', colors.go],
   });
   const borderColor = fill.interpolate({
     inputRange: [0, 1],
@@ -358,7 +422,7 @@ function FinishMeter() {
 
 const styles = StyleSheet.create({
   pauseShell: {
-    flex: 1,
+    alignSelf: 'stretch',
     minHeight: 56,
     borderRadius: 16,
     borderWidth: 1,
@@ -386,24 +450,6 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     marginBottom: 12,
   },
-  clock: {
-    fontWeight: '200',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -2,
-  },
-  wattsBlock: { alignItems: 'center', marginTop: 18, gap: 2 },
-  wattsKicker: {
-    color: colors.textDim,
-    fontSize: 11,
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  watts: {
-    color: colors.text,
-    fontSize: 40,
-    fontWeight: '300',
-    fontVariant: ['tabular-nums'],
-  },
   caption: {
     color: colors.textMuted,
     fontSize: 15,
@@ -413,32 +459,32 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingBottom: 8,
-    gap: 14,
+    gap: 10,
   },
-  transport: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  stack: {
     gap: 8,
   },
+  confirmRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
   transportChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    minHeight: 48,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   transportChipPressed: { opacity: 0.55 },
   transportText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    fontWeight: '500',
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
   },
-  controls: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  control: { flex: 1 },
-  endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
   endCancel: { color: colors.textMuted, fontSize: 14, paddingVertical: 6 },
   chip: {
     paddingHorizontal: 16,
