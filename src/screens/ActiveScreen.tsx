@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { bleGate } from '../ble/availability';
@@ -14,12 +14,14 @@ import { useWorkout } from '../state/WorkoutContext';
 import { bedRate, roundWon, varietySalt } from '../audio/spirit';
 import { useAppActive } from '../hooks/useAppActive';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { pauseResumeDrivers, pauseResumeSlots } from '../motion/animatedDriver';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { finishBloom, finishTitle } from '../workout/craft';
 import { phasePulse } from '../workout/heat';
 import { formatClock } from '../workout/builder';
 
 const nativeMotion = Platform.OS !== 'web';
+const pauseDrivers = pauseResumeDrivers(nativeMotion);
 
 export function ActiveScreen() {
   const engine = useWorkout();
@@ -377,35 +379,65 @@ function PauseResume({
       seen.current = true;
       return;
     }
-    Animated.timing(fill, {
+    let fadeIn: Animated.CompositeAnimation | null = null;
+    const fillAnim = Animated.timing(fill, {
       toValue: running ? 0 : 1,
       duration: 240,
-      useNativeDriver: false,
-    }).start();
-    const fade = Animated.timing(textOpacity, { toValue: 0, duration: 90, useNativeDriver: nativeMotion });
-    fade.start(({ finished }) => {
+      useNativeDriver: pauseDrivers.fill,
+    });
+    const fadeOut = Animated.timing(textOpacity, {
+      toValue: 0,
+      duration: 90,
+      useNativeDriver: pauseDrivers.textOpacity,
+    });
+    fillAnim.start();
+    fadeOut.start(({ finished }) => {
       if (!finished) return;
       setWord(running ? 'Pause' : 'Resume');
-      Animated.timing(textOpacity, { toValue: 1, duration: 160, useNativeDriver: nativeMotion }).start();
+      fadeIn = Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 160,
+        useNativeDriver: pauseDrivers.textOpacity,
+      });
+      fadeIn.start();
     });
-    return () => fade.stop();
+    return () => {
+      fillAnim.stop();
+      fadeOut.stop();
+      fadeIn?.stop();
+    };
   }, [fill, running, textOpacity]);
 
-  const backgroundColor = fill.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0)', colors.go],
-  });
-  const borderColor = fill.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.border, 'rgba(255,255,255,0)'],
-  });
-  const textColor = fill.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.text, colors.black],
-  });
+  const backgroundColor = useMemo(
+    () =>
+      fill.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['rgba(255,255,255,0)', colors.go],
+      }),
+    [fill],
+  );
+  const borderColor = useMemo(
+    () =>
+      fill.interpolate({
+        inputRange: [0, 1],
+        outputRange: [colors.border, 'rgba(255,255,255,0)'],
+      }),
+    [fill],
+  );
+  const textColor = useMemo(
+    () =>
+      fill.interpolate({
+        inputRange: [0, 1],
+        outputRange: [colors.text, colors.black],
+      }),
+    [fill],
+  );
+  // Color stays on the shell and the label. Opacity is its own node, so the
+  // native fade cannot promote `fill` and break the next JS color timing.
+  const motion = pauseResumeSlots({ backgroundColor, borderColor, textColor, textOpacity });
 
   return (
-    <Animated.View style={[styles.pauseShell, { backgroundColor, borderColor }]}>
+    <Animated.View style={[styles.pauseShell, motion.shell]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={running ? 'Pause' : 'Resume'}
@@ -413,7 +445,9 @@ function PauseResume({
         onPress={running ? onPause : onResume}
         style={styles.pauseHit}
       >
-        <Animated.Text style={[styles.pauseLabel, { color: textColor, opacity: textOpacity }]}>{word}</Animated.Text>
+        <Animated.View pointerEvents="none" style={motion.fade}>
+          <Animated.Text style={[styles.pauseLabel, motion.label]}>{word}</Animated.Text>
+        </Animated.View>
       </Pressable>
     </Animated.View>
   );
