@@ -3,6 +3,8 @@ import { Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, V
 import { router } from 'expo-router';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
+import { useAuth } from '../auth/AuthContext';
+import { syncProfile } from '../storage/cloud';
 import { useSettings } from '../state/SettingsContext';
 import { colors } from '../theme/colors';
 import type { WorkoutSettings } from '../types';
@@ -77,6 +79,7 @@ function Toggle({
 
 export function SettingsScreen() {
   const { settings, update } = useSettings();
+  const auth = useAuth();
   const [draft, setDraft] = useState(settings);
   const watts = useMemo(
     () => derivedWatts(draft.ftpWatts, draft.hardPct, draft.easyPct),
@@ -90,6 +93,7 @@ export function SettingsScreen() {
   const save = async () => {
     Keyboard.dismiss();
     await update(draft);
+    if (auth.user) void syncProfile(auth.user);
     router.back();
   };
 
@@ -154,6 +158,41 @@ export function SettingsScreen() {
           <Text style={styles.accountMeta}>Optional. Praise, complaints, or the feature you want.</Text>
         </Pressable>
 
+        <Text style={styles.section}>Account</Text>
+        {auth.user ? (
+          <View style={styles.block}>
+            <Text style={styles.accountName}>{auth.user.name ?? 'Signed in'}</Text>
+            <Text style={styles.accountMeta}>
+              {auth.user.provider}
+              {auth.user.email ? ` · ${auth.user.email}` : ''}
+            </Text>
+            <Text style={styles.accountMeta}>Sessions on this phone also sync while you are signed in.</Text>
+            <PrimaryButton variant="hairline" label="Sign out" onPress={() => void auth.signOut()} testID="sign-out" />
+          </View>
+        ) : (
+          <View style={styles.block}>
+            <Text style={styles.accountMeta}>Optional. Start never asks you to sign in.</Text>
+            <PrimaryButton
+              variant="hairline"
+              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
+              onPress={() => void auth.signIn('google')}
+              disabled={auth.busy != null}
+              testID="sign-in-google"
+            />
+            <PrimaryButton
+              variant="hairline"
+              label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
+              onPress={() => void auth.signIn('facebook')}
+              disabled={auth.busy != null}
+              testID="sign-in-facebook"
+            />
+            {auth.needsSetup ? (
+              <Text style={styles.accountMeta}>Cloud is not set up on this install. Sessions stay on this phone.</Text>
+            ) : null}
+          </View>
+        )}
+        {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
+
         <PrimaryButton label="Save" onPress={() => void save()} testID="save-settings" />
         <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => setDraft({ ...DEFAULT_SETTINGS })} />
       </ScrollView>
@@ -171,6 +210,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
   },
   scroll: { paddingHorizontal: 28, paddingBottom: 48, gap: 12 },
+  block: { gap: 10 },
   section: {
     marginTop: 18,
     color: colors.textDim,
@@ -178,7 +218,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  block: { gap: 10 },
   accountName: { color: colors.text, fontSize: 20, fontWeight: '400' },
   accountMeta: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   nameInput: {

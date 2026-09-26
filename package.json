@@ -37,7 +37,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/logic/coach.test.ts"
+    "test": "node --experimental-strip-types --test src/logic/coach.test.ts src/storage/cloudRow.test.ts"
   },
   "private": true
 }

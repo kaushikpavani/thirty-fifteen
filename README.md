@@ -44,21 +44,63 @@ A saved FTP is left alone. A fresh install starts at 125 W. Open the app and pre
 
 ## Start
 
-The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, and an optional note.
+The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, an optional note, and an optional account.
 
 ## History
 
 Sessions are written to **AsyncStorage** when a workout finishes, or when you end one after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. Open them from Settings. The home screen does not keep a streak.
 
-There is no sign-in on this path. The workout does not wait on an account.
+There is no sign-in on this path. The workout does not wait on an account. If you later sign in from Settings, finished sessions copy to this app's Supabase project and merge back onto the phone.
 
 ### Feedback
 
 Settings → Leave a note. It is optional and free-form. No rating. No account.
 
-When Supabase is configured, Send writes a row to `app_feedback`. Run [`supabase/app_feedback.sql`](supabase/app_feedback.sql) in the SQL editor. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
+When Supabase is configured, Send writes a row to `app_feedback` and tags the install when it can. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
 
 If the server is missing, the note stays on the phone and sends on a later try.
+
+## Cloud
+
+30/15 uses its **own** Supabase project. Create a dedicated project for this app. Do not use the BioAge project. Do not share a Supabase project or tables with any other app.
+
+Without those keys, the app stays local. Workouts, notes, and Start all work.
+
+1. Create a new Supabase project for 30/15 only.
+2. Open the SQL editor and run [`supabase/migrations/20260926120000_foundation.sql`](supabase/migrations/20260926120000_foundation.sql). The script is safe to run again.
+3. In Project Settings → API, copy the project URL and the publishable key.
+4. Copy `.env.example` to `.env.local` and paste the two values:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
+
+5. Restart Expo (`npx expo start -c`).
+
+Optional sign-in: in the Supabase dashboard, enable Google and Facebook, and allow the redirect `thirtyfifteen://auth-callback`. Settings → Account. Home → Start does not use it.
+
+What the script creates:
+
+| Table | Who can write | What it holds |
+| --- | --- | --- |
+| `profiles` | The signed-in rider | Display name, FTP copy, last seen |
+| `devices` | `touch_device` only | This install, before or after sign-in |
+| `app_events` | Insert only, including anonymous | App open, sign in, workout start/finish, feedback |
+| `workout_sessions` | The signed-in rider, own rows | Finished sessions. `source` defaults to `manual` |
+| `app_feedback` | Insert only, including anonymous | Notes. No rider reads |
+| `connections` | Service role later | Strava / Garmin / BLE link status. No OAuth tokens |
+| `imported_activities` | Service role later | Imported activities, unique on provider + external id |
+
+`connections.metadata` rejects token-like keys. Real tokens belong in an Edge Function and Supabase Vault, not in a client-readable column.
+
+Owner views `owner_daily_active`, `owner_new_profiles`, and `owner_workouts_completed` are for the SQL editor. The app key cannot read them.
+
+```sql
+select * from public.owner_daily_active order by day desc;
+select * from public.owner_new_profiles order by day desc;
+select * from public.owner_workouts_completed order by day desc;
+```
 
 ---
 
@@ -135,8 +177,8 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 ## Limitations
 
 - The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
-- History on this path stays on the phone. There is no account step before the workout.
-- Feedback reaches you only after `app_feedback` exists. Until then the note stays on the phone.
+- History is always on the phone. Cloud sync runs only after this app has its own Supabase project and you sign in from Settings. Start does not wait for either.
+- Feedback reaches you only after the foundation SQL has been run. Until then the note stays on the phone.
 - A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
 
 ---

@@ -1,9 +1,10 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createSessionFromUrl, signInWithProvider, signOutProvider } from './oauth';
 import { getSupabase } from './supabase';
 import { isSupabaseConfigured } from './config';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
+import { ensureDevice, syncProfile, track } from '../storage/cloud';
 import { loadLocalName, saveLocalName } from '../storage/profile';
 import type { AuthUser } from '../types';
 
@@ -56,6 +57,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'google' | 'facebook' | null>(null);
   const configured = isSupabaseConfigured();
+  const userRef = useRef<AuthUser | null>(null);
+  const sawAuthEvent = useRef(false);
+  const signedInSeen = useRef(new Set<string>());
+  userRef.current = user;
 
   useEffect(() => {
     let cancelled = false;
@@ -67,13 +72,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         if (cancelled) return;
-        setUser(mapAuthUser(data.session?.user ?? null));
+        const next = mapAuthUser(data.session?.user ?? null);
+        setUser(next);
+        if (next) void syncProfile(next);
       }
       setReady(true);
     })();
 
-    const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
-      setUser(mapAuthUser(session?.user ?? null));
+    const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+      const next = mapAuthUser(session?.user ?? null);
+      setUser(next);
+      const first = !sawAuthEvent.current;
+      sawAuthEvent.current = true;
+      if (first && next) void syncProfile(next);
+      // A restored session can arrive as the first callback. That is not a new sign-in.
+      if (first && event === 'SIGNED_IN') return;
+      if (event === 'SIGNED_OUT') {
+        signedInSeen.current.clear();
+        return;
+      }
+      if (event === 'SIGNED_IN' && next && !signedInSeen.current.has(next.id)) {
+        signedInSeen.current.add(next.id);
+        void syncProfile(next);
+        void track('sign_in', { provider: next.provider });
+      }
     });
 
     const linkSub = Linking.addEventListener('url', ({ url }) => {
@@ -83,10 +105,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
+    const appSub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void ensureDevice();
+      const current = userRef.current;
+      if (current) void syncProfile(current);
+    });
+
     return () => {
       cancelled = true;
       subscription?.data.subscription.unsubscribe();
       linkSub.remove();
+      appSub.remove();
     };
   }, []);
 
@@ -110,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     setError(null);
     try {
+      await track('sign_out');
       await signOutProvider();
       setUser(null);
     } catch (err) {

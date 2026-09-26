@@ -1,0 +1,89 @@
+import type { WorkoutRecord } from '../types';
+
+export type WorkoutSource = 'manual' | 'strava' | 'garmin' | 'ble';
+
+/** Row written to `workout_sessions`. Manual rides leave `external_id` empty. */
+export type WorkoutSessionWrite = {
+  id: string;
+  user_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  planned_duration_ms: number;
+  ftp_watts: number;
+  hard_watts: number;
+  easy_watts: number;
+  completed: boolean;
+  completion_pct: number;
+  device_id: string | null;
+  source: WorkoutSource;
+  external_id: string | null;
+};
+
+export type LegacyWorkoutSessionWrite = Omit<WorkoutSessionWrite, 'device_id' | 'source' | 'external_id'>;
+
+export function workoutSessionWrite(
+  record: WorkoutRecord,
+  userId: string,
+  deviceId: string | null,
+): WorkoutSessionWrite {
+  return {
+    id: record.id,
+    user_id: userId,
+    started_at: record.startedAt,
+    ended_at: record.endedAt,
+    duration_ms: record.durationMs,
+    planned_duration_ms: record.plannedDurationMs,
+    ftp_watts: record.ftpWatts,
+    hard_watts: record.hardWatts,
+    easy_watts: record.easyWatts,
+    completed: record.completed,
+    completion_pct: record.completionPct,
+    device_id: deviceId,
+    source: 'manual',
+    external_id: null,
+  };
+}
+
+export function legacyWorkoutSessionWrite(row: WorkoutSessionWrite): LegacyWorkoutSessionWrite {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+    duration_ms: row.duration_ms,
+    planned_duration_ms: row.planned_duration_ms,
+    ftp_watts: row.ftp_watts,
+    hard_watts: row.hard_watts,
+    easy_watts: row.easy_watts,
+    completed: row.completed,
+    completion_pct: row.completion_pct,
+  };
+}
+
+/** PostgREST or Postgres complaining that the new session columns are not there yet. */
+export function cloudExtensionMissing(message: string): boolean {
+  return (
+    (/schema cache/i.test(message) && /device_id|source|external_id/i.test(message)) ||
+    /could not find the '(device_id|source|external_id)' column/i.test(message) ||
+    /column "(device_id|source|external_id)" of relation "workout_sessions" does not exist/i.test(message)
+  );
+}
+
+export function workoutDeviceForeignKey(message: string): boolean {
+  return /device_id/i.test(message) && /foreign key|violates/i.test(message);
+}
+
+export function workoutRowsForRetry(
+  rows: WorkoutSessionWrite[],
+  message: string,
+): Array<WorkoutSessionWrite | LegacyWorkoutSessionWrite> | null {
+  if (cloudExtensionMissing(message)) return rows.map(legacyWorkoutSessionWrite);
+  if (workoutDeviceForeignKey(message)) return rows.map((row) => ({ ...row, device_id: null }));
+  return null;
+}
+
+/** Feedback insert failed because `device_id` is missing or not a known install. */
+export function feedbackDeviceProblem(message: string): boolean {
+  return /device_id/i.test(message) && /schema cache|could not find|does not exist|foreign key|violates/i.test(message);
+}

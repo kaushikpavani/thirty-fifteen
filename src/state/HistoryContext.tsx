@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { track } from '../storage/cloud';
 import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 
@@ -57,6 +58,15 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     await saveHistory(next);
     const note = await pushSession(record);
     if (note) setCloudNote(note);
+    void track('workout_finish', {
+      completed: record.completed,
+      completion_pct: record.completionPct,
+      duration_ms: record.durationMs,
+      planned_duration_ms: record.plannedDurationMs,
+      ftp_watts: record.ftpWatts,
+      hard_watts: record.hardWatts,
+      easy_watts: record.easyWatts,
+    });
   }, []);
 
   const value = useMemo(

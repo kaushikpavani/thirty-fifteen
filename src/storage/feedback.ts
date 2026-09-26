@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../auth/supabase';
-import { createId } from './history';
+import { ensureDevice, track } from './cloud';
+import { feedbackDeviceProblem } from './cloudRow';
+import { createId } from './id';
 
 const KEY = '@thirtyfifteen/feedback-outbox/v1';
 
@@ -45,14 +47,26 @@ async function saveOutbox(notes: FeedbackNote[]): Promise<void> {
 async function insertNote(note: FeedbackNote): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
-  const { error } = await supabase.from('app_feedback').insert({
+  const deviceId = await ensureDevice();
+  const row = {
+    body: note.body,
+    user_id: note.userId,
+    rider_name: note.riderName,
+    platform: note.platform,
+    app_version: note.appVersion,
+    device_id: deviceId,
+  };
+  const first = await supabase.from('app_feedback').insert(row);
+  if (!first.error) return true;
+  if (!feedbackDeviceProblem(first.error.message)) return false;
+  const second = await supabase.from('app_feedback').insert({
     body: note.body,
     user_id: note.userId,
     rider_name: note.riderName,
     platform: note.platform,
     app_version: note.appVersion,
   });
-  return !error;
+  return !second.error;
 }
 
 /** Send anything still sitting on the phone. Failures stay queued. */
@@ -78,10 +92,12 @@ export async function submitFeedback(
     createdAt: new Date().toISOString(),
   };
   if (await insertNote(note)) {
+    void track('feedback', { delivery: 'sent' });
     void flushFeedbackOutbox();
     return 'sent';
   }
   const queued = await loadOutbox();
   await saveOutbox([note, ...queued]);
+  void track('feedback', { delivery: 'queued' });
   return 'queued';
 }

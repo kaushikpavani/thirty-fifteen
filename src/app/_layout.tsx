@@ -8,6 +8,7 @@ import { HistoryProvider, useHistory } from '../state/HistoryContext';
 import { PowerMeterProvider } from '../state/PowerMeterContext';
 import { SettingsProvider, useSettings } from '../state/SettingsContext';
 import { WorkoutProvider } from '../state/WorkoutContext';
+import { noteAppOpen } from '../storage/cloud';
 import { flushFeedbackOutbox } from '../storage/feedback';
 import { colors } from '../theme/colors';
 
@@ -39,8 +40,10 @@ function RootNavigator() {
   const auth = useAuth();
   const history = useHistory();
   useEffect(() => {
+    if (!auth.ready) return;
+    void noteAppOpen();
     void flushFeedbackOutbox();
-  }, []);
+  }, [auth.ready]);
   if (!settings.ready || !auth.ready || !history.ready) {
     return (
       <View style={styles.boot}>
