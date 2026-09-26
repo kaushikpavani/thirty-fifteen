@@ -4,15 +4,15 @@ import { Platform } from 'react-native';
 import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
 import type { AuthUser } from '../types';
-import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox } from './cloudRow';
+import { isAnalyticsEvent, sanitizeEventProperties, type EventProperties } from './analytics';
+import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem, trimOutbox, withoutSent } from './cloudRow';
 import { createId, isInstallId } from './id';
+import { profileWrite } from './profileWrite';
 import { loadSettings } from './settings';
 
 const DEVICE_KEY = '@thirtyfifteen/device_id/v1';
 const EVENTS_KEY = '@thirtyfifteen/events-outbox/v1';
 const EVENT_CAP = 200;
-
-type EventProperties = Record<string, string | number | boolean | null>;
 
 type QueuedEvent = {
   id: string;
@@ -74,6 +74,15 @@ export async function localDeviceId(): Promise<string | null> {
   }
 }
 
+/** Forget this install id. The next read creates a new one. Local only. */
+export async function forgetDeviceId(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(DEVICE_KEY);
+  } catch {
+    // The in-memory ride does not need the id.
+  }
+}
+
 /**
  * Best-effort install row. Returns the id only when the cloud accepted it.
  * A miss leaves the local id in place and does not throw.
@@ -112,7 +121,7 @@ async function insertEvent(event: QueuedEvent, cloudDeviceId: string | null): Pr
     user_id: event.userId,
     device_id: cloudDeviceId,
     client_session_id: event.clientSessionId,
-    properties: event.properties,
+    properties: sanitizeEventProperties(event.properties),
     created_at: event.createdAt,
     client_event_id: event.id,
   };
@@ -166,7 +175,12 @@ async function flushEventsUnsafe(): Promise<void> {
   }
   if (sent.size === 0) return;
   const latest = await loadEvents();
-  await saveEvents(latest.filter((event) => !sent.has(event.id)));
+  await saveEvents(withoutSent(latest, sent));
+}
+
+/** Drop analytics that have not left the phone. */
+export async function clearEventOutbox(): Promise<void> {
+  await saveEvents([]);
 }
 
 /**
@@ -174,6 +188,7 @@ async function flushEventsUnsafe(): Promise<void> {
  * Resolves after the local write. The network attempt does not block the caller.
  */
 export async function track(eventName: string, properties: EventProperties = {}): Promise<void> {
+  if (!isAnalyticsEvent(eventName)) return;
   try {
     const cached = await loadCachedAuthUser();
     const event: QueuedEvent = {
@@ -182,7 +197,7 @@ export async function track(eventName: string, properties: EventProperties = {})
       userId: cached?.id ?? null,
       deviceId: await localDeviceId(),
       clientSessionId: sessionId(),
-      properties,
+      properties: sanitizeEventProperties(properties),
       createdAt: new Date().toISOString(),
     };
     const existing = await loadEvents();
@@ -206,19 +221,7 @@ export async function syncProfile(user: AuthUser): Promise<void> {
     const supabase = getSupabase();
     if (!supabase || !user.id) return;
     const settings = await loadSettings();
-    const ftp = Math.round(settings.ftpWatts);
-    const displayName = user.name ? user.name.slice(0, 80) : null;
-    const row: {
-      id: string;
-      display_name: string | null;
-      last_seen_at: string;
-      ftp_watts?: number;
-    } = {
-      id: user.id,
-      display_name: displayName,
-      last_seen_at: new Date().toISOString(),
-    };
-    if (ftp >= 50 && ftp <= 600) row.ftp_watts = ftp;
+    const row = profileWrite(user, settings.ftpWatts, new Date().toISOString());
     await supabase.from('profiles').upsert(row, { onConflict: 'id' });
   } catch {
     // Local settings still ride.
