@@ -151,7 +151,7 @@ export function ActiveScreen() {
       <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
       <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
       <View style={styles.body}>
-        <FadeLabel value={phaseLabel(kind)} style={{ ...styles.phase, color: accent }} testID="phase" />
+        <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
         <DigitClock
           value={clock}
           color={colors.text}
@@ -445,6 +445,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   phase: {
+    color: colors.text,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 4,
