@@ -12,7 +12,7 @@ import {
   stopSpeech,
   unlockRockyFromGesture,
 } from '../audio/cues';
-import { armMusicFromGesture, kickBed, pauseMusic, releaseDuck, stopMusic, syncMusic } from '../audio/music';
+import { armMusicFromGesture, kickBed, pauseMusic, releaseDuck, setBedTransportHandler, stopMusic, syncMusic } from '../audio/music';
 import { inSegmentSilence, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND } from '../audio/rocky';
 import {
   HARD_OPEN_DUCK_MS,
@@ -30,6 +30,7 @@ import {
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
 import { cuesDue, type DueCue } from '../workout/cueCatchup';
+import { nextPlayhead, runningElapsed } from '../workout/wallClock';
 import {
   restartTargetMs,
   rockyKeysToRearm,
@@ -194,8 +195,9 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     (wall: number) => {
       if (statusRef.current !== 'running') return;
       const total = workoutRef.current.totalMs;
-      const to = Math.min(wall, total);
+      const to = nextPlayhead(lastCueRef.current, wall, total);
       const from = lastCueRef.current;
+      if (to === from && wall < total) return;
       lastCueRef.current = to;
       elapsedRef.current = to;
       setElapsedMs(to);
@@ -214,19 +216,28 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   useEffect(() => {
     if (status !== 'running') return;
 
+    const sawBackground = { current: false };
+
     const id = setInterval(() => {
       if (statusRef.current !== 'running' || anchorWallRef.current == null) return;
-      const wall = Date.now() - anchorWallRef.current + pausedAccumRef.current;
-      applyWall(wall);
+      applyWall(runningElapsed(Date.now(), anchorWallRef.current, pausedAccumRef.current));
     }, TICK_MS);
 
     const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active' || statusRef.current !== 'running' || anchorWallRef.current == null) return;
-      void enterWorkoutAudio().then(() => {
-        if (statusRef.current !== 'running' || anchorWallRef.current == null) return;
+      if (next === 'background') sawBackground.current = true;
+      if (next !== 'active') return;
+      const leftApp = sawBackground.current;
+      sawBackground.current = false;
+      if (statusRef.current !== 'running' || anchorWallRef.current == null) return;
+      const anchor = anchorWallRef.current;
+      applyWall(runningElapsed(Date.now(), anchor, pausedAccumRef.current));
+      if (!leftApp) {
         kickBed();
-        const wall = Date.now() - anchorWallRef.current + pausedAccumRef.current;
-        applyWall(wall);
+        return;
+      }
+      void enterWorkoutAudio().then(() => {
+        if (statusRef.current !== 'running') return;
+        kickBed();
       });
     });
 
@@ -275,9 +286,13 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
   const pause = useCallback(() => {
     if (statusRef.current !== 'running' || anchorWallRef.current == null) return;
-    const wall = Date.now() - anchorWallRef.current + pausedAccumRef.current;
+    const wall = runningElapsed(Date.now(), anchorWallRef.current, pausedAccumRef.current);
+    statusRef.current = 'paused';
     pausedAccumRef.current = wall;
     elapsedRef.current = wall;
+    // Close the cue cursor at the pause instant. Resume must not treat the
+    // paused gap as a tick and replay a window that already ended.
+    lastCueRef.current = wall;
     setElapsedMs(wall);
     anchorWallRef.current = null;
     setStatus('paused');
@@ -288,6 +303,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
   const resume = useCallback(() => {
     if (statusRef.current !== 'paused') return;
+    statusRef.current = 'running';
     anchorWallRef.current = Date.now();
     void enterWorkoutAudio();
     setStatus('running');
@@ -302,6 +318,14 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       );
     }
   }, [resolvePosition]);
+
+  useEffect(() => {
+    setBedTransportHandler((intent) => {
+      if (intent === 'pause') pause();
+      if (intent === 'resume') resume();
+    });
+    return () => setBedTransportHandler(null);
+  }, [pause, resume]);
 
   const seekTo = useCallback(
     (targetMs: number, rearmCurrent: boolean) => {
@@ -327,6 +351,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
           firedRockyRef.current.add('finish');
           speakCue({ key: 'finish', line: ROCKY_FINISH }, settingsRef.current);
         }
+        statusRef.current = 'finished';
         lastCueRef.current = total;
         elapsedRef.current = total;
         pausedAccumRef.current = total;
@@ -375,6 +400,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   }, [resolvePosition, seekTo]);
 
   const stop = useCallback(() => {
+    statusRef.current = 'idle';
     stopSpeech(true);
     leaveWorkoutAudio();
     stopMusic();

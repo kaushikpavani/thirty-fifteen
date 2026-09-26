@@ -99,3 +99,133 @@ test('a skipped ladder approach warns once instead of counting in', () => {
   assert.equal(cues.some((cue) => cue.type === 'warn' && cue.segmentId === 'e4'), true);
   assert.equal(ladderSteps(cues).length, 0);
 });
+
+test('successive flushes fire each cue once', () => {
+  const segments = [warmup, easy, hard];
+  const firedClock = new Set<string>();
+  const firedRocky = new Set<string>();
+  const seen = new Map<string, number>();
+  let from = 0;
+  for (let to = 100; to <= warmup.durationMs + easy.durationMs + hard.durationMs; to += 100) {
+    const cues = cuesDue({
+      segments,
+      fromMs: from,
+      toMs: to,
+      firedClock,
+      firedRocky,
+      salt: 2,
+    });
+    for (const cue of cues) {
+      seen.set(cue.key, (seen.get(cue.key) ?? 0) + 1);
+      if (cue.type === 'rocky') firedRocky.add(cue.key);
+      else firedClock.add(cue.key);
+    }
+    from = to;
+  }
+  assert.ok(seen.size > 0);
+  for (const [key, count] of seen) assert.equal(count, 1, key);
+
+  const hardLine = cuesDue({
+    segments: [hard],
+    fromMs: 10_000,
+    toMs: 10_100,
+    firedClock: new Set(),
+    firedRocky: new Set(),
+    salt: 2,
+  }).find((cue) => cue.type === 'rocky');
+  const live = rockyCue({ elapsedMs: 10_100, segments: [hard], fired: new Set(), salt: 2 });
+  assert.equal(hardLine?.type === 'rocky' && hardLine.line, live?.line);
+  assert.equal(hardLine?.type === 'rocky' && hardLine.clip, live?.clip);
+});
+
+test('the same open window is returned again until the caller marks it fired', () => {
+  const first = due(0, 100);
+  const second = due(100, 200);
+  assert.equal(first.some((cue) => cue.key === 'chirp:w'), true);
+  assert.equal(second.some((cue) => cue.key === 'chirp:w'), true);
+  assert.deepEqual(due(100, 200, [warmup], new Set(['chirp:w'])), []);
+});
+
+test('a pause cursor does not replay a window that already ended', () => {
+  assert.equal(due(200, 300).some((cue) => cue.key === 'chirp:w'), true);
+  assert.equal(due(500, 600).some((cue) => cue.type === 'chirp'), false);
+  const fired = new Set(['chirp:w']);
+  assert.deepEqual(due(200, 350, [warmup], fired), []);
+});
+
+test('the catch-up gap is inclusive at 2s and refuses the next millisecond', () => {
+  assert.equal(due(0, 2_000).some((cue) => cue.key === 'chirp:w'), true);
+  assert.equal(due(0, 2_001).some((cue) => cue.key === 'chirp:w'), false);
+
+  const inside = cuesDue({
+    segments: [hard],
+    fromMs: 9_000,
+    toMs: 11_001,
+    firedClock: new Set(),
+    firedRocky: new Set(),
+    salt: 0,
+  });
+  assert.equal(inside.some((cue) => cue.key === 'hard:h'), true);
+  const past = cuesDue({
+    segments: [hard],
+    fromMs: 10_000,
+    toMs: 12_001,
+    firedClock: new Set(),
+    firedRocky: new Set(),
+    salt: 0,
+  });
+  assert.equal(past.some((cue) => cue.type === 'rocky'), false);
+});
+
+test('a short custom segment keeps only the latest chirp', () => {
+  const tiny = [
+    { id: 'a', kind: 'easy', durationMs: 1_000 },
+    { id: 'b', kind: 'easy', durationMs: 1_000 },
+  ];
+  const cues = due(0, 1_500, tiny);
+  const chirps = cues.filter((cue) => cue.type === 'chirp');
+  assert.deepEqual(chirps.map((cue) => cue.key), ['chirp:b']);
+});
+
+test('session salt matches rockyCue and changes the hard line', () => {
+  const at = (salt: number) =>
+    cuesDue({
+      segments: [hard],
+      fromMs: 10_500,
+      toMs: 10_600,
+      firedClock: new Set(),
+      firedRocky: new Set(),
+      salt,
+    }).find((cue) => cue.type === 'rocky');
+  const first = at(0);
+  const second = at(1);
+  const live = rockyCue({ elapsedMs: 10_600, segments: [hard], fired: new Set(), salt: 1 });
+  assert.equal(first?.type === 'rocky' && second?.type === 'rocky' && first.clip !== second.clip, true);
+  assert.equal(second?.type === 'rocky' && second.line, live?.line);
+  assert.equal(second?.type === 'rocky' && second.clip, live?.clip);
+
+  const quiet = cuesDue({
+    segments: [easy],
+    fromMs: 1_900,
+    toMs: 2_000,
+    firedClock: new Set(),
+    firedRocky: new Set(['welcome']),
+    salt: 3,
+  });
+  assert.equal(quiet.some((cue) => cue.type === 'rocky'), false);
+  const spoken = cuesDue({
+    segments: [easy],
+    fromMs: 1_900,
+    toMs: 2_000,
+    firedClock: new Set(),
+    firedRocky: new Set(['welcome']),
+    salt: 0,
+  });
+  const easyLive = rockyCue({
+    elapsedMs: 2_000,
+    segments: [easy],
+    fired: new Set(['welcome']),
+    salt: 0,
+  });
+  assert.equal(spoken.find((cue) => cue.type === 'rocky')?.key, easyLive?.key);
+});

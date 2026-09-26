@@ -1,4 +1,11 @@
 import { Platform } from 'react-native';
+import {
+  INITIAL_REMOTE_STATE,
+  isSuppressedEcho,
+  reduceRemoteTransport,
+  type RemoteState,
+  type RemoteStatus,
+} from './remoteTransport';
 import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
 
 const bedModules = {
@@ -13,6 +20,13 @@ const BEDS = ['drive', 'driveB', 'recover', 'recoverB'] as const;
 type LockMeta = { title?: string; artist?: string };
 type LockOptions = { showSeekForward?: boolean; showSeekBackward?: boolean };
 
+type PlaybackEvent = {
+  playing?: boolean;
+  didJustFinish?: boolean;
+};
+
+type StatusSubscription = { remove: () => void };
+
 type Player = {
   volume: number;
   loop: boolean;
@@ -23,6 +37,7 @@ type Player = {
   seekTo: (seconds: number) => Promise<void>;
   remove: () => void;
   setActiveForLockScreen?: (active: boolean, metadata?: LockMeta, options?: LockOptions) => void;
+  addListener?: (event: 'playbackStatusUpdate', listener: (status: PlaybackEvent) => void) => StatusSubscription;
 };
 
 type CreatePlayer = (source: number) => Player;
@@ -40,6 +55,57 @@ let restoreTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionHold = false;
 let nowTitle = '30/15';
 let lockKey = '';
+let suppressRemoteUntil = 0;
+let suppressExpect: boolean | null = null;
+let remoteState: RemoteState = INITIAL_REMOTE_STATE;
+let statusSub: StatusSubscription | null = null;
+let transportHandler: ((intent: 'pause' | 'resume') => void) | null = null;
+
+const REMOTE_SUPPRESS_MS = 800;
+
+function suppressRemote(expectPlaying: boolean): void {
+  suppressRemoteUntil = Date.now() + REMOTE_SUPPRESS_MS;
+  suppressExpect = expectPlaying;
+}
+
+function clearStatusListener(): void {
+  try {
+    statusSub?.remove();
+  } catch {
+    // ignore
+  }
+  statusSub = null;
+  remoteState = INITIAL_REMOTE_STATE;
+  suppressExpect = null;
+}
+
+function remoteStatus(event: PlaybackEvent): RemoteStatus | null {
+  if (typeof event.playing !== 'boolean') return null;
+  return {
+    playing: event.playing,
+    didJustFinish: event.didJustFinish,
+  };
+}
+
+function listenForRemote(player: Player): void {
+  clearStatusListener();
+  if (!player.addListener) return;
+  statusSub = player.addListener('playbackStatusUpdate', (event) => {
+    const status = remoteStatus(event);
+    if (!status) return;
+    const echo = isSuppressedEcho(Date.now(), suppressRemoteUntil, suppressExpect, status.playing);
+    const step = reduceRemoteTransport(remoteState, status, echo);
+    remoteState = step.state;
+    if (!step.intent || !transportHandler) return;
+    suppressRemote(step.intent === 'play');
+    transportHandler(step.intent === 'pause' ? 'pause' : 'resume');
+  });
+}
+
+/** Android notification play/pause. iOS has no lock-screen session. */
+export function setBedTransportHandler(handler: ((intent: 'pause' | 'resume') => void) | null): void {
+  transportHandler = handler;
+}
 
 function swallowPlay(run: () => void): void {
   if (typeof HTMLAudioElement === 'undefined') {
@@ -85,6 +151,7 @@ function applyVolume(): void {
 
 function clearLockScreen(): void {
   lockKey = '';
+  clearStatusListener();
   for (const key of BEDS) {
     try {
       players[key]?.setActiveForLockScreen?.(false);
@@ -121,6 +188,7 @@ function publishLockScreen(): void {
       { showSeekForward: false, showSeekBackward: false },
     );
     lockKey = key;
+    listenForRemote(player);
   } catch {
     // ignore
   }
@@ -129,6 +197,7 @@ function publishLockScreen(): void {
 function startSilentHold(): void {
   const player = players[active] ?? players.recover;
   if (!player) return;
+  suppressRemote(true);
   try {
     player.loop = true;
     player.volume = 0;
@@ -147,6 +216,7 @@ export function kickBed(): void {
   if (playing && enabled) {
     const player = players[active];
     if (player?.paused) {
+      suppressRemote(true);
       swallowPlay(() => {
         player.play();
       });
@@ -159,7 +229,6 @@ export function kickBed(): void {
 
 export function setSessionHold(hold: boolean): void {
   sessionHold = hold;
-  if (!hold) clearLockScreen();
 }
 
 function scheduleRestore(): void {
@@ -250,6 +319,7 @@ function ensurePlaying(restart: boolean): void {
   const player = players[active];
   if (!player) return;
   const run = () => {
+    suppressRemote(true);
     swallowPlay(() => {
       player.play();
     });
@@ -290,10 +360,12 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1, title?
   }
   applyVolume();
   publishLockScreen();
-  // A Start-tap play() can be rejected before the file is ready. Retry while
-  // the element is still paused; never call play() on a bed that is already running.
+  // Web only. A Start tap can be rejected before the file is ready.
+  // On native, retrying play() every tick fights a phone-call interruption
+  // and a lock-screen pause. Those recover on the next foreground or resume.
   const player = players[active];
-  if (player?.paused) {
+  if (Platform.OS === 'web' && player?.paused) {
+    suppressRemote(true);
     swallowPlay(() => {
       player.play();
     });
@@ -302,6 +374,7 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1, title?
 
 export function pauseMusic(): void {
   playing = false;
+  suppressRemote(false);
   clearRestore();
   for (const key of BEDS) {
     try {
@@ -310,7 +383,6 @@ export function pauseMusic(): void {
       // ignore
     }
   }
-  if (!sessionHold) clearLockScreen();
 }
 
 export function duckMusic(ms: number): void {
@@ -328,6 +400,7 @@ export function releaseDuck(): void {
 
 export function stopMusic(): void {
   playing = false;
+  suppressRemote(false);
   enabled = true;
   active = 'recover';
   duckUntil = 0;

@@ -109,9 +109,10 @@ function approachIntoNext(segments: RockySegment[], index: number, nextKind: str
 
 /**
  * Cues whose windows the playhead crossed between `fromMs` and `toMs`.
- * One ladder rung per flush (the latest). A boundary chirp in the same flush
- * drops rungs that already expired. Rocky is at most one line, resolved by rockyCue
- * so variety stays on the rep and the session salt.
+ * One chirp, one ladder rung, one warn, and one Rocky line per flush: the latest
+ * of each. A boundary chirp drops rungs that already expired. Rocky is resolved
+ * by rockyCue so variety stays on the rep and the session salt. On a normal
+ * 30/15 the 2s window holds only one of each, so this does not move the clock.
  */
 export function cuesDue(args: {
   segments: RockySegment[];
@@ -175,7 +176,11 @@ export function cuesDue(args: {
   }
 
   const chirps = clock.filter((cue): cue is DueChirp => cue.type === 'chirp');
-  const boundary = chirps.reduce((max, cue) => Math.max(max, cue.atMs), Number.NEGATIVE_INFINITY);
+  const latestChirp = chirps.reduce<DueChirp | null>(
+    (best, cue) => (best == null || cue.atMs >= best.atMs ? cue : best),
+    null,
+  );
+  const boundary = latestChirp?.atMs ?? Number.NEGATIVE_INFINITY;
   const fresh = (cue: DueCue) => boundary === Number.NEGATIVE_INFINITY || cue.atMs >= boundary;
   const ladders = clock.filter((cue): cue is DueLadder => cue.type === 'ladder' && fresh(cue));
   const latestLadder = ladders.reduce<DueLadder | null>(
@@ -183,6 +188,10 @@ export function cuesDue(args: {
     null,
   );
   const warns = clock.filter((cue): cue is DueWarn => cue.type === 'warn' && fresh(cue));
+  const latestWarn = warns.reduce<DueWarn | null>(
+    (best, cue) => (best == null || cue.atMs >= best.atMs ? cue : best),
+    null,
+  );
 
   const rockyHits: DueRocky[] = [];
   for (const candidate of rockyWindows(segments)) {
@@ -199,7 +208,9 @@ export function cuesDue(args: {
     null,
   );
 
-  const due: DueCue[] = [...chirps, ...warns];
+  const due: DueCue[] = [];
+  if (latestChirp) due.push(latestChirp);
+  if (latestWarn) due.push(latestWarn);
   if (latestLadder) due.push(latestLadder);
   if (rocky) due.push(rocky);
   due.sort((a, b) => a.atMs - b.atMs || a.key.localeCompare(b.key));
