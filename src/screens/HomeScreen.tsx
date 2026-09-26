@@ -110,6 +110,9 @@ export function HomeScreen() {
           <Pressable onPress={() => router.push('/about')} testID="open-about">
             <Text style={styles.link}>Science</Text>
           </Pressable>
+          <Pressable onPress={() => router.push('/feedback')} testID="open-feedback">
+            <Text style={styles.link}>Feedback</Text>
+          </Pressable>
         </View>
       </ScrollView>
 

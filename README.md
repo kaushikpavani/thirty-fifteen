@@ -70,6 +70,14 @@ Restart Expo after changing env vars (`npx expo start`). The session is stored i
 
 Without those env vars the app still rides. Google and Facebook explain what is missing. History stays on the device.
 
+### Feedback
+
+Home and Settings both open a free-form note. It is optional. Riders can be rude, kind, or specific. No rating, no account.
+
+When Supabase is configured, Send writes a row to `app_feedback`. Run [`supabase/app_feedback.sql`](supabase/app_feedback.sql) in the SQL editor. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
+
+If the server is missing, the note stays on the phone and sends on a later try.
+
 ---
 
 ## Power meter
@@ -123,6 +131,7 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, vo
 
 - The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
 - Cloud history sync needs the Supabase table and a signed-in session. Failures stay local and say so.
+- Feedback reaches you only after `app_feedback` exists. Until then the note stays on the phone.
 - Bluetooth needs a development build. Expo Go is honest about that.
 
 ---

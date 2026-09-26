@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { motivationLine } from '../copy/motivation.ts';
+import { normalizeFeedback } from '../feedback/message.ts';
 import { completionStreak } from '../history/streak.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
@@ -56,4 +57,13 @@ test('motivation uses the streak once it is real', () => {
   assert.match(motivationLine(evening, 0), /KOM|Lights|session/i);
   assert.equal(motivationLine(evening, 2), 'Two days. The habit is the weapon.');
   assert.match(motivationLine(evening, 4), /4 days straight/);
+});
+
+test('feedback keeps free-form text and drops empty notes', () => {
+  assert.equal(normalizeFeedback('   '), null);
+  assert.equal(normalizeFeedback('you suck'), 'you suck');
+  assert.equal(normalizeFeedback('  I want X, Y, and Z.  '), 'I want X, Y, and Z.');
+  assert.equal(normalizeFeedback('line one\nline two'), 'line one\nline two');
+  assert.equal(normalizeFeedback('a'.repeat(2000))?.length, 2000);
+  assert.equal(normalizeFeedback('a'.repeat(2001)), null);
 });

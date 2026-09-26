@@ -224,6 +224,12 @@ export function SettingsScreen() {
         <Toggle label="Haptics" value={draft.hapticsEnabled} onChange={(v) => patch('hapticsEnabled', v)} />
         <NumField label="Cue lead" value={draft.cueLeadMs} onChange={(n) => patch('cueLeadMs', Math.round(n))} suffix="ms" min={400} max={1500} step={100} />
 
+        <Text style={styles.section}>Feedback</Text>
+        <Pressable onPress={() => router.push('/feedback')} testID="settings-feedback">
+          <Text style={styles.accountName}>Leave a note</Text>
+          <Text style={styles.accountMeta}>Optional. Praise, complaints, or the feature you want.</Text>
+        </Pressable>
+
         <PrimaryButton label="Save" onPress={() => void save()} testID="save-settings" />
         <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => setDraft({ ...DEFAULT_SETTINGS })} />
       </ScrollView>

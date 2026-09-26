@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
@@ -8,6 +8,7 @@ import { HistoryProvider, useHistory } from '../state/HistoryContext';
 import { PowerMeterProvider } from '../state/PowerMeterContext';
 import { SettingsProvider, useSettings } from '../state/SettingsContext';
 import { WorkoutProvider } from '../state/WorkoutContext';
+import { flushFeedbackOutbox } from '../storage/feedback';
 import { colors } from '../theme/colors';
 
 export default function RootLayout() {
@@ -37,6 +38,9 @@ function RootNavigator() {
   const settings = useSettings();
   const auth = useAuth();
   const history = useHistory();
+  useEffect(() => {
+    void flushFeedbackOutbox();
+  }, []);
   if (!settings.ready || !auth.ready || !history.ready) {
     return (
       <View style={styles.boot}>
@@ -59,6 +63,7 @@ function RootNavigator() {
       <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="auth-callback" options={{ animation: 'none' }} />
     </Stack>
   );
