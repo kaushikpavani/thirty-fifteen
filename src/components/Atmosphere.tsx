@@ -18,6 +18,8 @@ type Props = {
   punch?: number;
   /** How long the finish bloom lasts. */
   bloomMs?: number;
+  /** 2 is the double-pulse finish. Then still. */
+  pulses?: 1 | 2;
   /** No breath. The bloom plays once and the light stays put. */
   still?: boolean;
   /** HARD set nudge. 1 is the locked level. */
@@ -36,6 +38,7 @@ export function Atmosphere({
   reduceMotion = false,
   punch = 0,
   bloomMs = 520,
+  pulses = 1,
   still = false,
   intensity = 1,
 }: Props) {
@@ -95,13 +98,23 @@ export function Atmosphere({
       return;
     }
     burst.setValue(1);
-    Animated.timing(burst, {
-      toValue: 0,
-      duration: bloomMs,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: native,
-    }).start();
-  }, [bloomMs, burst, punch, reduceMotion]);
+    const ease = Easing.out(Easing.cubic);
+    if (pulses === 2) {
+      const half = Math.max(120, Math.round(bloomMs / 2));
+      Animated.sequence([
+        Animated.timing(burst, { toValue: 0, duration: half, easing: ease, useNativeDriver: native }),
+        Animated.timing(burst, { toValue: 1, duration: 70, easing: ease, useNativeDriver: native }),
+        Animated.timing(burst, { toValue: 0, duration: half, easing: ease, useNativeDriver: native }),
+      ]).start();
+    } else {
+      Animated.timing(burst, {
+        toValue: 0,
+        duration: bloomMs,
+        easing: ease,
+        useNativeDriver: native,
+      }).start();
+    }
+  }, [bloomMs, burst, pulses, punch, reduceMotion]);
 
   const scale = breath.interpolate({
     inputRange: [0, 1],

@@ -4,31 +4,26 @@ export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
 export const ROCKY_WELCOME = "Let's go. Time to get better.";
-/** Same coach, four takes. Index 0 is the original hot line. */
+/** One per HARD. Consecutive reps never share a line. */
 export const HARD_LINES = [
   'Dig in — this is the round that builds you.',
-  'Stay over the gear. This is the work.',
-  "Hold it smooth. You're in the rep.",
-  'Quiet focus. Ride it clean.',
+  "Hold the line. You're in it.",
+  'This is the work. Stay with it.',
+  'Chin up. Push the watts.',
 ] as const;
 export const EASY_LINES = [
   "Yes. Breathe fire. You're not done.",
-  'Soft legs. Keep a little fire.',
-  'Breathe. The next one is close.',
-  'Spin it easy. Stay tall.',
-] as const;
-export const ROUND_LINES = ['Round won. Stay sharp.', 'Round won. Reset. Stay sharp.'] as const;
-export const FINISH_LINES = [
-  "That's how it's done. You showed up and won the work.",
-  "That's the work. You stayed with it.",
+  'Easy. Reload.',
+  "Good. Next one's yours.",
 ] as const;
 export const ROCKY_HARD = HARD_LINES[0];
 export const ROCKY_EASY = EASY_LINES[0];
-export const ROCKY_FINISH = FINISH_LINES[0];
+/** Fixed. Not a pool. */
+export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
 /** One syllable on the first HARD chirp. Fixed. Never skipped. */
 export const ROCKY_GO = 'Go.';
-/** Once, when the last easy of a set opens the set rest. Audio only. */
-export const ROCKY_ROUND = ROUND_LINES[0];
+/** Once, when the last easy of a set opens the set rest. Fixed. */
+export const ROCKY_ROUND = 'Round won. Stay sharp.';
 
 export type LineTake = { line: string; clip: string };
 
@@ -48,14 +43,12 @@ export function easyTake(ordinal: number, salt = 0): LineTake | null {
   return { line: EASY_LINES[index], clip: `easy${index}` };
 }
 
-export function roundTake(setNumber: number, salt = 0): LineTake {
-  const index = (Math.max(1, setNumber) - 1 + salt) % ROUND_LINES.length;
-  return { line: ROUND_LINES[index], clip: `round${index}` };
+export function roundTake(): LineTake {
+  return { line: ROCKY_ROUND, clip: 'round0' };
 }
 
-export function finishTake(salt = 0): LineTake {
-  const index = salt % FINISH_LINES.length;
-  return { line: FINISH_LINES[index], clip: `finish${index}` };
+export function finishTake(): LineTake {
+  return { line: ROCKY_FINISH, clip: 'finish0' };
 }
 
 /** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
@@ -158,7 +151,7 @@ export function rockyCue(args: {
 
     const last = lastMainIndex(segments);
     if (last >= 0 && i === last + 1 && elapsedIn > SILENCE_AFTER_MS && elapsedIn <= 2200 && !fired.has('finish')) {
-      const take = finishTake(salt);
+      const take = finishTake();
       return { key: 'finish', line: take.line, clip: take.clip };
     }
 

@@ -390,14 +390,11 @@ async def write_pool() -> None:
 
     voice = "en-US-SteffanNeural"
     lines = {
-        "hard-1": "Stay over the gear. This is the work.",
-        "hard-2": "Hold it smooth. You're in the rep.",
-        "hard-3": "Quiet focus. Ride it clean.",
-        "easy-1": "Soft legs. Keep a little fire.",
-        "easy-2": "Breathe. The next one is close.",
-        "easy-3": "Spin it easy. Stay tall.",
-        "round-1": "Round won. Reset. Stay sharp.",
-        "finish-1": "That's the work. You stayed with it.",
+        "hard-1": "Hold the line. You're in it.",
+        "hard-2": "This is the work. Stay with it.",
+        "hard-3": "Chin up. Push the watts.",
+        "easy-1": "Easy. Reload.",
+        "easy-2": "Good. Next one's yours.",
     }
     out_dir = ROOT / "assets" / "rocky"
     tmp = out_dir / "_pool"

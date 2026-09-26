@@ -42,18 +42,35 @@ export function varietySalt(startedAt: number | null | undefined): number {
   return Math.abs(Math.floor(startedAt / 1000)) % 12;
 }
 
-/** Alternate bed per set, still inside the hot or cool family. */
-export function bedId(kind: string, setNumber: number | null | undefined, salt = 0): MusicBed {
-  const set = setNumber != null && setNumber > 0 ? setNumber : 1;
-  const alt = (set - 1 + salt) % 2 === 1;
-  if (kind === 'hard' || kind === 'accel') return alt ? 'driveB' : 'drive';
-  return alt ? 'recoverB' : 'recover';
+/** One bed family for the whole ride, chosen at Start. 0 and 1 are different loops. 2 is the drive loop, brighter. */
+export function sessionBed(salt = 0): 0 | 1 | 2 {
+  const n = Math.abs(Math.floor(salt)) % 3;
+  return n as 0 | 1 | 2;
 }
 
-/** Which rising-tick timbre this HARD approach uses. Slots stay on the clock. */
-export function ladderTone(approach: number, salt = 0): 0 | 1 | 2 {
-  const n = Math.abs(Math.floor(approach) + salt) % 3;
-  return n as 0 | 1 | 2;
+export function bedId(kind: string, salt = 0): MusicBed {
+  const hot = kind === 'hard' || kind === 'accel';
+  if (sessionBed(salt) === 1) return hot ? 'driveB' : 'recoverB';
+  return hot ? 'drive' : 'recover';
+}
+
+/** Third Start pick: same loops, HARD a little faster so the bed is not identical. */
+export function bedRate(kind: string, salt = 0): number {
+  if (sessionBed(salt) !== 2) return 1;
+  return kind === 'hard' || kind === 'accel' ? 1.04 : 1;
+}
+
+export type LadderTexture = 'pitch' | 'volume' | 'strongThird';
+
+/** First HARD always counts in. After that, every fifth approach keeps a single warn. */
+export function ladderSkipped(approach: number): boolean {
+  return approach > 0 && approach % 5 === 0;
+}
+
+/** Texture for this approach. The 3 / 2 / 1 slots do not move. */
+export function ladderTexture(approach: number, salt = 0): LadderTexture {
+  const pool = ['pitch', 'volume', 'strongThird'] as const;
+  return pool[Math.abs(Math.floor(approach) + salt) % pool.length];
 }
 
 export function ladderBeep(step: LadderStep, tone: 0 | 1 | 2): string {

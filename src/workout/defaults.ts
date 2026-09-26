@@ -19,8 +19,6 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   musicEnabled: true,
 };
 
-export const TIP = 'Light pressure on the fifteens. Stay turning.';
-
 export const SCIENCE_BLURB =
   'Rønnestad 30/15 micro-intervals maximize cumulative time near VO₂max with short recoveries that keep heart rate elevated. Great VO₂max stimulus — not a replacement for Zone 2 base work.';
 

@@ -13,13 +13,12 @@ import {
   ROCKY_ROUND,
   ROCKY_WELCOME,
   EASY_LINES,
-  FINISH_LINES,
   HARD_LINES,
-  ROUND_LINES,
   easySpeaks,
   easyTake,
   finishTake,
   hardTake,
+  roundTake,
 } from '../audio/rocky.ts';
 import {
   BED_VOLUME,
@@ -27,18 +26,22 @@ import {
   HARD_OPEN_DUCK_MS,
   bedForKind,
   bedId,
+  bedRate,
   boundaryChirp,
   isFirstHard,
   ladderArmed,
   ladderBeep,
   ladderDuckMs,
   ladderKeys,
+  ladderSkipped,
   ladderStep,
-  ladderTone,
+  ladderTexture,
   roundWon,
+  sessionBed,
   varietySalt,
 } from '../audio/spirit.ts';
-import { HARD_FAMILY, phaseColor, phaseIntensity } from '../theme/colors.ts';
+import { HARD_FAMILY, phaseColor } from '../theme/colors.ts';
+import { FINISH_TITLES, HOME_TIPS, finishBloom, finishTitle, homeTip } from '../workout/craft.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
@@ -108,7 +111,7 @@ test('rocky lines are grit without guilt or comparison', () => {
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
     { id: 'cd', kind: 'cooldown', durationMs: 600_000 },
   ];
-  const lines = [ROCKY_WELCOME, ROCKY_GO, ...HARD_LINES, ...EASY_LINES, ...ROUND_LINES, ...FINISH_LINES];
+  const lines = [ROCKY_WELCOME, ROCKY_GO, ROCKY_ROUND, ROCKY_FINISH, ...HARD_LINES, ...EASY_LINES];
   assert.equal(rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_HARD);
   assert.equal(rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_EASY);
   for (const line of lines) {
@@ -160,10 +163,16 @@ test('drive bed is for hard and accel, and it ducks harder than it speaks', () =
   }
   assert.ok(BED_VOLUME.drive > BED_VOLUME.recover);
   assert.equal(DUCK_GAIN, 0);
-  assert.equal(bedId('hard', 1, 0), 'drive');
-  assert.equal(bedId('hard', 2, 0), 'driveB');
-  assert.equal(bedId('easy', 2, 0), 'recoverB');
-  assert.equal(bedId('set_rest', 1, 0), 'recover');
+  assert.equal(sessionBed(0), 0);
+  assert.equal(sessionBed(1), 1);
+  assert.equal(sessionBed(2), 2);
+  assert.equal(bedId('hard', 0), 'drive');
+  assert.equal(bedId('hard', 1), 'driveB');
+  assert.equal(bedId('easy', 1), 'recoverB');
+  assert.equal(bedId('hard', 2), 'drive');
+  assert.equal(bedRate('hard', 2), 1.04);
+  assert.equal(bedRate('easy', 2), 1);
+  assert.equal(bedRate('hard', 0), 1);
   assert.ok(BED_VOLUME.driveB > BED_VOLUME.drive);
   assert.ok(BED_VOLUME.recoverB < BED_VOLUME.recover);
 });
@@ -174,41 +183,57 @@ test('variety rotates by segment and session and never leaves the clock', () => 
   assert.notEqual(varietySalt(1_000), varietySalt(2_000));
 
   assert.equal(hardTake(0, 0).line, HARD_LINES[0]);
-  assert.equal(hardTake(1, 0).line, HARD_LINES[1]);
-  assert.equal(hardTake(4, 0).clip, 'hard0');
-  assert.equal(hardTake(0, 1).line, HARD_LINES[1]);
+  assert.equal(hardTake(1, 0).line, "Hold the line. You're in it.");
+  assert.equal(hardTake(2, 0).line, 'This is the work. Stay with it.');
+  assert.equal(hardTake(3, 0).line, 'Chin up. Push the watts.');
+  for (let i = 0; i < 12; i++) assert.notEqual(hardTake(i, 0).line, hardTake(i + 1, 0).line);
   assert.equal(easyTake(0, 0)?.line, EASY_LINES[0]);
+  assert.equal(easyTake(1, 0)?.line, 'Easy. Reload.');
+  assert.equal(easyTake(2, 0)?.line, "Good. Next one's yours.");
   assert.equal(easyTake(3, 0), null);
-  assert.equal(easyTake(3, 1)?.line, EASY_LINES[0]);
   let silent = 0;
   for (let i = 0; i < 100; i++) if (!easySpeaks(i, 0)) silent += 1;
   assert.equal(silent, 25);
 
-  assert.equal(finishTake(0).line, FINISH_LINES[0]);
-  assert.equal(finishTake(1).line, FINISH_LINES[1]);
-  assert.equal(finishTake(1).line.length > 0, true);
+  assert.equal(finishTake().line, ROCKY_FINISH);
+  assert.equal(finishTake().clip, 'finish0');
+  assert.equal(roundTake().line, 'Round won. Stay sharp.');
   assert.equal(ROCKY_GO, 'Go.');
-  assert.equal(ROCKY_ROUND, ROUND_LINES[0]);
 
-  assert.equal(ladderTone(0, 0), 0);
-  assert.equal(ladderTone(1, 0), 1);
-  assert.equal(ladderTone(2, 0), 2);
+  assert.equal(ladderSkipped(0), false);
+  assert.equal(ladderSkipped(4), false);
+  assert.equal(ladderSkipped(5), true);
+  assert.equal(ladderSkipped(10), true);
+  assert.equal(ladderTexture(0, 0), 'pitch');
+  assert.equal(ladderTexture(1, 0), 'volume');
+  assert.equal(ladderTexture(2, 0), 'strongThird');
   assert.equal(ladderBeep('three', 0), 'rung3');
-  assert.equal(ladderBeep('two', 1), 'rung2b');
-  assert.equal(ladderBeep('one', 2), 'rung1c');
+  assert.equal(ladderStep(15_000 - 3000, 15_000, 'hard'), 'three');
   assert.equal(ladderStep(15_000 - 1900, 15_000, 'hard'), 'two');
+  assert.equal(ladderStep(15_000 - 900, 15_000, 'hard'), 'one');
 
-  assert.equal(phaseColor('hard', 1, 0), HARD_FAMILY[0]);
-  assert.equal(phaseColor('hard', 2, 0), HARD_FAMILY[1]);
+  assert.equal(phaseColor('hard', 0, 0), '#FF453A');
+  assert.equal(phaseColor('hard', 1, 0), HARD_FAMILY[1]);
+  assert.notEqual(phaseColor('hard', 0, 0), phaseColor('hard', 1, 0));
   assert.equal(phaseColor('easy', 2, 0), '#64D2FF');
-  assert.equal(phaseIntensity('easy', 2, 0), 1);
-  assert.notEqual(phaseIntensity('hard', 1, 0), phaseIntensity('hard', 3, 0));
   for (const hex of HARD_FAMILY) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    assert.ok(r > 220 && g < 120 && b < 80);
+    assert.ok(r > 220 && g < 120 && b < 90);
   }
+
+  assert.equal(homeTip(3_000), null);
+  assert.equal(homeTip(0), HOME_TIPS[0]);
+  assert.equal(finishTitle(0), 'Done.');
+  assert.equal(finishTitle(1), "That's the work.");
+  assert.equal(finishTitle(2), 'You showed up.');
+  assert.equal(FINISH_TITLES.length, 3);
+  assert.equal(finishBloom(0).ms, 320);
+  assert.equal(finishBloom(0).pulses, 1);
+  assert.equal(finishBloom(1).ms, 480);
+  assert.equal(finishBloom(1).warm, true);
+  assert.equal(finishBloom(2).pulses, 2);
 
   const segments = [];
   for (let i = 0; i < 4; i++) {
@@ -225,8 +250,8 @@ test('variety rotates by segment and session and never leaves the clock', () => 
   assert.equal(secondHard?.clip, 'hard1');
   const finishAt = 4 * 45_000 + 1_500;
   const finish = rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome']), salt: 1 });
-  assert.equal(finish?.line, FINISH_LINES[1]);
-  assert.equal(finish?.clip, 'finish1');
+  assert.equal(finish?.line, ROCKY_FINISH);
+  assert.equal(finish?.clip, 'finish0');
 });
 
 test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into EASY', () => {

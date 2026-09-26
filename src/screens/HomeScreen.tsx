@@ -11,13 +11,15 @@ import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
 import { markFtpOnboardingDone } from '../storage/settings';
 import { sessionSummary } from '../workout/builder';
-import { derivedWatts, TIP } from '../workout/defaults';
+import { homeTip } from '../workout/craft';
+import { derivedWatts } from '../workout/defaults';
 
 export function HomeScreen() {
   const { settings, update } = useSettings();
   const engine = useWorkout();
   const reduceMotion = useReduceMotion();
   const [ftpOpen, setFtpOpen] = useState(false);
+  const [tip] = useState(() => homeTip(Date.now()));
   const summary = sessionSummary(settings);
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
 
@@ -66,7 +68,7 @@ export function HomeScreen() {
         <Text style={styles.structure}>
           {settings.sets} × {settings.reps} · {settings.workSec}/{settings.recoverSec} · ~{summary.totalMin} min
         </Text>
-        <Text style={styles.tip}>{TIP}</Text>
+        {tip ? <Text style={styles.tip}>{tip}</Text> : null}
 
         <View style={styles.goWrap}>
           <PrimaryButton label="Start" alive onPress={() => void start()} testID="start" />

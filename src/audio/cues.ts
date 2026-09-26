@@ -31,11 +31,8 @@ const rockyModules = {
   easy0: require('../../assets/rocky/easy.mp3'),
   easy1: require('../../assets/rocky/easy-1.mp3'),
   easy2: require('../../assets/rocky/easy-2.mp3'),
-  easy3: require('../../assets/rocky/easy-3.mp3'),
   round0: require('../../assets/rocky/round.mp3'),
-  round1: require('../../assets/rocky/round-1.mp3'),
   finish0: require('../../assets/rocky/finish.mp3'),
-  finish1: require('../../assets/rocky/finish-1.mp3'),
 } as const;
 
 type BeepKind = keyof typeof beepModules;
@@ -345,16 +342,26 @@ function rungVolume(kind: BeepKind): number | undefined {
 export function playLadder(
   settings: WorkoutSettings,
   step: LadderStep,
-  tone: 0 | 1 | 2,
+  texture: 'pitch' | 'volume' | 'strongThird',
   duckMs: number,
 ): Promise<void> {
-  return playBeep(settings, ladderBeep(step, tone) as BeepKind, duckMs);
+  if (texture === 'volume') {
+    const volume = step === 'three' ? 0.42 : step === 'two' ? 0.7 : 1;
+    return playBeep(settings, 'rung2', duckMs, volume);
+  }
+  if (texture === 'strongThird') {
+    const volume = step === 'one' ? 1 : 0.38;
+    const kind = step === 'one' ? 'rung1' : 'rung3';
+    return playBeep(settings, kind, duckMs, volume);
+  }
+  return playBeep(settings, ladderBeep(step, 0) as BeepKind, duckMs, 0.9);
 }
 
 export async function playBeep(
   settings: WorkoutSettings,
   kind: BeepKind = 'go',
   duckMs: number = BEEP_DUCK_MS,
+  volume?: number,
 ): Promise<void> {
   if (!settings.beepsEnabled || beepsUnavailable) return;
   try {
@@ -362,7 +369,8 @@ export async function playBeep(
     const player = cache[kind];
     if (!player) return;
     if (duckMs > 0) duckMusic(duckMs);
-    player.volume = kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85);
+    player.volume =
+      volume ?? (kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85));
     await player.seekTo(0);
     player.play();
   } catch {

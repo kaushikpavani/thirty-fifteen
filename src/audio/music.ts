@@ -13,6 +13,7 @@ type Player = {
   volume: number;
   loop: boolean;
   paused: boolean;
+  playbackRate: number;
   play: () => void;
   pause: () => void;
   seekTo: (seconds: number) => Promise<void>;
@@ -173,7 +174,7 @@ function ensurePlaying(restart: boolean): void {
 }
 
 /** Keep the bed on the phase. Restarts the loop when the bed changes so the downbeat meets the chirp. */
-export function syncMusic(bed: MusicBed, musicEnabled: boolean): void {
+export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1): void {
   if (!ready) return;
   if (!musicEnabled) {
     enabled = false;
@@ -184,6 +185,14 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean): void {
   const next = bed;
   const changed = next !== active;
   active = next;
+  const playerNow = players[active];
+  if (playerNow) {
+    try {
+      playerNow.playbackRate = rate;
+    } catch {
+      // ignore
+    }
+  }
   if (!playing || changed) {
     ensurePlaying(changed && playing);
     return;

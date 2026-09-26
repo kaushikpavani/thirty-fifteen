@@ -13,7 +13,8 @@ import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { roundWon, varietySalt } from '../audio/spirit';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { colors, phaseColor, phaseIntensity, phaseLabel } from '../theme/colors';
+import { colors, phaseColor, phaseLabel } from '../theme/colors';
+import { finishBloom, finishTitle } from '../workout/craft';
 import { formatClock } from '../workout/builder';
 
 const nativeMotion = Platform.OS !== 'web';
@@ -33,8 +34,8 @@ export function ActiveScreen() {
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
   const salt = varietySalt(state.startedAt);
-  const accent = phaseColor(kind, seg?.setNumber, salt);
-  const intensity = phaseIntensity(kind, seg?.setNumber, salt);
+  const hardOrdinal = hardOrdinalAt(state.workout.segments, state.segmentIndex);
+  const accent = phaseColor(kind, hardOrdinal, salt);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
@@ -146,12 +147,21 @@ export function ActiveScreen() {
   }
 
   if (state.status === 'finished') {
+    const bloom = finishBloom(varietySalt(state.startedAt));
     return (
       <Screen bottom>
-        <Atmosphere color={colors.go} heat="hot" punch={1} bloomMs={400} still reduceMotion={reduceMotion} />
+        <Atmosphere
+          color={bloom.warm ? colors.go : colors.hard}
+          heat="hot"
+          punch={1}
+          bloomMs={bloom.ms}
+          pulses={bloom.pulses}
+          still
+          reduceMotion={reduceMotion}
+        />
         <SegmentRail progress={1} color={colors.go} reduceMotion={reduceMotion} />
         <View style={styles.done}>
-          <FinishTitle reduceMotion={reduceMotion} />
+          <FinishTitle title={finishTitle(varietySalt(state.startedAt))} reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
           <PrimaryButton label="Done" onPress={leave} testID="done" />
           <FinishMeter />
@@ -170,7 +180,6 @@ export function ActiveScreen() {
         color={accent}
         paused={paused}
         heat={cool ? 'cool' : 'hot'}
-        intensity={intensity}
         reduceMotion={reduceMotion}
       />
       <SegmentRail
@@ -405,7 +414,7 @@ function PauseResume({
   );
 }
 
-function FinishTitle({ reduceMotion }: { reduceMotion: boolean }) {
+function FinishTitle({ title, reduceMotion }: { title: string; reduceMotion: boolean }) {
   const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.94)).current;
   const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0.35)).current;
 
@@ -418,7 +427,7 @@ function FinishTitle({ reduceMotion }: { reduceMotion: boolean }) {
   }, [opacity, reduceMotion, scale]);
 
   return (
-    <Animated.Text style={[styles.doneTitle, { opacity, transform: [{ scale }] }]}>Done.</Animated.Text>
+    <Animated.Text style={[styles.doneTitle, { opacity, transform: [{ scale }] }]}>{title}</Animated.Text>
   );
 }
 
@@ -465,6 +474,13 @@ function FinishMeter() {
       ) : null}
     </View>
   );
+}
+
+function hardOrdinalAt(segments: { kind: string }[], index: number): number {
+  let count = 0;
+  const end = Math.min(Math.max(0, index), segments.length);
+  for (let i = 0; i < end; i++) if (segments[i]?.kind === 'hard') count += 1;
+  return count;
 }
 
 const styles = StyleSheet.create({
