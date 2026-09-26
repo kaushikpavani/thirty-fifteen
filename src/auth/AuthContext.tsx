@@ -4,6 +4,7 @@ import { getSupabase } from './supabase';
 import { isSupabaseConfigured } from './config';
 import { AppState, Linking } from 'react-native';
 import { track } from '../storage/cloud';
+import { onCloudAccountDeleted } from '../storage/deletion';
 import { scheduleSync } from '../storage/sync';
 import { loadLocalName, saveLocalName } from '../storage/profile';
 import type { AuthUser } from '../types';
@@ -23,6 +24,8 @@ type AuthContextValue = {
   busy: 'google' | 'facebook' | null;
   signIn: (provider: 'google' | 'facebook') => Promise<void>;
   signOut: () => Promise<void>;
+  /** Drop the local session after the cloud account is gone. Does not call the network. */
+  signOutLocal: () => Promise<void>;
   setLocalName: (value: string) => Promise<void>;
   dismissSetup: () => void;
 };
@@ -119,6 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signOutLocal = useCallback(async () => {
+    setError(null);
+    setUser(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // The rider is already cleared in memory.
+    }
+  }, []);
+
+  useEffect(() => onCloudAccountDeleted(() => signOutLocal()), [signOutLocal]);
+
   const signOut = useCallback(async () => {
     setError(null);
     try {
@@ -148,10 +165,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       busy,
       signIn,
       signOut,
+      signOutLocal,
       setLocalName,
       dismissSetup: () => setNeedsSetup(false),
     }),
-    [ready, configured, user, localName, needsSetup, error, busy, signIn, signOut, setLocalName],
+    [ready, configured, user, localName, needsSetup, error, busy, signIn, signOut, signOutLocal, setLocalName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
