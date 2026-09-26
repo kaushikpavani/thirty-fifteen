@@ -22,8 +22,8 @@ export function AboutScreen() {
         </Text>
         <Text style={styles.cardTitle}>How to ride it</Text>
         <Text style={styles.body}>
-          120% FTP on the 30s. Controlled, not a sprint. On the 15s keep light pressure. Do not coast.
-          Save the deepest digs for the last reps.
+          About 120% of FTP on the 30s. Controlled, not a sprint. On the 15s, light pressure and keep turning.
+          Save the deepest efforts for the last reps.
         </Text>
         <Text style={styles.foot}>A coaching timer. Not medical advice. Ride within your limits.</Text>
       </ScrollView>

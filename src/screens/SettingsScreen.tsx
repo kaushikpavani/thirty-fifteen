@@ -120,6 +120,12 @@ export function SettingsScreen() {
         <NumField label="Voice rate" value={draft.voiceRate} onChange={(n) => patch('voiceRate', n)} min={0.7} max={1.4} step={0.05} />
         <Toggle label="Haptics" value={draft.hapticsEnabled} onChange={(v) => patch('hapticsEnabled', v)} />
 
+        <Text style={styles.section}>The session</Text>
+        <Pressable onPress={() => router.push('/about')} testID="open-about">
+          <Text style={styles.accountName}>Why 30/15</Text>
+          <Text style={styles.accountMeta}>Hard is about 120% of FTP. Easy is about half.</Text>
+        </Pressable>
+
         <Text style={styles.section}>History</Text>
         <Pressable onPress={() => router.push('/history')} testID="open-history">
           <Text style={styles.accountName}>Past sessions</Text>

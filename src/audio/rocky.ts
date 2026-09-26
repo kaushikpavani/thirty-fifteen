@@ -3,11 +3,11 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = 'Thirty hard. Fifteen easy. Go to work.';
-export const ROCKY_FINISH = 'That’s the work. Ride it home.';
+export const ROCKY_WELCOME = 'Thirty hard. Fifteen easy. Settle in.';
+export const ROCKY_FINISH = 'That is the work. Easy spinning home.';
 
-const HARD_LINES = ['Hold it.', 'Stay on the number.', 'Smooth. This is the rep.'];
-const EASY_LINES = ['Light. Don’t coast.', 'Soft legs. Keep turning.'];
+const HARD_LINES = ['Steady. You have this.', 'Stay with the number.', 'Smooth. This is the rep.'];
+const EASY_LINES = ['Light now. Keep turning.', 'Easy breath. Stay on the pedals.'];
 
 export type RockySegment = {
   id: string;

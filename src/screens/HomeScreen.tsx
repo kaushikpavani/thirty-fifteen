@@ -107,12 +107,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  streak: {
-    color: colors.textMuted,
-    letterSpacing: 1.6,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   hero: {
     marginTop: 48,
     marginBottom: 28,
@@ -168,12 +162,6 @@ const styles = StyleSheet.create({
     color: colors.textDim,
     fontSize: 14,
     lineHeight: 20,
-  },
-  live: {
-    marginTop: 18,
-    color: colors.easy,
-    fontSize: 15,
-    fontVariant: ['tabular-nums'],
   },
   goWrap: { marginTop: 28 },
   links: {

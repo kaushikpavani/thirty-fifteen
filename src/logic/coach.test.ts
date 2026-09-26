@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inSegmentSilence, rockyCue, ROCKY_FINISH, ROCKY_WELCOME } from '../audio/rocky.ts';
-import { motivationLine } from '../copy/motivation.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
-import { completionStreak } from '../history/streak.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults.ts';
@@ -42,23 +40,22 @@ test('cycling power measurement reads instantaneous watts only', () => {
   assert.equal(parseCyclingPower(Uint8Array.from([0x10, 0x00, 0xc8, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x08]))?.watts, 200);
 });
 
-test('streak counts completed days and survives a missed today', () => {
-  const now = new Date(2026, 8, 26, 18, 0, 0);
-  const day = (date: number, completed: boolean) => ({
-    endedAt: new Date(2026, 8, date, 12).toISOString(),
-    completed,
-  });
-  assert.equal(completionStreak([day(26, true), day(25, true), day(24, true)], now), 3);
-  assert.equal(completionStreak([day(25, true), day(24, true)], now), 2);
-  assert.equal(completionStreak([day(24, true)], now), 0);
-  assert.equal(completionStreak([day(26, false), day(25, true)], now), 1);
-});
-
-test('motivation uses the streak once it is real', () => {
-  const evening = new Date(2026, 8, 26, 19, 0, 0);
-  assert.match(motivationLine(evening, 0), /KOM|Lights|session/i);
-  assert.equal(motivationLine(evening, 2), 'Two days. The habit is the weapon.');
-  assert.match(motivationLine(evening, 4), /4 days straight/);
+test('rocky lines are grit without guilt or comparison', () => {
+  const segments = [
+    { id: 'h1', kind: 'hard', durationMs: 30_000, repNumber: 1 },
+    { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
+    { id: 'cd', kind: 'cooldown', durationMs: 600_000 },
+  ];
+  const lines = [
+    ROCKY_WELCOME,
+    ROCKY_FINISH,
+    rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) })?.line ?? '',
+    rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line ?? '',
+  ];
+  for (const line of lines) {
+    assert.ok(line.length > 0);
+    assert.doesNotMatch(line, /streak|badge|KOM|come back|excuse|everyone else|don’t blink/i);
+  }
 });
 
 test('rocky speaks only outside the silence window', () => {

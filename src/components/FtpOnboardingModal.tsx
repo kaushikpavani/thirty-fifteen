@@ -52,7 +52,7 @@ export function FtpOnboardingModal({
               keyboardType="number-pad"
               selectTextOnFocus
               style={styles.input}
-              placeholder="120"
+              placeholder="125"
               placeholderTextColor={colors.textDim}
               maxLength={3}
               testID="ftp-input"

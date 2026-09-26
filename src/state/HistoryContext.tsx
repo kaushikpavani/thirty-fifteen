@@ -1,13 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { completionStreak } from '../history/streak';
 import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 
 type HistoryContextValue = {
   ready: boolean;
   sessions: WorkoutRecord[];
-  streak: number;
   cloudNote: string | null;
   addSession: (input: NewWorkoutRecord) => Promise<void>;
 };
@@ -61,11 +59,9 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     if (note) setCloudNote(note);
   }, []);
 
-  const streak = useMemo(() => completionStreak(sessions), [sessions]);
-
   const value = useMemo(
-    () => ({ ready, sessions, streak, cloudNote, addSession }),
-    [ready, sessions, streak, cloudNote, addSession],
+    () => ({ ready, sessions, cloudNote, addSession }),
+    [ready, sessions, cloudNote, addSession],
   );
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;

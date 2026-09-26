@@ -57,9 +57,7 @@ export function HistoryScreen() {
                     <Text style={styles.duration}>{formatDuration(session.durationMs)}</Text>
                     <Text style={styles.meta}>FTP {session.ftpWatts}</Text>
                   </View>
-                  <Text style={[styles.status, session.completed && { color: colors.done }]}>
-                    {session.completed ? 'Complete' : `${session.completionPct}%`}
-                  </Text>
+                  <Text style={styles.status}>{session.completed ? 'Finished' : 'Stopped'}</Text>
                 </View>
               ))}
             </View>
