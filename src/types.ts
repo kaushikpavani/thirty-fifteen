@@ -32,7 +32,7 @@ export interface Segment {
   label: string;
   /** Spoken when this segment starts (or shortly after) */
   startCue?: string;
-  /** Spoken ~cueLeadMs before this segment ends, announcing what's next */
+  /** Unused for speech. The cue clock beeps at T−3 and chirps at the flip. */
   endCue?: string;
   setNumber?: number;
   repNumber?: number;

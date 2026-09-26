@@ -3,11 +3,29 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = 'Thirty hard. Fifteen easy. Settle in.';
-export const ROCKY_FINISH = 'That is the work. Easy spinning home.';
+export const ROCKY_WELCOME = "Let's go. Time to get better.";
+export const ROCKY_HARD = 'Dig in — this is the round that builds you.';
+export const ROCKY_EASY = "Yes. Breathe fire. You're not done.";
+export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
 
-const HARD_LINES = ['Steady. You have this.', 'Stay with the number.', 'Smooth. This is the rep.'];
-const EASY_LINES = ['Light now. Keep turning.', 'Easy breath. Stay on the pedals.'];
+/** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
+export const CLOCK_HIT_MS = 400;
+export const WARN_BEFORE_MS = 3000;
+
+export type ClockHit = 'chirp' | 'warn';
+
+/**
+ * Clock hits, separate from Rocky.
+ * Chirp in the first 400ms of a segment. Warn in the 400ms window that opens at T−3.
+ * Segments shorter than the warn lead only chirp, so the two never stack.
+ */
+export function clockHit(elapsedInMs: number, durationMs: number): ClockHit | null {
+  if (elapsedInMs >= 0 && elapsedInMs < CLOCK_HIT_MS) return 'chirp';
+  const remaining = durationMs - elapsedInMs;
+  const warnOpens = durationMs > WARN_BEFORE_MS + CLOCK_HIT_MS;
+  if (warnOpens && remaining <= WARN_BEFORE_MS && remaining > WARN_BEFORE_MS - CLOCK_HIT_MS) return 'warn';
+  return null;
+}
 
 export type RockySegment = {
   id: string;
@@ -65,8 +83,7 @@ export function rockyCue(args: {
       elapsedIn < 12_000 &&
       !fired.has(`hard:${seg.id}`)
     ) {
-      const index = Math.max(0, (seg.repNumber ?? 1) - 1) % HARD_LINES.length;
-      return { key: `hard:${seg.id}`, line: HARD_LINES[index] };
+      return { key: `hard:${seg.id}`, line: ROCKY_HARD };
     }
 
     if (
@@ -75,8 +92,7 @@ export function rockyCue(args: {
       elapsedIn <= 3000 &&
       !fired.has(`easy:${seg.id}`)
     ) {
-      const index = Math.max(0, (seg.repNumber ?? 1) - 1) % EASY_LINES.length;
-      return { key: `easy:${seg.id}`, line: EASY_LINES[index] };
+      return { key: `easy:${seg.id}`, line: ROCKY_EASY };
     }
 
     const last = lastMainIndex(segments);

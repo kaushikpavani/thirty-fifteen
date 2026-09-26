@@ -2,30 +2,34 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { bleGate } from '../ble/availability';
+import { Atmosphere } from '../components/Atmosphere';
+import { DigitClock, FadeLabel } from '../components/MotionText';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
+import { SegmentRail } from '../components/SegmentRail';
 import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { colors, phaseColor, phaseGlow, phaseLabel } from '../theme/colors';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
+
+const nativeMotion = Platform.OS !== 'web';
 
 export function ActiveScreen() {
   const engine = useWorkout();
   const history = useHistory();
   const { settings } = useSettings();
   const { width } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
   const savedRef = useRef<number | null>(null);
-  const [endArmed, setEndArmed] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
-  const nativeDriver = Platform.OS !== 'web';
+  const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
 
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
   const accent = phaseColor(kind);
-  const glow = phaseGlow(kind);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
@@ -41,16 +45,6 @@ export function ActiveScreen() {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => sub.remove();
   }, []);
-
-  useEffect(() => {
-    scale.setValue(0.94);
-    Animated.spring(scale, {
-      toValue: 1,
-      friction: 8,
-      tension: 90,
-      useNativeDriver: nativeDriver,
-    }).start();
-  }, [kind, nativeDriver, scale]);
 
   const record = (completed: boolean) => {
     const startedAt = state.startedAt;
@@ -99,13 +93,37 @@ export function ActiveScreen() {
     pause: engine.pause,
     resume: engine.resume,
     finish: finishStop,
+    restart: engine.restartSegment,
+    shorten: engine.shortenSegment,
+    skip: engine.skipSegment,
   });
   actions.current.pause = engine.pause;
   actions.current.resume = engine.resume;
   actions.current.finish = finishStop;
-  const onPausePress = useCallback(() => actions.current.pause(), []);
-  const onResumePress = useCallback(() => actions.current.resume(), []);
+  actions.current.restart = engine.restartSegment;
+  actions.current.shorten = engine.shortenSegment;
+  actions.current.skip = engine.skipSegment;
+  const onPausePress = useCallback(() => {
+    setArmed(null);
+    actions.current.pause();
+  }, []);
+  const onResumePress = useCallback(() => {
+    setArmed(null);
+    actions.current.resume();
+  }, []);
   const onStopPress = useCallback(() => actions.current.finish(), []);
+  const onConfirmRestart = useCallback(() => {
+    setArmed(null);
+    actions.current.restart();
+  }, []);
+  const onShortenPress = useCallback(() => {
+    setArmed(null);
+    actions.current.shorten();
+  }, []);
+  const onSkipPress = useCallback(() => {
+    setArmed(null);
+    actions.current.skip();
+  }, []);
 
   if (state.status === 'idle') {
     return <View style={styles.idle} />;
@@ -124,54 +142,38 @@ export function ActiveScreen() {
     );
   }
 
-  const target = seg?.targetWatts;
+  const paused = state.status === 'paused';
+  const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
+  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
 
   return (
     <Screen bottom>
-      <PhaseWash color={glow} />
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(state.progress01 * 100)}%`, backgroundColor: accent }]} />
-      </View>
+      <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
+      <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
       <View style={styles.body}>
-        <Text style={[styles.phase, { color: accent }]}>{phaseLabel(kind)}</Text>
-        <Animated.Text
-          style={[
-            styles.clock,
-            {
-              color: accent,
-              fontSize,
-              lineHeight: fontSize + 4,
-              opacity: state.status === 'paused' ? 0.55 : 1,
-              transform: [{ scale }],
-            },
-          ]}
+        <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
+        <DigitClock
+          value={clock}
+          color={colors.text}
+          fontSize={fontSize}
+          dim={paused}
+          phase={kind}
+          reduceMotion={reduceMotion}
           testID="countdown"
-        >
-          {clock}
-        </Animated.Text>
-        {target != null ? (
-          <View style={styles.wattsBlock}>
-            <Text style={styles.wattsKicker}>TARGET</Text>
-            <Text style={styles.watts} testID="target-watts">
-              {target}
-            </Text>
-            <Text style={styles.caption}>{caption}</Text>
-          </View>
-        ) : (
-          <Text style={styles.caption}>{caption}</Text>
-        )}
+        />
+        <FadeLabel value={caption} style={styles.caption} />
       </View>
       <WorkoutControls
         running={state.status === 'running'}
-        endArmed={endArmed}
-        onPause={() => {
-          setEndArmed(false);
-          onPausePress();
-        }}
+        armed={armed}
+        onPause={onPausePress}
         onResume={onResumePress}
-        onArmEnd={() => setEndArmed(true)}
-        onCancelEnd={() => setEndArmed(false)}
+        onArm={(which) => setArmed(which)}
+        onCancel={() => setArmed(null)}
         onConfirmEnd={onStopPress}
+        onConfirmRestart={onConfirmRestart}
+        onShorten={onShortenPress}
+        onSkip={onSkipPress}
       />
     </Screen>
   );
@@ -179,43 +181,199 @@ export function ActiveScreen() {
 
 const WorkoutControls = React.memo(function WorkoutControls({
   running,
-  endArmed,
+  armed,
   onPause,
   onResume,
-  onArmEnd,
-  onCancelEnd,
+  onArm,
+  onCancel,
   onConfirmEnd,
+  onConfirmRestart,
+  onShorten,
+  onSkip,
 }: {
   running: boolean;
-  endArmed: boolean;
+  armed: 'end' | 'restart' | null;
   onPause: () => void;
   onResume: () => void;
-  onArmEnd: () => void;
-  onCancelEnd: () => void;
+  onArm: (which: 'end' | 'restart') => void;
+  onCancel: () => void;
   onConfirmEnd: () => void;
+  onConfirmRestart: () => void;
+  onShorten: () => void;
+  onSkip: () => void;
 }) {
+  const open = useRef(new Animated.Value(running ? 0 : 1)).current;
+
+  useEffect(() => {
+    Animated.timing(open, {
+      toValue: running ? 0 : 1,
+      duration: running ? 160 : 240,
+      useNativeDriver: nativeMotion,
+    }).start();
+  }, [open, running]);
+
   return (
-    <View style={styles.controls}>
-      {running ? (
-        <PrimaryButton variant="hairline" label="Pause" onPress={onPause} style={styles.control} testID="pause" />
-      ) : (
-        <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
-      )}
-      {endArmed ? (
-        <View style={styles.endSlot}>
-          <Pressable onPress={onCancelEnd} testID="end-cancel">
-            <Text style={styles.endCancel}>Keep going</Text>
-          </Pressable>
-          <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
-            <Text style={styles.chipText}>End session</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
+    <View style={styles.footer}>
+      <PauseResume running={running} onPause={onPause} onResume={onResume} />
+      {running ? null : (
+        <Animated.View
+          style={[
+            styles.stack,
+            {
+              opacity: open,
+              transform: [
+                {
+                  translateY: open.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TransportChip label="Shorten" hint="End this segment and continue" onPress={onShorten} testID="shorten" />
+          <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
+          {armed === 'restart' ? (
+            <ConfirmRow
+              cancelID="restart-cancel"
+              confirmID="restart-confirm"
+              confirm="Restart segment"
+              onCancel={onCancel}
+              onConfirm={onConfirmRestart}
+            />
+          ) : (
+            <TransportChip
+              label="Restart"
+              hint="Restart this segment"
+              onPress={() => onArm('restart')}
+              testID="restart"
+            />
+          )}
+          {armed === 'end' ? (
+            <ConfirmRow
+              cancelID="end-cancel"
+              confirmID="end-confirm"
+              confirm="End session"
+              onCancel={onCancel}
+              onConfirm={onConfirmEnd}
+            />
+          ) : (
+            <TransportChip label="End" hint="End the session" onPress={() => onArm('end')} testID="end" />
+          )}
+        </Animated.View>
       )}
     </View>
   );
 });
+
+function ConfirmRow({
+  cancelID,
+  confirmID,
+  confirm,
+  onCancel,
+  onConfirm,
+}: {
+  cancelID: string;
+  confirmID: string;
+  confirm: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <View style={styles.confirmRow}>
+      <Pressable onPress={onCancel} testID={cancelID} hitSlop={8}>
+        <Text style={styles.endCancel}>Cancel</Text>
+      </Pressable>
+      <Pressable style={styles.chip} onPress={onConfirm} testID={confirmID} hitSlop={8}>
+        <Text style={styles.chipText}>{confirm}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function TransportChip({
+  label,
+  hint,
+  onPress,
+  testID,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint}
+      onPress={onPress}
+      hitSlop={8}
+      testID={testID}
+      style={({ pressed }) => [styles.transportChip, pressed && styles.transportChipPressed]}
+    >
+      <Text style={styles.transportText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PauseResume({
+  running,
+  onPause,
+  onResume,
+}: {
+  running: boolean;
+  onPause: () => void;
+  onResume: () => void;
+}) {
+  const fill = useRef(new Animated.Value(running ? 0 : 1)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
+  const [word, setWord] = useState(running ? 'Pause' : 'Resume');
+  const seen = useRef(false);
+
+  useEffect(() => {
+    if (!seen.current) {
+      seen.current = true;
+      return;
+    }
+    Animated.timing(fill, {
+      toValue: running ? 0 : 1,
+      duration: 240,
+      useNativeDriver: false,
+    }).start();
+    const fade = Animated.timing(textOpacity, { toValue: 0, duration: 90, useNativeDriver: nativeMotion });
+    fade.start(({ finished }) => {
+      if (!finished) return;
+      setWord(running ? 'Pause' : 'Resume');
+      Animated.timing(textOpacity, { toValue: 1, duration: 160, useNativeDriver: nativeMotion }).start();
+    });
+    return () => fade.stop();
+  }, [fill, running, textOpacity]);
+
+  const backgroundColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0)', colors.go],
+  });
+  const borderColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.border, 'rgba(255,255,255,0)'],
+  });
+  const textColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.text, colors.black],
+  });
+
+  return (
+    <Animated.View style={[styles.pauseShell, { backgroundColor, borderColor }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={running ? 'Pause' : 'Resume'}
+        testID={running ? 'pause' : 'resume'}
+        onPress={running ? onPause : onResume}
+        style={styles.pauseHit}
+      >
+        <Animated.Text style={[styles.pauseLabel, { color: textColor, opacity: textOpacity }]}>{word}</Animated.Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 function FinishMeter() {
   const meter = usePowerMeter();
@@ -262,40 +420,24 @@ function FinishMeter() {
   );
 }
 
-function PhaseWash({ color }: { color: string }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-  const [shown, setShown] = useState(color);
-  const native = Platform.OS !== 'web';
-
-  useEffect(() => {
-    if (shown === color) return;
-    Animated.timing(opacity, { toValue: 0, duration: 160, useNativeDriver: native }).start(({ finished }) => {
-      if (!finished) return;
-      setShown(color);
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: native }).start();
-    });
-  }, [color, native, opacity, shown]);
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        StyleSheet.absoluteFill,
-        { backgroundColor: shown, opacity },
-        Platform.OS === 'web' ? { pointerEvents: 'none' as const } : null,
-      ]}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
-  progressTrack: {
-    height: 2,
-    backgroundColor: colors.borderSoft,
-    marginHorizontal: 28,
-    marginTop: 8,
+  pauseShell: {
+    alignSelf: 'stretch',
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  progressFill: { height: 2 },
+  pauseHit: {
+    flex: 1,
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
   body: {
     flex: 1,
     alignItems: 'center',
@@ -303,28 +445,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   phase: {
+    color: colors.text,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 4,
     marginBottom: 12,
-  },
-  clock: {
-    fontWeight: '200',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -2,
-  },
-  wattsBlock: { alignItems: 'center', marginTop: 18, gap: 2 },
-  wattsKicker: {
-    color: colors.textDim,
-    fontSize: 11,
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  watts: {
-    color: colors.text,
-    fontSize: 40,
-    fontWeight: '300',
-    fontVariant: ['tabular-nums'],
   },
   caption: {
     color: colors.textMuted,
@@ -332,20 +457,43 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  controls: {
-    flexDirection: 'row',
-    gap: 12,
+  footer: {
     paddingHorizontal: 20,
     paddingBottom: 8,
+    gap: 10,
   },
-  control: { flex: 1 },
-  endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
-  endCancel: { color: colors.textDim, fontSize: 14, paddingVertical: 6 },
+  stack: {
+    gap: 8,
+  },
+  confirmRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  transportChip: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transportChipPressed: { opacity: 0.55 },
+  transportText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  endCancel: { color: colors.textMuted, fontSize: 14, paddingVertical: 6 },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: colors.bgSoft,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: colors.hard,
   },
   chipText: { color: colors.hard, fontSize: 15, fontWeight: '600' },
   done: {

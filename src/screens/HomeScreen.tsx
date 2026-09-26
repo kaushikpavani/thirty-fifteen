@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Atmosphere } from '../components/Atmosphere';
 import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
@@ -14,6 +16,7 @@ import { derivedWatts, TIP } from '../workout/defaults';
 export function HomeScreen() {
   const { settings, update } = useSettings();
   const engine = useWorkout();
+  const reduceMotion = useReduceMotion();
   const [ftpOpen, setFtpOpen] = useState(false);
   const summary = sessionSummary(settings);
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
@@ -31,6 +34,7 @@ export function HomeScreen() {
 
   return (
     <Screen bottom>
+      <Atmosphere variant="rest" reduceMotion={reduceMotion} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.top}>
           <Text style={styles.brand}>30/15</Text>
@@ -65,7 +69,7 @@ export function HomeScreen() {
         <Text style={styles.tip}>{TIP}</Text>
 
         <View style={styles.goWrap}>
-          <PrimaryButton label="Start" onPress={() => void start()} testID="start" />
+          <PrimaryButton label="Start" alive onPress={() => void start()} testID="start" />
         </View>
 
         <View style={styles.links}>
@@ -102,7 +106,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brand: {
-    color: colors.textDim,
+    color: '#FFB020',
     letterSpacing: 3,
     fontSize: 13,
     fontWeight: '600',

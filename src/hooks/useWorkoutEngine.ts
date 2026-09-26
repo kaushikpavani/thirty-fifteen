@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, speak, stopSpeech } from '../audio/cues';
-import { inSegmentSilence, rockyCue } from '../audio/rocky';
+import { initAudio, playBeep, speakCue, stopSpeech, unlockRockyFromGesture } from '../audio/cues';
+import { clockHit, inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
+import {
+  restartTargetMs,
+  rockyKeysToRearm,
+  segmentStartMs,
+  shortenTargetMs,
+  skipTargetMs,
+} from '../workout/transport';
 
 const TICK_MS = 100;
 
@@ -79,17 +86,28 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
     if (!current) return;
 
-    if (current.elapsedIn < 400) {
-      const key = `start:${current.seg.id}`;
+    const hit = clockHit(current.elapsedIn, current.seg.durationMs);
+    if (hit) {
+      const key = `${hit}:${current.seg.id}`;
       if (!firedStartRef.current.has(key)) {
         firedStartRef.current.add(key);
         if (s.hapticsEnabled) {
+          const heavy = current.seg.kind === 'hard' || current.seg.kind === 'accel';
           void Haptics.impactAsync(
-            current.seg.kind === 'hard' || current.seg.kind === 'accel'
-              ? Haptics.ImpactFeedbackStyle.Heavy
-              : Haptics.ImpactFeedbackStyle.Light,
+            hit === 'warn'
+              ? Haptics.ImpactFeedbackStyle.Light
+              : heavy
+                ? Haptics.ImpactFeedbackStyle.Heavy
+                : Haptics.ImpactFeedbackStyle.Medium,
           );
         }
+        const chirp =
+          current.seg.kind === 'easy' || current.seg.kind === 'set_rest'
+            ? 'easy'
+            : current.seg.kind === 'cooldown'
+              ? 'done'
+              : 'go';
+        void playBeep(s, hit === 'warn' ? 'warn' : chirp);
       }
     }
 
@@ -105,7 +123,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     });
     if (!cue || firedRockyRef.current.has(cue.key)) return;
     firedRockyRef.current.add(cue.key);
-    speak(cue.line, s);
+    speakCue(cue, s);
   }, []);
 
   useEffect(() => {
@@ -144,14 +162,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setStartedAt(Date.now());
     setElapsedMs(0);
     setSegmentIndex(0);
-    anchorWallRef.current = Date.now();
-    setStatus('running');
+    anchorWallRef.current = null;
+    unlockRockyFromGesture();
     try {
       await activateKeepAwakeAsync('workout');
     } catch {
       // ignore
     }
     await initAudio();
+    anchorWallRef.current = Date.now();
+    pausedAccumRef.current = 0;
+    setStatus('running');
   }, []);
 
   const pause = useCallback(() => {
@@ -170,6 +191,65 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = Date.now();
     setStatus('running');
   }, []);
+
+  const seekTo = useCallback(
+    (targetMs: number, rearmCurrent: boolean) => {
+      if (statusRef.current !== 'running' && statusRef.current !== 'paused') return;
+      const segs = workoutRef.current.segments;
+      const total = workoutRef.current.totalMs;
+      const current = resolvePosition(elapsedRef.current);
+      stopSpeech();
+
+      if (rearmCurrent && current.segment) {
+        firedStartRef.current.delete(`chirp:${current.segment.id}`);
+        firedStartRef.current.delete(`warn:${current.segment.id}`);
+        for (const key of rockyKeysToRearm(current.segment, segmentStartMs(segs, current.index))) {
+          firedRockyRef.current.delete(key);
+        }
+      }
+
+      const next = Math.max(0, Math.min(targetMs, total));
+      if (next >= total) {
+        if (!firedRockyRef.current.has('finish')) {
+          firedRockyRef.current.add('finish');
+          speakCue({ key: 'finish', line: ROCKY_FINISH }, settingsRef.current);
+        }
+        elapsedRef.current = total;
+        pausedAccumRef.current = total;
+        anchorWallRef.current = null;
+        setElapsedMs(total);
+        setSegmentIndex(Math.max(0, segs.length - 1));
+        setStatus('finished');
+        void deactivateKeepAwake('workout');
+        return;
+      }
+
+      elapsedRef.current = next;
+      pausedAccumRef.current = next;
+      anchorWallRef.current = statusRef.current === 'running' ? Date.now() : null;
+      setElapsedMs(next);
+      setSegmentIndex(resolvePosition(next).index);
+    },
+    [resolvePosition],
+  );
+
+  const restartSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(restartTargetMs(segs, index), true);
+  }, [resolvePosition, seekTo]);
+
+  const shortenSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(shortenTargetMs(segs, index), false);
+  }, [resolvePosition, seekTo]);
+
+  const skipSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(skipTargetMs(segs, index), false);
+  }, [resolvePosition, seekTo]);
 
   const stop = useCallback(() => {
     stopSpeech();
@@ -202,5 +282,5 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     workout,
   };
 
-  return { state, start, pause, resume, stop, armedRef };
+  return { state, start, pause, resume, stop, restartSegment, shortenSegment, skipSegment, armedRef };
 }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
@@ -77,6 +77,7 @@ export function SettingsScreen() {
   };
 
   const save = async () => {
+    Keyboard.dismiss();
     await update(draft);
     router.back();
   };
@@ -89,7 +90,11 @@ export function SettingsScreen() {
         </Pressable>
         <Text style={styles.title}>Settings</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         <Text style={styles.section}>Power</Text>
         <NumField
           label="FTP"

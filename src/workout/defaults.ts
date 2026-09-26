@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   betweenSetRestMin: 4,
   cooldownMin: 10,
   speechEnabled: true,
-  voiceRate: 1.05,
+  voiceRate: 1,
   cueLeadMs: 800,
   beepsEnabled: true,
   hapticsEnabled: true,
