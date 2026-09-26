@@ -49,10 +49,57 @@ export function parseIndoorBikeData(bytes: Uint8Array): PowerReading | null {
   return { watts, speedKph };
 }
 
-/** Cycling Power Measurement (0x2A63). Instantaneous power always follows the flags. */
-export function parseCyclingPower(bytes: Uint8Array): PowerReading | null {
-  if (bytes.length < 4) return null;
-  return { watts: readS16(bytes, 2), speedKph: null };
+/**
+ * Optional Cycling Power Measurement fields, in Bluetooth SIG order, after the
+ * mandatory flags + sint16 watts. Presence bits 1 and 3 are references, not fields.
+ */
+const CPS_OPTIONAL: { bit: number; size: number }[] = [
+  { bit: 0x0001, size: 1 }, // pedal power balance
+  { bit: 0x0004, size: 2 }, // accumulated torque
+  { bit: 0x0010, size: 6 }, // wheel revolution data
+  { bit: 0x0020, size: 4 }, // crank revolution data
+  { bit: 0x0040, size: 4 }, // extreme force magnitudes
+  { bit: 0x0080, size: 4 }, // extreme torque magnitudes
+  { bit: 0x0100, size: 3 }, // extreme angles
+  { bit: 0x0200, size: 2 }, // top dead spot angle
+  { bit: 0x0400, size: 2 }, // bottom dead spot angle
+  { bit: 0x0800, size: 2 }, // accumulated energy
+];
+
+/**
+ * Skip optional fields when they fit. A short packet still keeps the mandatory watts.
+ * Never indexes past `bytes.length`.
+ */
+function walkCyclingPowerOptional(bytes: Uint8Array, flags: number): void {
+  let offset = 4;
+  for (const field of CPS_OPTIONAL) {
+    if ((flags & field.bit) === 0) continue;
+    if (offset + field.size > bytes.length) return;
+    offset += field.size;
+  }
+}
+
+/**
+ * Cycling Power Measurement (0x2A63).
+ * Bytes 0–1 are the flags. Bytes 2–3 are instantaneous power, sint16 little-endian.
+ * That pair is mandatory and does not move when optional fields follow.
+ * Packets shorter than 4 bytes are ignored. Longer or truncated packets do not throw.
+ */
+export function parseCyclingPower(bytes: Uint8Array | null | undefined): PowerReading | null {
+  if (!bytes || bytes.length < 4) return null;
+  if (bytes[0] == null || bytes[1] == null || bytes[2] == null || bytes[3] == null) return null;
+  const flags = readU16(bytes, 0);
+  const watts = readS16(bytes, 2);
+  walkCyclingPowerOptional(bytes, flags);
+  return { watts, speedKph: null };
+}
+
+export function bytesToHex(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    out += (bytes[i] ?? 0).toString(16).padStart(2, '0');
+  }
+  return out;
 }
 
 export function base64ToBytes(b64: string): Uint8Array {

@@ -19,6 +19,7 @@ import { clearFeedbackOutbox } from './feedback';
 import { clearHistory } from './history';
 import { createId } from './id';
 import { saveLocalName } from './profile';
+import { clearSavedPowerMeter } from './powerMeter';
 import { clearStoredSettings } from './settings';
 
 const ATTEMPT_MS = 4000;
@@ -175,6 +176,7 @@ export async function eraseThisDevice(): Promise<CloudAttempt> {
   await clearQueuedOutboxes();
   await saveLocalName(null);
   await clearStoredSettings();
+  await clearSavedPowerMeter();
   await forgetDeviceId();
   if (deviceId && isSupabaseConfigured()) {
     const current = await loadDeletionState();

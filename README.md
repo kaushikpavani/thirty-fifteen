@@ -188,11 +188,13 @@ Planned watts stay on Home. The countdown is the only hero during the ride.
 
 ## Power meter
 
-The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. Planned watts stay on Home.
+Optional. Start is not gated on a meter, and the running countdown stays the only number on the glass.
 
-**Expo Go and the browser have no pair sheet and no power strip.** On a development build, Finish offers an optional power meter after you are done.
+The primary path is the **Cycling Power Service** (`0x1818`) and **Cycling Power Measurement** (`0x2A63`). Flags are the first two bytes. Instantaneous watts are the next two, a little-endian signed 16-bit. SRAM and Quarq left cranks use this path. Wake the meter with a pedal stroke. **FTMS Indoor Bike Data** (`0x2AD2`, power and speed) is still accepted when a trainer has no cycling power service. Nothing is simulated. Planned watts stay on Home.
 
-To connect a real meter:
+**Settings → Power meter**, before Start: scan, pick, live watts, disconnect. The same panel is on the finish screen. The last peripheral id stays on the phone. The next launch, and the next time Settings opens, tries that meter and falls back to a scan.
+
+**Expo Go and the browser cannot open the radio.** Settings says so, with the same gate copy as a denied permission or a radio that is off. They do not invent watts. Finish hides the pair sheet there. A development build is required to connect a real meter:
 
 ```bash
 npx expo install expo-dev-client
@@ -202,7 +204,7 @@ npx expo start --dev-client
 
 The development profile is in [`eas.json`](eas.json).
 
-Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The countdown stays the only number on the clock. Planned watts stay on Home.
+Install that build (not Expo Go). Open Settings → Power meter before Start. Pedal the crank, scan, and connect. Watts appear only after a real measurement packet. Disconnect drops the link and leaves the saved meter for the next visit. The countdown stays the only number on the clock. Planned watts stay on Home.
 
 `react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
@@ -241,7 +243,7 @@ The OS can still kill a background app. Battery use is higher while the session 
 
 ## Settings
 
-FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, speech, voice rate, haptics. Stored in AsyncStorage. The finish screen's primary button says Done.
+FTP, hard/easy %, an optional power meter, warm-up, sets, reps, work/recover, rest, cool-down, music, speech, voice rate, haptics. Stored in AsyncStorage. The finish screen's primary button says Done. The power meter is not required to start.
 
 ---
 
@@ -250,7 +252,7 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 - The timer is wall-clock time. While the app is in front, `expo-keep-awake` holds the screen on. In the background the bed (or a silent loop) holds the audio session. If the OS freezes or kills the process, the clock snaps forward on return and does not replay missed cues. See [BACKGROUND.md](BACKGROUND.md).
 - History, FTP, notes, and analytics stay on the phone. Cloud sync is a later best-effort flush. Start, the clock, cues, and the music bed do not wait for it.
 - Feedback reaches the dashboard only after the SQL has been run and the phone can reach it. Until then the note stays in the outbox.
-- A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
+- A power meter is optional, in Settings before Start and again after Finish, and only in a development build. Expo Go and the browser show why the radio is unavailable. They never show invented watts, and Expo Go never shows a pair sheet on the finish screen.
 
 ---
 
