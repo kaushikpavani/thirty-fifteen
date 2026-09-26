@@ -22,11 +22,10 @@ test('why sheet bullets stay honest about the format, FTP, and limits', () => {
 
 test('same clock, different work compares steady riding without a medical promise', () => {
   assert.equal(WHY_COMPARE_TITLE, 'Same clock, different work');
-  assert.equal(WHY_COMPARE.length, 2);
-  assert.match(WHY_COMPARE[0], /Forty minutes of steady moderate riding/);
-  assert.match(WHY_COMPARE[0], /time near the intensity that challenges VO₂max/);
-  assert.match(WHY_COMPARE[1], /You still earn the ride either way/);
-  assert.match(WHY_COMPARE[1], /a training tool, not a medical promise/);
+  assert.deepEqual(WHY_COMPARE, [
+    'Forty minutes of steady moderate riding keeps you comfortable but rarely near your aerobic ceiling. The same forty minutes as 30/15 (hard / easy) flips you between short hard efforts and short recoveries — so more of the session is spent near the intensity that challenges VO₂max, without needing a longer all-out slog.',
+    'You still earn the ride either way. 30/15 just packs more of that high-end work into the same time — a training tool, not a medical promise.',
+  ]);
 });
 
 test('the default watts in the sheet are the real FTP targets', () => {
