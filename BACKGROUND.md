@@ -2,7 +2,7 @@
 
 A running 30/15 keeps its clock and its cues when the rider opens YouTube or locks the screen. The screen does not need to keep drawing. Pause still means pause. This file is the contract for that behavior.
 
-Device audio was not exercised in CI. The automated bar is `npx tsc --noEmit` and `npm test`. The manual script at the bottom is how to confirm a phone.
+Device audio is not what CI hears. CI runs `npx tsc --noEmit` and `npm test` (`.github/workflows/ci.yml`). The manual script at the bottom is how to confirm a phone, with YouTube in front.
 
 ## What stays the same
 
@@ -19,7 +19,9 @@ Offline. No login wall. No watts on the notification.
 | `src/audio/music.ts` | Looping bed, silent hold when Music is off, Android notification. |
 | `src/audio/remoteTransport.ts` | Which notification samples are a real pause or play. |
 | `src/workout/wallClock.ts` | Elapsed time from the wall clock. Pause does not accumulate. The playhead never moves backwards. |
-| `src/workout/cueCatchup.ts` | Which cues a jump from `fromMs` to `toMs` may play. |
+| `src/workout/playhead.ts` | One wall-clock sample: the timer and a foreground return both use `planCatchUp`. |
+| `src/workout/appPresence.ts` | AppState: `background` rearms audio, `inactive` only snaps the clock. |
+| `src/workout/cueCatchup.ts` | Which cues a jump from `fromMs` to `toMs` may play. `takeCue` is the double-fire lock. |
 | `src/hooks/useWorkoutEngine.ts` | Wires the clock, the cues, and notification pause/resume. |
 | `src/hooks/useAppActive.ts` | Foreground flag. Animations stop off-screen. The workout does not. |
 | `app.json` | `UIBackgroundModes: ["audio"]`, `enableBackgroundPlayback: true`. |
@@ -127,6 +129,21 @@ npx expo start --dev-client
 - `expo-speech` is the fallback when a clip fails to load. It is not the background path.
 - Android notification pause in the same moment as a bed change can be adopted as the listener's first sample and ignored. The in-app Pause glass still works.
 - iOS will not show lock-screen transport for this ride, on purpose.
+
+## Automated tests
+
+`src/logic/backgroundRide.test.ts` drives the same helpers the engine calls.
+
+- Wall time, not a count of ticks. A late sample moves the playhead by the real gap.
+- A stall of 2.5s snaps forward and does not replay the opening. A stall inside 2s still plays the cue it crossed, once.
+- The next tick does not repeat that cue. `takeCue` is what makes the second call empty. Without it, `planCatchUp` would return the open window again.
+- `background` then `active` rearms and catch-up runs once, including a return that is still inside a Rocky window.
+- `inactive` then `active` (Control Center) snaps and does not re-arm. The stalled cues still play once.
+- A paused ride does not catch up when it becomes active.
+- A backwards clock does not reopen a cue that already played.
+- A return past the end of the workout finishes with an empty cue list.
+
+`src/logic/wallClock.test.ts`, `src/logic/cueCatchup.test.ts`, and `src/logic/remoteTransport.test.ts` cover the pieces underneath: pause accumulation, the 2s gap boundary, salt, and notification play/pause.
 
 ## Manual test
 
