@@ -54,10 +54,10 @@ export async function loadDeletionState(): Promise<DeletionState> {
 }
 
 export async function saveDeletionState(next: DeletionState): Promise<void> {
+  memory = next;
   try {
-    memory = next;
     await AsyncStorage.setItem(KEY, JSON.stringify(next));
   } catch {
-    memory = next;
+    // The in-memory copy still gates this process.
   }
 }

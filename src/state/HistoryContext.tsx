@@ -2,7 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../storage/cloud';
+import { deleteWorkoutHistory } from '../storage/deletion';
+import type { CloudAttempt } from '../storage/deletionState';
+import { loadDeletionState } from '../storage/deletionStore';
 import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
+import { sessionsAfterWatermark } from '../storage/merge';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 
 type HistoryContextValue = {
@@ -10,6 +14,8 @@ type HistoryContextValue = {
   sessions: WorkoutRecord[];
   cloudNote: string | null;
   addSession: (input: NewWorkoutRecord) => Promise<void>;
+  /** Clears the on-screen list immediately, then the cloud copy when signed in. */
+  clearSessions: () => Promise<CloudAttempt>;
 };
 
 const HistoryContext = createContext<HistoryContextValue | null>(null);
@@ -20,6 +26,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<WorkoutRecord[]>([]);
   const [cloudNote, setCloudNote] = useState<string | null>(null);
   const sessionsRef = useRef<WorkoutRecord[]>([]);
+  const generation = useRef(0);
   const userId = auth.user?.id ?? null;
 
   useEffect(() => {
@@ -30,7 +37,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     if (!auth.ready) return;
     let cancelled = false;
     void (async () => {
-      const local = await loadHistory();
+      const local = sessionsAfterWatermark(await loadHistory(), (await loadDeletionState()).historyDeletedThrough);
       if (cancelled) return;
       sessionsRef.current = local;
       setSessions(local);
@@ -39,12 +46,15 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         setCloudNote(null);
         return;
       }
+      const gen = generation.current;
       const merged = await pullAndMerge(sessionsRef.current);
-      if (cancelled) return;
-      sessionsRef.current = merged.sessions;
-      setSessions(merged.sessions);
+      if (cancelled || generation.current !== gen) return;
+      const visible = sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough);
+      if (cancelled || generation.current !== gen) return;
+      sessionsRef.current = visible;
+      setSessions(visible);
       setCloudNote(merged.note);
-      await saveHistory(merged.sessions);
+      await saveHistory(visible);
     })();
     return () => {
       cancelled = true;
@@ -55,11 +65,15 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
+      const gen = generation.current;
       void pullAndMerge(sessionsRef.current).then(async (merged) => {
-        sessionsRef.current = merged.sessions;
-        setSessions(merged.sessions);
+        if (generation.current !== gen) return;
+        const visible = sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough);
+        if (generation.current !== gen) return;
+        sessionsRef.current = visible;
+        setSessions(visible);
         setCloudNote(merged.note);
-        await saveHistory(merged.sessions);
+        await saveHistory(visible);
       });
     });
     return () => sub.remove();
@@ -85,9 +99,17 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearSessions = useCallback(async () => {
+    generation.current += 1;
+    sessionsRef.current = [];
+    setSessions([]);
+    setCloudNote(null);
+    return deleteWorkoutHistory();
+  }, []);
+
   const value = useMemo(
-    () => ({ ready, sessions, cloudNote, addSession }),
-    [ready, sessions, cloudNote, addSession],
+    () => ({ ready, sessions, cloudNote, addSession, clearSessions }),
+    [ready, sessions, cloudNote, addSession, clearSessions],
   );
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;
