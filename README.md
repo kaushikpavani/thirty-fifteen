@@ -1,48 +1,25 @@
-# 30/15 Coach
+# 30/15
 
-Polished Expo (SDK 57) bike coaching timer for **Rønnestad / GCN-style 30/15 micro-intervals**.
+Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on the workout screen, spoken cues a beat early, and targets from your FTP.
 
-Spoken cues fire a beat early (~0.8s), big countdown UI, dark cycling aesthetic, fixed structure with editable FTP and session params.
-
-**App name:** 30/15 Coach  
+**App name:** 30/15  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
 ---
 
-## Run on iPhone (Expo Go)
-
-Prefer the **same Wi‑Fi** as your computer. Avoid relying on tunnels if certificates fail.
-
-From a fresh clone on a Mac:
+## Run in Expo Go
 
 ```bash
-git clone https://github.com/kaushikpavani/thirty-fifteen.git
-cd thirty-fifteen
 npm install
 npx expo start -c --lan
 ```
 
-The dev command is **`npx expo`**, not `npm expo`. There is no npm script named `expo`, so `npm expo` fails immediately. `npm start` also works; it runs the same `expo start` script.
+Use **`npx expo`**, not `npm expo`. If install reports `Cannot find module 'expo/config-plugins'`, the tree is stale. Delete `node_modules` and run `npm install` again. Do not run `npm audit fix`; it can leave the Expo SDK 57 set.
 
-`npm install` may print moderate vulnerability warnings and suggest `npm audit fix`. **Ignore that.** Do not run `npm audit` or `npm audit fix`. Those commands can upgrade packages off the Expo SDK 57 set.
+1. Install **Expo Go**.
+2. Scan the QR code. Phone and computer should share a network.
 
-If `npx expo start` then reports `Cannot find module 'expo/config-plugins'`, the install tree is stale. Reinstall without audit fixes:
-
-```bash
-rm -rf node_modules
-npm install
-npx expo start -c --lan
-```
-
-1. Install **Expo Go** from the App Store (the build that matches SDK 57).
-2. Scan the QR code from the terminal (Camera app or Expo Go).
-3. Keep the phone and the Mac on the same network.
-
-`--lan` is the recommended connection. Use a tunnel only if the phone cannot reach the computer:
-
-```bash
-npx expo start -c --tunnel
-```
+Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go has no Bluetooth stack. See [Power meter](#power-meter).
 
 ---
 
@@ -51,64 +28,103 @@ npx expo start -c --tunnel
 | Block | Detail |
 |--------|--------|
 | Warm-up | 12 min progressive spin + **3× ~10s accelerations** near the end |
-| Main | **3 sets × 13 reps** of **30s HARD / 15s EASY** (~9.5 min/set) |
+| Main | **3 sets × 13 reps** of **30s HARD / 15s EASY** |
 | Between sets | **4 min** easy spinning |
 | Cool-down | **10 min** easy pedaling |
 
 ### Default power (editable)
 
-- **FTP = 125 W** (asked on first launch; always editable in Settings)
-- **HARD** = 120% FTP → **150 W** (“above FTP”)
-- **EASY** = 50% FTP → **63 W** (“light pressure, don’t coast”)
+- **FTP = 125 W** (editable, never a gate)
+- **HARD** = 120% FTP → **150 W**
+- **EASY** = 50% FTP → **63 W**
 
-Changing FTP (onboarding modal or Settings) immediately updates derived HARD/EASY targets.
+A saved FTP is left alone. A fresh install starts at 125 W. Open the app and press **Start**. There is no sign-in before the first hard interval.
+
+---
+
+## Start
+
+The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, spoken cues, past sessions, and an optional note.
+
+## History
+
+Sessions are written to **AsyncStorage** when a workout finishes, or when you end one after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. Open them from Settings. The home screen does not keep a streak.
+
+There is no sign-in on this path. The workout does not wait on an account.
+
+### Feedback
+
+Settings → Leave a note. It is optional and free-form. No rating. No account.
+
+When Supabase is configured, Send writes a row to `app_feedback`. Run [`supabase/app_feedback.sql`](supabase/app_feedback.sql) in the SQL editor. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
+
+If the server is missing, the note stays on the phone and sends on a later try.
+
+---
+
+## Audio
+
+Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. From 3 seconds before a change through 1 second after it, the clock is silent.
+
+## Power meter
+
+The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. The workout screen shows the target only.
+
+**Expo Go and the browser have no pair sheet and no power strip.** On a development build, Finish offers an optional power meter after you are done.
+
+To connect a real meter:
+
+```bash
+npx expo install expo-dev-client
+```
+
+Add `eas.json` if you do not have one:
+
+```json
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": { "developmentClient": true, "distribution": "internal" },
+    "production": {}
+  }
+}
+```
+
+```bash
+npx eas-cli@latest build --profile development --platform ios
+npx expo start --dev-client
+```
+
+Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The workout clock itself stays on target watts.
+
+`react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
 ---
 
 ## Audio cues
 
-Spoken cues use **expo-speech**. Short WAV beeps use **expo-audio**, which current Expo Go includes. They fire ~0.5–1s early so you can react.
-
-`expo-av` is not used. That package’s `ExponentAV` native module was removed from Expo Go in SDK 55, and importing it crashed the app on launch (`Cannot find native module 'ExponentAV'`). Beeps are loaded lazily: if the audio native module is missing, the workout still runs with speech and haptics only.
-
-After pulling this change, reinstall dependencies and restart Metro with a clean cache:
-
-```bash
-npm install
-npx expo start -c --lan
-```
-
-Reload the project in **current Expo Go** (the App Store build that matches SDK 57). A custom development build is not required for beeps.
-
-Examples:
-
-- Warm-up start / acceleration warnings
-- “Hard!” / “Easy. Light pressure. Do not coast.”
-- Set complete / between-set rest
-- Cool-down / workout done
-
-Pause freezes the timer and suppresses further cues until resume.
+Spoken cues use **expo-speech**. The player module is **expo-audio** (not expo-av). Transition beeps are not fired: the three seconds before a change and the second after it stay quiet.
 
 ---
 
-## Settings (persisted)
+## Settings
 
-FTP, hard/easy %, warm-up min, sets, reps, work/recover seconds, between-set rest, cool-down, speech on/off, voice rate, beeps, haptics, cue lead time.
-
-Stored with **AsyncStorage**.
+FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, voice rate, haptics. Stored in AsyncStorage.
 
 ---
 
 ## Limitations
 
-- Timer uses **elapsed wall-clock** (`Date.now`) to limit drift while the app stays in the foreground.
-- If iOS suspends the JS thread in the background, phase timing is **best-effort** — keep the screen on (we use `expo-keep-awake`) and avoid locking the phone mid-set for critical accuracy.
-- No login, no backend, no power meter connection — targets are coaching numbers only.
+- The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
+- History on this path stays on the phone. There is no account step before the workout.
+- Feedback reaches you only after `app_feedback` exists. Until then the note stays on the phone.
+- A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
 
 ---
 
-## Typecheck
+## Checks
 
 ```bash
 npx tsc --noEmit
+npm test
 ```

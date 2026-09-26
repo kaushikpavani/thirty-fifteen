@@ -1,212 +1,178 @@
-import React from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { TipStrip } from '../components/TipStrip';
+import { Screen } from '../components/Screen';
+import { useSettings } from '../state/SettingsContext';
+import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
-import type { WorkoutSettings } from '../types';
+import { markFtpOnboardingDone } from '../storage/settings';
 import { sessionSummary } from '../workout/builder';
-import { derivedWatts } from '../workout/defaults';
+import { derivedWatts, TIP } from '../workout/defaults';
 
-type Props = {
-  settings: WorkoutSettings;
-  onStart: () => void;
-  onSettings: () => void;
-  onAbout: () => void;
-  onEditFtp: () => void;
-};
-
-export function HomeScreen({
-  settings,
-  onStart,
-  onSettings,
-  onAbout,
-  onEditFtp,
-}: Props) {
+export function HomeScreen() {
+  const { settings, update } = useSettings();
+  const engine = useWorkout();
+  const [ftpOpen, setFtpOpen] = useState(false);
   const summary = sessionSummary(settings);
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
 
+  const saveFtp = async (ftp: number) => {
+    await update({ ...settings, ftpWatts: ftp });
+    await markFtpOnboardingDone();
+    setFtpOpen(false);
+  };
+
+  const start = async () => {
+    await engine.start();
+    router.push('/workout');
+  };
+
   return (
-    <View style={styles.root}>
-      <LinearGradient
-        colors={['#0F1A22', colors.bg, '#0A1018']}
-        style={StyleSheet.absoluteFill}
-      />
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
+    <Screen bottom>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.top}>
+          <Text style={styles.brand}>30/15</Text>
+        </View>
+
+        <Pressable
+          style={styles.hero}
+          onPress={() => setFtpOpen(true)}
+          testID="edit-ftp"
         >
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.brand}>MICRO INTERVALS</Text>
-              <Text style={styles.title}>30/15 Coach</Text>
-            </View>
-            <Pressable onPress={onSettings} style={styles.gear}>
-              <Text style={styles.gearText}>⚙</Text>
-            </Pressable>
+          <Text style={styles.kicker}>FTP</Text>
+          <Text style={styles.ftp}>{settings.ftpWatts}</Text>
+          <Text style={styles.unit}>watts</Text>
+        </Pressable>
+
+        <View style={styles.split}>
+          <View style={styles.splitCol}>
+            <Text style={[styles.splitLabel, { color: colors.hard }]}>HARD</Text>
+            <Text style={styles.splitValue}>{watts.hard}</Text>
+            <Text style={styles.splitHint}>{settings.hardPct}%</Text>
           </View>
-
-          <Text style={styles.subtitle}>
-            Rønnestad-style bike coaching — hard 30s, easy 15s, spoken cues a
-            beat early.
-          </Text>
-
-          <Pressable onPress={onEditFtp} style={styles.ftpCard}>
-            <View style={styles.ftpTop}>
-              <Text style={styles.ftpLabel}>YOUR FTP</Text>
-              <Text style={styles.ftpEdit}>Edit</Text>
-            </View>
-            <Text style={styles.ftpValue}>{settings.ftpWatts} W</Text>
-            <View style={styles.wattRow}>
-              <View style={styles.wattBox}>
-                <Text style={[styles.wattKind, { color: colors.hard }]}>HARD</Text>
-                <Text style={styles.wattNum}>{watts.hard} W</Text>
-                <Text style={styles.wattHint}>{settings.hardPct}% · above FTP</Text>
-              </View>
-              <View style={styles.wattBox}>
-                <Text style={[styles.wattKind, { color: colors.easy }]}>EASY</Text>
-                <Text style={styles.wattNum}>{watts.easy} W</Text>
-                <Text style={styles.wattHint}>{settings.easyPct}% · light pressure</Text>
-              </View>
-            </View>
-          </Pressable>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Session overview</Text>
-            <Row label="Warm-up" value={`${settings.warmupMin} min + 3×10s accels`} />
-            <Row
-              label="Main"
-              value={`${settings.sets}×${settings.reps} · ${settings.workSec}/${settings.recoverSec}s`}
-            />
-            <Row label="Between sets" value={`${settings.betweenSetRestMin} min easy`} />
-            <Row label="Cool-down" value={`${settings.cooldownMin} min`} />
-            <View style={styles.divider} />
-            <Row label="Total time" value={`~${summary.totalMin} min`} bold />
+          <View style={styles.splitCol}>
+            <Text style={[styles.splitLabel, { color: colors.easy }]}>EASY</Text>
+            <Text style={styles.splitValue}>{watts.easy}</Text>
+            <Text style={styles.splitHint}>{settings.easyPct}%</Text>
           </View>
+        </View>
 
-          <TipStrip />
+        <Text style={styles.structure}>
+          {settings.sets} × {settings.reps} · {settings.workSec}/{settings.recoverSec} · ~{summary.totalMin} min
+        </Text>
+        <Text style={styles.tip}>{TIP}</Text>
 
-          <PrimaryButton label="Start Workout" onPress={onStart} variant="orange" />
+        <View style={styles.goWrap}>
+          <PrimaryButton label="Start" onPress={() => void start()} testID="start" />
+        </View>
 
-          <Pressable onPress={onAbout} style={styles.aboutLink}>
-            <Text style={styles.aboutText}>About the science →</Text>
+        <View style={styles.links}>
+          <Pressable onPress={() => router.push('/settings')} testID="open-settings">
+            <Text style={styles.link}>Settings</Text>
           </Pressable>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
-  );
-}
+        </View>
+      </ScrollView>
 
-function Row({
-  label,
-  value,
-  bold,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-}) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, bold && { color: colors.teal, fontWeight: '800' }]}>
-        {value}
-      </Text>
-    </View>
+      <FtpOnboardingModal
+        visible={ftpOpen}
+        initialFtp={settings.ftpWatts}
+        hardPct={settings.hardPct}
+        easyPct={settings.easyPct}
+        mode="edit"
+        onConfirm={(ftp) => {
+          void saveFtp(ftp);
+        }}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  safe: { flex: 1 },
-  scroll: { padding: 20, paddingBottom: 40, gap: 16 },
-  header: {
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingBottom: 20,
+  },
+  top: {
+    marginTop: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   brand: {
-    color: colors.teal,
-    fontWeight: '800',
-    letterSpacing: 2,
-    fontSize: 12,
+    color: colors.textDim,
+    letterSpacing: 3,
+    fontSize: 13,
+    fontWeight: '600',
   },
-  title: {
+  hero: {
+    marginTop: 48,
+    marginBottom: 28,
+  },
+  kicker: {
+    color: colors.textDim,
+    letterSpacing: 2.4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ftp: {
     color: colors.text,
-    fontSize: 36,
-    fontWeight: '900',
+    fontSize: 96,
+    lineHeight: 100,
+    fontWeight: '200',
+    letterSpacing: -3,
+    fontVariant: ['tabular-nums'],
     marginTop: 4,
   },
-  subtitle: {
+  unit: {
+    color: colors.textMuted,
+    fontSize: 18,
+    marginTop: -4,
+  },
+  split: {
+    flexDirection: 'row',
+    gap: 24,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  splitCol: { flex: 1, gap: 2, paddingTop: 14 },
+  splitLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.6,
+  },
+  splitValue: {
+    color: colors.text,
+    fontSize: 32,
+    fontWeight: '300',
+    fontVariant: ['tabular-nums'],
+  },
+  splitHint: { color: colors.textDim, fontSize: 13 },
+  structure: {
+    marginTop: 28,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  tip: {
+    marginTop: 8,
+    color: colors.textDim,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  goWrap: { marginTop: 28 },
+  links: {
+    marginTop: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  link: {
     color: colors.textMuted,
     fontSize: 15,
-    lineHeight: 22,
+    fontWeight: '500',
+    paddingVertical: 8,
   },
-  gear: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gearText: { fontSize: 22, color: colors.text },
-  ftpCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-  },
-  ftpTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  ftpLabel: {
-    color: colors.orange,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    fontSize: 12,
-  },
-  ftpEdit: { color: colors.teal, fontWeight: '700' },
-  ftpValue: { color: colors.text, fontSize: 42, fontWeight: '900' },
-  wattRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  wattBox: {
-    flex: 1,
-    backgroundColor: colors.bgSoft,
-    borderRadius: 14,
-    padding: 12,
-    gap: 2,
-  },
-  wattKind: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  wattNum: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  wattHint: { color: colors.textDim, fontSize: 11 },
-  summaryCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 10,
-  },
-  summaryTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  rowLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
-  rowValue: { color: colors.text, fontSize: 14, fontWeight: '600', textAlign: 'right', flexShrink: 1 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
-  aboutLink: { alignItems: 'center', paddingVertical: 8 },
-  aboutText: { color: colors.teal, fontWeight: '700', fontSize: 15 },
 });

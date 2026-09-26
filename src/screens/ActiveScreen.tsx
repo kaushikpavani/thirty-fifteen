@@ -1,310 +1,373 @@
-import React, { useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProgressRing } from '../components/ProgressRing';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { router } from 'expo-router';
+import { bleGate } from '../ble/availability';
 import { PrimaryButton } from '../components/PrimaryButton';
-import type { EngineState } from '../hooks/useWorkoutEngine';
-import {
-  colors,
-  phaseColor,
-  phaseGlow,
-  phaseLabel,
-} from '../theme/colors';
-import type { WorkoutSettings } from '../types';
-import { formatClock, formatDuration } from '../workout/builder';
+import { Screen } from '../components/Screen';
+import { useHistory } from '../state/HistoryContext';
+import { usePowerMeter } from '../state/PowerMeterContext';
+import { useSettings } from '../state/SettingsContext';
+import { useWorkout } from '../state/WorkoutContext';
+import { colors, phaseColor, phaseGlow, phaseLabel } from '../theme/colors';
+import { formatClock } from '../workout/builder';
 
-type Props = {
-  settings: WorkoutSettings;
-  state: EngineState;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
-  onDoneHome: () => void;
-};
+export function ActiveScreen() {
+  const engine = useWorkout();
+  const history = useHistory();
+  const { settings } = useSettings();
+  const { width } = useWindowDimensions();
+  const savedRef = useRef<number | null>(null);
+  const [endArmed, setEndArmed] = useState(false);
+  const scale = useRef(new Animated.Value(1)).current;
+  const nativeDriver = Platform.OS !== 'web';
 
-export function ActiveScreen({
-  settings,
-  state,
-  onPause,
-  onResume,
-  onStop,
-  onDoneHome,
-}: Props) {
-  const [stopArmed, setStopArmed] = useState(false);
-  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
   const accent = phaseColor(kind);
   const glow = phaseGlow(kind);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
-  const ringProgress = duration > 0 ? remaining / duration : 0;
-  const secondsHuge = Math.max(0, Math.ceil(remaining / 1000));
+  const short = duration <= 90_000;
+  const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
+  const heroSize = Math.min(160, Math.round(width * 0.4));
+  const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
 
-  const setLabel = useMemo(() => {
-    if (!seg?.setNumber) return null;
-    return `Set ${seg.setNumber}/${settings.sets}`;
-  }, [seg, settings.sets]);
+  useEffect(() => {
+    if (!engine.armedRef.current) router.replace('/home');
+  }, [engine.armedRef]);
 
-  const repLabel = useMemo(() => {
-    if (!seg?.repNumber) return null;
-    return `Rep ${seg.repNumber}/${settings.reps}`;
-  }, [seg, settings.reps]);
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, []);
 
-  const nextPreview = state.nextSegment
-    ? `${phaseLabel(state.nextSegment.kind)}${
-        state.nextSegment.targetWatts != null
-          ? ` · ${state.nextSegment.targetWatts} W`
-          : ''
-      }`
-    : state.status === 'finished'
-      ? 'Session complete'
-      : '—';
+  useEffect(() => {
+    scale.setValue(0.94);
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 8,
+      tension: 90,
+      useNativeDriver: nativeDriver,
+    }).start();
+  }, [kind, nativeDriver, scale]);
 
-  const confirmStop = () => {
-    Alert.alert('Stop workout?', 'Timer will reset. Progress will be lost.', [
-      { text: 'Keep going', style: 'cancel' },
-      { text: 'Stop', style: 'destructive', onPress: onStop },
-    ]);
+  const record = (completed: boolean) => {
+    const startedAt = state.startedAt;
+    if (!startedAt || savedRef.current === startedAt) return;
+    if (!completed && state.elapsedMs < 5000) return;
+    savedRef.current = startedAt;
+    const total = state.workout.totalMs || 1;
+    void history.addSession({
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date().toISOString(),
+      durationMs: completed ? total : state.elapsedMs,
+      plannedDurationMs: total,
+      ftpWatts: settings.ftpWatts,
+      hardWatts: state.workout.hardWatts,
+      easyWatts: state.workout.easyWatts,
+      completed,
+      completionPct: completed ? 100 : Math.min(99, Math.round((state.elapsedMs / total) * 100)),
+    });
   };
 
-  const onStopPress = () => {
-    if (stopArmed) {
-      onStop();
-      setStopArmed(false);
-      return;
+  useEffect(() => {
+    if (state.status === 'finished') record(true);
+    // record closes over the render that flipped status to finished
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status]);
+
+  const caption = useMemo(() => {
+    if (state.status === 'paused') return 'Paused';
+    if (seg?.setNumber && seg.repNumber) {
+      return `Set ${seg.setNumber} of ${settings.sets}  ·  Rep ${seg.repNumber}`;
     }
-    setStopArmed(true);
-    if (armTimer.current) clearTimeout(armTimer.current);
-    armTimer.current = setTimeout(() => setStopArmed(false), 2500);
+    return seg?.label ?? '';
+  }, [seg, settings.sets, state.status]);
+
+  const leave = () => {
+    engine.stop();
+    router.replace('/home');
   };
+
+  const finishStop = () => {
+    record(false);
+    leave();
+  };
+
+  const actions = useRef({
+    pause: engine.pause,
+    resume: engine.resume,
+    finish: finishStop,
+  });
+  actions.current.pause = engine.pause;
+  actions.current.resume = engine.resume;
+  actions.current.finish = finishStop;
+  const onPausePress = useCallback(() => actions.current.pause(), []);
+  const onResumePress = useCallback(() => actions.current.resume(), []);
+  const onStopPress = useCallback(() => actions.current.finish(), []);
+
+  if (state.status === 'idle') {
+    return <View style={styles.idle} />;
+  }
 
   if (state.status === 'finished') {
     return (
-      <View style={styles.root}>
-        <LinearGradient colors={['#0B1F1A', colors.bg]} style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={styles.safe}>
-          <View style={styles.doneWrap}>
-            <Text style={styles.doneKicker}>SESSION COMPLETE</Text>
-            <Text style={styles.doneTitle}>Nice work</Text>
-            <Text style={styles.doneSub}>
-              {formatDuration(state.workout.totalMs)} of focused 30/15 work.
-            </Text>
-            <PrimaryButton label="Back to Home" onPress={onDoneHome} />
-          </View>
-        </SafeAreaView>
-      </View>
+      <Screen bottom>
+        <View style={styles.done}>
+          <Text style={styles.doneTitle}>Done.</Text>
+          <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
+          <PrimaryButton label="Home" onPress={leave} testID="done-home" />
+          <FinishMeter />
+        </View>
+      </Screen>
     );
   }
 
+  const target = seg?.targetWatts;
+
   return (
-    <View style={styles.root}>
-      <LinearGradient
-        colors={[colors.bgElevated, colors.bg, '#070A0E']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { backgroundColor: glow, opacity: 0.55 }]}
-      />
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
-        <View style={styles.topBar}>
-          <View style={[styles.phasePill, { backgroundColor: glow, borderColor: accent }]}>
-            <Text style={[styles.phaseText, { color: accent }]}>
-              {phaseLabel(kind)}
+    <Screen bottom>
+      <PhaseWash color={glow} />
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.round(state.progress01 * 100)}%`, backgroundColor: accent }]} />
+      </View>
+      <View style={styles.body}>
+        <Text style={[styles.phase, { color: accent }]}>{phaseLabel(kind)}</Text>
+        <Animated.Text
+          style={[
+            styles.clock,
+            {
+              color: accent,
+              fontSize,
+              lineHeight: fontSize + 4,
+              opacity: state.status === 'paused' ? 0.55 : 1,
+              transform: [{ scale }],
+            },
+          ]}
+          testID="countdown"
+        >
+          {clock}
+        </Animated.Text>
+        {target != null ? (
+          <View style={styles.wattsBlock}>
+            <Text style={styles.wattsKicker}>TARGET</Text>
+            <Text style={styles.watts} testID="target-watts">
+              {target}
             </Text>
+            <Text style={styles.caption}>{caption}</Text>
           </View>
-          <Text style={styles.overall}>
-            {Math.round(state.progress01 * 100)}% · {formatClock(state.elapsedMs)}
+        ) : (
+          <Text style={styles.caption}>{caption}</Text>
+        )}
+      </View>
+      <WorkoutControls
+        running={state.status === 'running'}
+        endArmed={endArmed}
+        onPause={() => {
+          setEndArmed(false);
+          onPausePress();
+        }}
+        onResume={onResumePress}
+        onArmEnd={() => setEndArmed(true)}
+        onCancelEnd={() => setEndArmed(false)}
+        onConfirmEnd={onStopPress}
+      />
+    </Screen>
+  );
+}
+
+const WorkoutControls = React.memo(function WorkoutControls({
+  running,
+  endArmed,
+  onPause,
+  onResume,
+  onArmEnd,
+  onCancelEnd,
+  onConfirmEnd,
+}: {
+  running: boolean;
+  endArmed: boolean;
+  onPause: () => void;
+  onResume: () => void;
+  onArmEnd: () => void;
+  onCancelEnd: () => void;
+  onConfirmEnd: () => void;
+}) {
+  return (
+    <View style={styles.controls}>
+      {running ? (
+        <PrimaryButton variant="hairline" label="Pause" onPress={onPause} style={styles.control} testID="pause" />
+      ) : (
+        <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
+      )}
+      {endArmed ? (
+        <View style={styles.endSlot}>
+          <Pressable onPress={onCancelEnd} testID="end-cancel">
+            <Text style={styles.endCancel}>Keep going</Text>
+          </Pressable>
+          <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
+            <Text style={styles.chipText}>End session</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
+      )}
+    </View>
+  );
+});
+
+function FinishMeter() {
+  const meter = usePowerMeter();
+  const [open, setOpen] = useState(false);
+  if (bleGate()) return null;
+
+  return (
+    <View style={styles.meter}>
+      <Pressable onPress={() => setOpen((value) => !value)} testID="finish-power">
+        <Text style={styles.meterLink}>{open ? 'Hide power meter' : 'Power meter'}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.meterBody}>
+          <Text style={styles.doneMeta}>
+            {meter.phase.phase === 'connected'
+              ? meter.phase.name
+              : 'Optional. Watts show up only when a meter sends them.'}
           </Text>
-        </View>
-
-        <View style={styles.metaRow}>
-          {setLabel ? <Text style={styles.meta}>{setLabel}</Text> : <Text style={styles.meta}>—</Text>}
-          {repLabel ? <Text style={styles.meta}>{repLabel}</Text> : null}
-        </View>
-
-        <View style={styles.ringWrap}>
-          <ProgressRing
-            size={300}
-            stroke={14}
-            progress={ringProgress}
-            color={accent}
-            trackColor={colors.border}
-          >
-            <Text style={[styles.seconds, { color: accent }]}>{secondsHuge}</Text>
-            <Text style={styles.secondsUnit}>sec</Text>
-            <Text style={styles.segLabel}>{seg?.label ?? ''}</Text>
-          </ProgressRing>
-        </View>
-
-        <View style={styles.targetCard}>
-          <Text style={styles.targetLabel}>TARGET</Text>
-          <Text style={styles.targetWatts}>
-            {seg?.targetWatts != null ? `${seg.targetWatts} W` : '—'}
-          </Text>
-          <Text style={styles.targetHint}>{seg?.targetHint ?? ''}</Text>
-        </View>
-
-        <View style={styles.nextCard}>
-          <Text style={styles.nextLabel}>NEXT UP</Text>
-          <Text style={styles.nextValue}>{nextPreview}</Text>
-        </View>
-
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${Math.round(state.progress01 * 100)}%`, backgroundColor: accent },
-            ]}
-          />
-        </View>
-
-        <View style={styles.controls}>
-          {state.status === 'running' ? (
-            <PrimaryButton label="Pause" onPress={onPause} variant="secondary" style={{ flex: 1 }} />
+          {meter.live ? (
+            <Text style={styles.meterLive} testID="finish-live-watts">
+              {meter.live.watts} W
+              {meter.live.speedKph != null ? ` · ${meter.live.speedKph.toFixed(1)} km/h` : ''}
+            </Text>
+          ) : null}
+          {meter.devices.map((device) => (
+            <Pressable key={device.id} onPress={() => meter.pick(device)}>
+              <Text style={styles.meterLink}>{device.name}</Text>
+            </Pressable>
+          ))}
+          {meter.phase.phase === 'connected' ? (
+            <PrimaryButton variant="quiet" label="Disconnect" onPress={() => void meter.disconnect()} />
           ) : (
-            <PrimaryButton label="Resume" onPress={onResume} variant="primary" style={{ flex: 1 }} />
+            <PrimaryButton
+              variant="hairline"
+              label={meter.phase.phase === 'scanning' ? 'Scanning…' : 'Scan'}
+              onPress={meter.connect}
+              disabled={meter.phase.phase === 'scanning' || meter.phase.phase === 'connecting'}
+              testID="finish-scan"
+            />
           )}
-          <PrimaryButton
-            label={stopArmed ? 'Tap again' : 'Stop'}
-            onPress={onStopPress}
-            onLongPress={confirmStop}
-            variant="danger"
-            style={{ flex: 1 }}
-          />
         </View>
-        <Text style={styles.stopHint}>Long-press Stop to confirm · or double-tap</Text>
-      </SafeAreaView>
+      ) : null}
     </View>
   );
 }
 
+function PhaseWash({ color }: { color: string }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const [shown, setShown] = useState(color);
+  const native = Platform.OS !== 'web';
+
+  useEffect(() => {
+    if (shown === color) return;
+    Animated.timing(opacity, { toValue: 0, duration: 160, useNativeDriver: native }).start(({ finished }) => {
+      if (!finished) return;
+      setShown(color);
+      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: native }).start();
+    });
+  }, [color, native, opacity, shown]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor: shown, opacity },
+        Platform.OS === 'web' ? { pointerEvents: 'none' as const } : null,
+      ]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  safe: { flex: 1, paddingHorizontal: 20, paddingBottom: 12 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  progressTrack: {
+    height: 2,
+    backgroundColor: colors.borderSoft,
+    marginHorizontal: 28,
+    marginTop: 8,
+  },
+  progressFill: { height: 2 },
+  body: {
+    flex: 1,
     alignItems: 'center',
-    marginTop: 4,
-  },
-  phasePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  phaseText: { fontWeight: '900', letterSpacing: 1.5, fontSize: 14 },
-  overall: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
-  metaRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    gap: 18,
-    marginTop: 14,
+    paddingHorizontal: 24,
   },
-  meta: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  ringWrap: { alignItems: 'center', marginTop: 10, marginBottom: 8 },
-  seconds: {
-    fontSize: 96,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
-    lineHeight: 100,
-  },
-  secondsUnit: {
-    color: colors.textMuted,
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: -4,
-  },
-  segLabel: {
-    color: colors.textDim,
+  phase: {
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 4,
+    letterSpacing: 4,
+    marginBottom: 12,
   },
-  targetCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: 18,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+  clock: {
+    fontWeight: '200',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -2,
   },
-  targetLabel: {
-    color: colors.textDim,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    fontSize: 11,
-  },
-  targetWatts: {
-    color: colors.text,
-    fontSize: 36,
-    fontWeight: '900',
-  },
-  targetHint: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-  nextCard: {
-    marginTop: 10,
-    backgroundColor: colors.bgElevated,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  nextLabel: {
+  wattsBlock: { alignItems: 'center', marginTop: 18, gap: 2 },
+  wattsKicker: {
     color: colors.textDim,
     fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.1,
+    letterSpacing: 2,
+    fontWeight: '600',
   },
-  nextValue: {
+  watts: {
     color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 2,
+    fontSize: 40,
+    fontWeight: '300',
+    fontVariant: ['tabular-nums'],
   },
-  progressBarTrack: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 99,
-    marginTop: 14,
-    overflow: 'hidden',
+  caption: {
+    color: colors.textMuted,
+    fontSize: 15,
+    marginTop: 8,
+    textAlign: 'center',
   },
-  progressBarFill: { height: '100%', borderRadius: 99 },
   controls: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 18,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
-  stopHint: {
-    textAlign: 'center',
-    color: colors.textDim,
-    fontSize: 12,
-    marginTop: 10,
+  control: { flex: 1 },
+  endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
+  endCancel: { color: colors.textDim, fontSize: 14, paddingVertical: 6 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.bgSoft,
   },
-  doneWrap: {
+  chipText: { color: colors.hard, fontSize: 15, fontWeight: '600' },
+  done: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    gap: 14,
+    paddingHorizontal: 28,
+    gap: 12,
   },
-  doneKicker: {
-    color: colors.done,
-    fontWeight: '800',
-    letterSpacing: 1.5,
+  doneTitle: {
+    color: colors.text,
+    fontSize: 64,
+    fontWeight: '200',
+    letterSpacing: -1.5,
   },
-  doneTitle: { color: colors.text, fontSize: 40, fontWeight: '900' },
-  doneSub: { color: colors.textMuted, fontSize: 16, marginBottom: 12 },
+  doneMeta: {
+    color: colors.textMuted,
+    fontSize: 16,
+    marginBottom: 18,
+  },
+  meter: { marginTop: 28, gap: 8 },
+  meterLink: { color: colors.textDim, fontSize: 15 },
+  meterBody: { gap: 10, marginTop: 8 },
+  meterLive: { color: colors.text, fontSize: 28, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  idle: { flex: 1, backgroundColor: colors.bg },
 });

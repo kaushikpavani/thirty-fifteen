@@ -1,41 +1,49 @@
 {
   "expo": {
-    "name": "30/15 Coach",
+    "name": "30/15",
     "slug": "thirty-fifteen",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "thirtyfifteen",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#070708"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
       "infoPlist": {
-        "UIBackgroundModes": []
+        "UIBackgroundModes": [],
+        "NSBluetoothAlwaysUsageDescription": "30/15 reads power and speed from your bike computer or trainer."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0E14",
+        "backgroundColor": "#070708",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.kaushikpavani.thirtyfifteen",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#0A0E14",
-          "image": "./assets/splash-icon.png",
-          "resizeMode": "contain"
-        }
-      ],
+      "expo-splash-screen",
+      "expo-router",
+      "expo-asset",
       [
         "expo-audio",
         {
@@ -45,7 +53,14 @@
           "enableBackgroundRecording": false
         }
       ],
-      "expo-asset"
+      "expo-web-browser",
+      [
+        "react-native-ble-plx",
+        {
+          "bluetoothAlwaysPermission": "30/15 reads power and speed from your bike computer or trainer.",
+          "neverForLocation": true
+        }
+      ]
     ]
   }
 }

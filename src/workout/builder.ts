@@ -27,8 +27,6 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
     kind: 'warmup',
     durationMs: preAccelMs,
     label: 'Progressive spin',
-    startCue: 'Warm up. Easy spinning. Build cadence gradually.',
-    endCue: 'First acceleration coming up. Ten seconds hard.',
     targetWatts: easyW,
     targetHint: 'progressive spin',
   });
@@ -39,8 +37,6 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
       kind: 'accel',
       durationMs: accelMs,
       label: `Acceleration ${a}/3`,
-      startCue: a === 1 ? 'Go! Acceleration.' : `Acceleration ${a}. Go!`,
-      endCue: a < 3 ? 'Easy. Recover.' : 'Warm-up almost done. Main set starting soon.',
       targetWatts: hardW,
       targetHint: 'short surge',
     });
@@ -49,11 +45,6 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
       kind: 'warmup',
       durationMs: accelRecoverMs,
       label: a < 3 ? 'Easy between accels' : 'Settle before main',
-      startCue: 'Easy.',
-      endCue:
-        a < 3
-          ? 'Next acceleration. Get ready.'
-          : 'Main set. Thirty hard, fifteen easy. First hard interval.',
       targetWatts: easyW,
       targetHint: 'light pressure',
     });
@@ -62,29 +53,11 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
   // --- Main sets ---
   for (let set = 1; set <= settings.sets; set++) {
     for (let rep = 1; rep <= settings.reps; rep++) {
-      const isLastRep = rep === settings.reps;
-      const isLastSet = set === settings.sets;
-      const nextHardCue =
-        !isLastRep
-          ? 'Hard. Go!'
-          : isLastSet
-            ? 'Set complete. Cool-down next.'
-            : 'Set complete. Easy spinning rest.';
-
       segments.push({
         id: id('hard'),
         kind: 'hard',
         durationMs: settings.workSec * 1000,
         label: `Hard ${rep}/${settings.reps}`,
-        startCue:
-          rep === 1 && set === 1
-            ? 'Hard! Above F T P.'
-            : rep === 1
-              ? `Set ${set}. Hard!`
-              : 'Hard!',
-        endCue: isLastRep
-          ? nextHardCue
-          : 'Easy. Light pressure. Do not coast.',
         setNumber: set,
         repNumber: rep,
         targetWatts: hardW,
@@ -96,16 +69,10 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
         kind: 'easy',
         durationMs: settings.recoverSec * 1000,
         label: `Easy ${rep}/${settings.reps}`,
-        startCue: 'Easy.',
-        endCue: isLastRep
-          ? isLastSet
-            ? 'Last set done. Begin cool-down.'
-            : `Rest between sets. ${settings.betweenSetRestMin} minutes easy.`
-          : 'Hard coming. Get ready.',
         setNumber: set,
         repNumber: rep,
         targetWatts: easyW,
-        targetHint: "light pressure, don't coast",
+        targetHint: 'light pressure',
       });
     }
 
@@ -115,8 +82,6 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
         kind: 'set_rest',
         durationMs: settings.betweenSetRestMin * 60_000,
         label: `Between sets (${set}→${set + 1})`,
-        startCue: `Rest. Easy spinning. Set ${set} complete.`,
-        endCue: `Set ${set + 1} starting. Hard interval.`,
         setNumber: set,
         targetWatts: easyW,
         targetHint: 'easy spinning',
@@ -130,8 +95,6 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
     kind: 'cooldown',
     durationMs: settings.cooldownMin * 60_000,
     label: 'Easy pedaling',
-    startCue: 'Cool-down. Easy pedaling. Great work.',
-    endCue: 'Workout complete. Nice session.',
     targetWatts: easyW,
     targetHint: 'easy pedaling',
   });

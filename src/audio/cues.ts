@@ -18,7 +18,6 @@ let initPromise: Promise<void> | null = null;
 const cache: Partial<Record<BeepKind, ReturnType<ExpoAudioModule['createAudioPlayer']>>> = {};
 
 /**
- * expo-av's ExponentAV native module is not in current Expo Go (removed in SDK 55).
  * Load expo-audio only when cues are needed so a missing native module cannot
  * crash the app during the initial bundle evaluation.
  */
@@ -53,7 +52,7 @@ async function preparePlayers(): Promise<void> {
     await audio.setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: false,
-      interruptionMode: 'duckOthers',
+      interruptionMode: 'mixWithOthers',
     });
     for (const key of Object.keys(beepModules) as BeepKind[]) {
       const player = audio.createAudioPlayer(beepModules[key]);
@@ -63,6 +62,7 @@ async function preparePlayers(): Promise<void> {
     audioReady = true;
   } catch {
     releasePlayers();
+    beepsUnavailable = true;
   }
 }
 
@@ -98,10 +98,7 @@ export function stopSpeech(): void {
   }
 }
 
-export async function playBeep(
-  settings: WorkoutSettings,
-  kind: BeepKind = 'go',
-): Promise<void> {
+export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go'): Promise<void> {
   if (!settings.beepsEnabled || beepsUnavailable) return;
   try {
     if (!audioReady) await initAudio();
@@ -110,7 +107,7 @@ export async function playBeep(
     await player.seekTo(0);
     player.play();
   } catch {
-    // Beeps are optional. Spoken cues and haptics still run.
+    // Beeps are optional. Spoken cues still run.
   }
 }
 

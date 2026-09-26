@@ -1,39 +1,28 @@
 export const colors = {
-  bg: '#0A0E14',
-  bgElevated: '#12181F',
-  bgCard: '#161D27',
-  bgSoft: '#1A2330',
-  border: '#243041',
-  borderSoft: '#1E2A38',
+  bg: '#070708',
+  bgElevated: '#101012',
+  bgCard: '#141416',
+  bgSoft: '#1C1C1E',
+  border: 'rgba(255,255,255,0.10)',
+  borderSoft: 'rgba(255,255,255,0.06)',
 
-  text: '#F2F5F8',
-  textMuted: '#8B9AAB',
-  textDim: '#5C6B7A',
+  text: '#F5F5F7',
+  textMuted: '#8E8E93',
+  textDim: '#636366',
 
-  teal: '#2DD4BF',
-  tealDim: '#14B8A6',
-  tealGlow: 'rgba(45, 212, 191, 0.18)',
-  tealSoft: 'rgba(45, 212, 191, 0.08)',
+  hard: '#FF453A',
+  hardGlow: 'rgba(255, 69, 58, 0.16)',
+  easy: '#64D2FF',
+  easyGlow: 'rgba(100, 210, 255, 0.12)',
+  rest: '#8E8E93',
+  restGlow: 'rgba(142, 142, 147, 0.12)',
+  warmup: '#FFD60A',
+  warmupGlow: 'rgba(255, 214, 10, 0.10)',
+  cooldown: '#0A84FF',
+  cooldownGlow: 'rgba(10, 132, 255, 0.14)',
+  done: '#30D158',
 
-  orange: '#FB923C',
-  orangeHot: '#F97316',
-  orangeGlow: 'rgba(251, 146, 60, 0.22)',
-  orangeSoft: 'rgba(251, 146, 60, 0.10)',
-
-  hard: '#FF5A3D',
-  hardGlow: 'rgba(255, 90, 61, 0.25)',
-  easy: '#2DD4BF',
-  easyGlow: 'rgba(45, 212, 191, 0.18)',
-  rest: '#7C8DB5',
-  restGlow: 'rgba(124, 141, 181, 0.18)',
-  warmup: '#FBBF24',
-  warmupGlow: 'rgba(251, 191, 36, 0.18)',
-  cooldown: '#60A5FA',
-  cooldownGlow: 'rgba(96, 165, 250, 0.18)',
-  done: '#34D399',
-
-  danger: '#EF4444',
-  success: '#34D399',
+  danger: '#FF453A',
   white: '#FFFFFF',
   black: '#000000',
 } as const;
@@ -63,7 +52,7 @@ export function phaseColor(kind: PhaseKind): string {
     case 'done':
       return colors.done;
     default:
-      return colors.teal;
+      return colors.text;
   }
 }
 
@@ -81,7 +70,7 @@ export function phaseGlow(kind: PhaseKind): string {
     case 'cooldown':
       return colors.cooldownGlow;
     default:
-      return colors.tealGlow;
+      return 'rgba(255,255,255,0.04)';
   }
 }
 
