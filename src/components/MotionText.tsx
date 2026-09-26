@@ -120,18 +120,24 @@ type FadeProps = {
 
 export function FadeLabel({ value, style, testID }: FadeProps) {
   const [shown, setShown] = useState(value);
+  const shownRef = useRef(value);
   const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (value === shown) return;
-    const fade = Animated.timing(opacity, { toValue: 0, duration: 140, useNativeDriver: native });
+    if (value === shownRef.current) return;
+    let cancelled = false;
+    const fade = Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: native });
     fade.start(({ finished }) => {
-      if (!finished) return;
+      if (!finished || cancelled) return;
+      shownRef.current = value;
       setShown(value);
-      Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: native }).start();
+      Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: native }).start();
     });
-    return () => fade.stop();
-  }, [opacity, shown, value]);
+    return () => {
+      cancelled = true;
+      fade.stop();
+    };
+  }, [opacity, value]);
 
   return (
     <Animated.Text testID={testID} style={[style, { opacity }]}>
