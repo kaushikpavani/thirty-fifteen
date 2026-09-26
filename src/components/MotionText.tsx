@@ -8,31 +8,15 @@ type ClockProps = {
   color: string;
   fontSize: number;
   dim?: boolean;
-  /** Changes on a phase boundary. One short scale punch, then still. */
-  phase?: string;
   reduceMotion?: boolean;
   testID?: string;
 };
 
-/** Only the digit that changed moves. The rest of the countdown stays put. */
-export function DigitClock({ value, color, fontSize, dim = false, phase, reduceMotion = false, testID }: ClockProps) {
+/** Only the digit that changed moves, by a couple of points, then it is still. */
+export function DigitClock({ value, color, fontSize, dim = false, reduceMotion = false, testID }: ClockProps) {
   const chars = value.split('');
-  const scale = useRef(new Animated.Value(1)).current;
-  const punched = useRef(phase);
-
-  useEffect(() => {
-    if (phase === punched.current) return;
-    punched.current = phase;
-    if (reduceMotion) {
-      scale.setValue(1);
-      return;
-    }
-    scale.setValue(1.06);
-    Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: native }).start();
-  }, [phase, reduceMotion, scale]);
-
   return (
-    <Animated.View style={[styles.row, { transform: [{ scale }] }]} testID={testID}>
+    <Animated.View style={styles.row} testID={testID}>
       {chars.map((char, index) => (
         <Digit
           key={`${chars.length}-${index}`}
@@ -78,11 +62,11 @@ function Digit({
       opacity.setValue(dim ? 0.55 : 1);
       return;
     }
-    shift.setValue(4);
-    opacity.setValue(0.72);
+    shift.setValue(2);
+    opacity.setValue(0.82);
     const settle = Animated.parallel([
-      Animated.timing(opacity, { toValue: dim ? 0.55 : 1, duration: 90, useNativeDriver: native }),
-      Animated.timing(shift, { toValue: 0, duration: 90, useNativeDriver: native }),
+      Animated.timing(opacity, { toValue: dim ? 0.55 : 1, duration: 120, useNativeDriver: native }),
+      Animated.timing(shift, { toValue: 0, duration: 120, useNativeDriver: native }),
     ]);
     const frame = requestAnimationFrame(() => setShown(char));
     settle.start();

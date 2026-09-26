@@ -66,10 +66,10 @@ test('clock chirps at the phase and warns at T−3', () => {
 });
 
 test('rocky lines are grit without guilt or comparison', () => {
-  assert.equal(ROCKY_WELCOME, "Let's go. Time to get better.");
-  assert.equal(ROCKY_HARD, 'Dig in — this is the round that builds you.');
-  assert.equal(ROCKY_EASY, "Yes. Breathe fire. You're not done.");
-  assert.equal(ROCKY_FINISH, "That's how it's done. You showed up and won the work.");
+  assert.equal(ROCKY_WELCOME, "You're here. That's enough. Let's work.");
+  assert.equal(ROCKY_HARD, 'Hold it. This is the part that builds you.');
+  assert.equal(ROCKY_EASY, 'Breathe. Stay ready.');
+  assert.equal(ROCKY_FINISH, "You showed up and did the hard thing. That's the win.");
   const segments = [
     { id: 'h1', kind: 'hard', durationMs: 30_000, repNumber: 1 },
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
