@@ -53,7 +53,18 @@ Changing FTP (onboarding modal or Settings) immediately updates derived HARD/EAS
 
 ## Audio cues
 
-Cues use **expo-speech** (spoken) and short **WAV beeps** (expo-av). They fire ~0.5–1s early so you can react.
+Spoken cues use **expo-speech**. Short WAV beeps use **expo-audio**, which current Expo Go includes. They fire ~0.5–1s early so you can react.
+
+`expo-av` is not used. That package’s `ExponentAV` native module was removed from Expo Go in SDK 55, and importing it crashed the app on launch (`Cannot find native module 'ExponentAV'`). Beeps are loaded lazily: if the audio native module is missing, the workout still runs with speech and haptics only.
+
+After pulling this change, reinstall dependencies and restart Metro with a clean cache:
+
+```bash
+npm install
+npx expo start -c
+```
+
+Reload the project in **current Expo Go** (the App Store build that matches SDK 57). A custom development build is not required for beeps.
 
 Examples:
 
