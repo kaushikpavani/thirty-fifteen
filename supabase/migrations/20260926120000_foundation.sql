@@ -6,6 +6,9 @@
 -- Do not use the BioAge project. Do not share a Supabase project or any
 -- tables with another app. This script creates 30/15 tables only.
 --
+-- The phone is the source of truth. These tables are a best-effort copy.
+-- A ride does not read them to start, keep time, speak, or play music.
+--
 -- After it succeeds, copy the project URL and publishable (anon) key into
 -- .env.local as EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 -- then restart Expo. Riders can start a workout with no account. Row level
@@ -129,7 +132,7 @@ create table if not exists public.app_events (
 );
 
 comment on table public.app_events is
-  'Append-only 30/15 analytics. Riders can insert and cannot read. Known names: app_open, sign_in, sign_out, workout_start, workout_finish, feedback. New names need no migration when they match the name check.';
+  'Append-only 30/15 analytics. The phone keeps an outbox and inserts later, including with no signal. Riders cannot read. Known names: app_open, sign_in, sign_out, workout_start, workout_finish, feedback.';
 
 alter table public.app_events enable row level security;
 alter table public.app_events force row level security;
@@ -236,13 +239,44 @@ begin
 end $$;
 
 comment on table public.app_feedback is
-  'Free-form notes. Anonymous insert is allowed. Riders cannot select this table. Read it in the Table Editor.';
+  'Free-form notes. The phone keeps an outbox until insert succeeds. Anonymous insert is allowed. Riders cannot select this table. Read it in the Table Editor.';
 
 alter table public.app_feedback enable row level security;
 alter table public.app_feedback force row level security;
 
 create index if not exists app_feedback_created_idx
   on public.app_feedback (created_at desc);
+
+-- Idempotent client ids so an offline retry does not insert the same row twice.
+alter table public.app_events add column if not exists client_event_id text;
+alter table public.app_feedback add column if not exists client_id text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'app_events_client_event_id_len') then
+    alter table public.app_events
+      add constraint app_events_client_event_id_len
+      check (client_event_id is null or client_event_id ~ '^[A-Za-z0-9_-]{8,80}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'app_events_client_event_id_key') then
+    alter table public.app_events
+      add constraint app_events_client_event_id_key unique (client_event_id);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'app_feedback_client_id_len') then
+    alter table public.app_feedback
+      add constraint app_feedback_client_id_len
+      check (client_id is null or client_id ~ '^[A-Za-z0-9_-]{8,80}$');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'app_feedback_client_id_key') then
+    alter table public.app_feedback
+      add constraint app_feedback_client_id_key unique (client_id);
+  end if;
+end $$;
+
+comment on column public.app_events.client_event_id is
+  'Id from the phone analytics outbox. A later flush uses it so the same event is not stored twice.';
+comment on column public.app_feedback.client_id is
+  'Id from the phone feedback outbox. A later flush uses it so the same note is not stored twice.';
 
 -- ---------------------------------------------------------------------------
 -- connections — link status only. Tokens belong in Vault via an Edge Function.

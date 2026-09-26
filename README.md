@@ -5,6 +5,18 @@ Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on t
 **App name:** 30/15  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
+## Offline first
+
+The phone is the source of truth. Airplane mode still runs a complete session.
+
+- Workouts, FTP and the other settings, the feedback outbox, the install id, and the analytics outbox live on the device.
+- Start, the interval clock, spoken cues, the music bed, and history do not wait on the network or on Supabase.
+- Sync is best-effort and later. When the phone is online, queued notes and analytics flush. When you are also signed in, finished sessions merge. A failure stays queued. History may show a soft note. The ride does not stop.
+- Strava, Garmin, and BLE imports are optional and not part of this build. The coach does not call them to run a workout.
+- An account is optional. There is no login wall before Start.
+
+FTP saved on the phone is what the ride uses. A profile in Supabase is only a copy.
+
 ---
 
 ## Run in Expo Go
@@ -50,7 +62,7 @@ The first screen is home: FTP, the hard and easy targets, and **Start**. No acco
 
 Sessions are written to **AsyncStorage** when a workout finishes, or when you end one after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. Open them from Settings. The home screen does not keep a streak.
 
-There is no sign-in on this path. The workout does not wait on an account. If you later sign in from Settings, finished sessions copy to this app's Supabase project and merge back onto the phone.
+There is no sign-in on this path. The workout does not wait on an account. History on the screen is the copy on the phone. If you later sign in from Settings, finished sessions also copy to this app's Supabase project and merge back when the network is there.
 
 ### Feedback
 
@@ -58,16 +70,18 @@ Settings → Leave a note. It is optional and free-form. No rating. No account.
 
 When Supabase is configured, Send writes a row to `app_feedback` and tags the install when it can. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
 
-If the server is missing, the note stays on the phone and sends on a later try.
+The note is stored on the phone first. If the server is missing, it stays in the outbox and sends on a later try.
 
 ## Cloud
 
 30/15 uses its **own** Supabase project. Create a dedicated project for this app. Do not use the BioAge project. Do not share a Supabase project or tables with any other app.
 
-Without those keys, the app stays local. Workouts, notes, and Start all work.
+Without those keys, the app stays fully local. Workouts, notes, analytics, and Start all work.
 
 1. Create a new Supabase project for 30/15 only.
-2. Open the SQL editor and run [`supabase/migrations/20260926120000_foundation.sql`](supabase/migrations/20260926120000_foundation.sql). The script is safe to run again.
+2. Open the SQL editor and run these in order. Both are safe to run again.
+   - [`supabase/migrations/20260926120000_foundation.sql`](supabase/migrations/20260926120000_foundation.sql)
+   - [`supabase/migrations/20260926143000_offline_outbox.sql`](supabase/migrations/20260926143000_offline_outbox.sql)
 3. In Project Settings → API, copy the project URL and the publishable key.
 4. Copy `.env.example` to `.env.local` and paste the two values:
 
@@ -86,9 +100,9 @@ What the script creates:
 | --- | --- | --- |
 | `profiles` | The signed-in rider | Display name, FTP copy, last seen |
 | `devices` | `touch_device` only | This install, before or after sign-in |
-| `app_events` | Insert only, including anonymous | App open, sign in, workout start/finish, feedback |
-| `workout_sessions` | The signed-in rider, own rows | Finished sessions. `source` defaults to `manual` |
-| `app_feedback` | Insert only, including anonymous | Notes. No rider reads |
+| `app_events` | Insert only, including anonymous | App open, sign in, workout start/finish, feedback. `client_event_id` dedupes the phone outbox |
+| `workout_sessions` | The signed-in rider, own rows | Finished sessions. `source` defaults to `manual`. The phone copy is kept either way |
+| `app_feedback` | Insert only, including anonymous | Notes. No rider reads. `client_id` dedupes the phone outbox |
 | `connections` | Service role later | Strava / Garmin / BLE link status. No OAuth tokens |
 | `imported_activities` | Service role later | Imported activities, unique on provider + external id |
 
@@ -177,8 +191,8 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 ## Limitations
 
 - The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
-- History is always on the phone. Cloud sync runs only after this app has its own Supabase project and you sign in from Settings. Start does not wait for either.
-- Feedback reaches you only after the foundation SQL has been run. Until then the note stays on the phone.
+- History, FTP, notes, and analytics stay on the phone. Cloud sync is a later best-effort flush. Start, the clock, cues, and the music bed do not wait for it.
+- Feedback reaches the dashboard only after the SQL has been run and the phone can reach it. Until then the note stays in the outbox.
 - A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
 
 ---

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice, track } from './cloud';
-import { feedbackDeviceProblem } from './cloudRow';
+import { clientColumnMissing, cloudDuplicate, feedbackDeviceProblem } from './cloudRow';
 import { createId } from './id';
 
 const KEY = '@thirtyfifteen/feedback-outbox/v1';
@@ -44,43 +44,82 @@ async function saveOutbox(notes: FeedbackNote[]): Promise<void> {
   }
 }
 
+const SEND_WAIT_MS = 1500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function insertNote(note: FeedbackNote): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
   const deviceId = await ensureDevice();
-  const row = {
+  const send = async (row: Record<string, unknown>) => {
+    const { error } = await supabase.from('app_feedback').insert(row);
+    if (!error || cloudDuplicate(error.message)) return { ok: true, message: '' };
+    return { ok: false, message: error.message };
+  };
+
+  let row: Record<string, unknown> = {
     body: note.body,
     user_id: note.userId,
     rider_name: note.riderName,
     platform: note.platform,
     app_version: note.appVersion,
     device_id: deviceId,
+    client_id: note.id,
   };
-  const first = await supabase.from('app_feedback').insert(row);
-  if (!first.error) return true;
-  if (!feedbackDeviceProblem(first.error.message)) return false;
-  const second = await supabase.from('app_feedback').insert({
-    body: note.body,
-    user_id: note.userId,
-    rider_name: note.riderName,
-    platform: note.platform,
-    app_version: note.appVersion,
-  });
-  return !second.error;
+  let result = await send(row);
+  if (result.ok) return true;
+  if (clientColumnMissing('client_id', result.message)) {
+    const { client_id, ...rest } = row;
+    void client_id;
+    row = rest;
+    result = await send(row);
+    if (result.ok) return true;
+  }
+  if (!feedbackDeviceProblem(result.message)) return false;
+  const { device_id, ...withoutDevice } = row;
+  void device_id;
+  result = await send(withoutDevice);
+  return result.ok;
 }
 
+let flushingNotes: Promise<number> | null = null;
+let notesNeedAnotherPass = false;
+
 /** Send anything still sitting on the phone. Failures stay queued. */
-export async function flushFeedbackOutbox(): Promise<number> {
+export function flushFeedbackOutbox(): Promise<number> {
+  if (flushingNotes) {
+    notesNeedAnotherPass = true;
+    return flushingNotes;
+  }
+  flushingNotes = flushFeedbackUnsafe().finally(() => {
+    flushingNotes = null;
+    if (!notesNeedAnotherPass) return;
+    notesNeedAnotherPass = false;
+    void flushFeedbackOutbox();
+  });
+  return flushingNotes;
+}
+
+async function flushFeedbackUnsafe(): Promise<number> {
   const queued = await loadOutbox();
   if (queued.length === 0) return 0;
-  const remaining: FeedbackNote[] = [];
-  let sent = 0;
+  const sent = new Set<string>();
   for (const note of queued) {
-    if (await insertNote(note)) sent += 1;
-    else remaining.push(note);
+    try {
+      if (await insertNote(note)) sent.add(note.id);
+    } catch {
+      // Leave it queued.
+    }
   }
-  await saveOutbox(remaining);
-  return sent;
+  if (sent.size === 0) return 0;
+  const latest = await loadOutbox();
+  await saveOutbox(latest.filter((note) => !sent.has(note.id)));
+  return sent.size;
 }
 
 export async function submitFeedback(
@@ -91,13 +130,12 @@ export async function submitFeedback(
     id: createId(),
     createdAt: new Date().toISOString(),
   };
-  if (await insertNote(note)) {
-    void track('feedback', { delivery: 'sent' });
-    void flushFeedbackOutbox();
-    return 'sent';
-  }
   const queued = await loadOutbox();
-  await saveOutbox([note, ...queued]);
-  void track('feedback', { delivery: 'queued' });
-  return 'queued';
+  await saveOutbox([note, ...queued.filter((item) => item.id !== note.id)]);
+  const flush = flushFeedbackOutbox();
+  const finished = await Promise.race([flush.then(() => true), delay(SEND_WAIT_MS).then(() => false)]);
+  const left = finished ? await loadOutbox() : null;
+  const delivery: FeedbackDelivery = left?.some((item) => item.id === note.id) === false ? 'sent' : 'queued';
+  void track('feedback', { delivery });
+  return delivery;
 }

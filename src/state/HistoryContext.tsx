@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../storage/cloud';
 import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
@@ -50,14 +51,26 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     };
   }, [auth.ready, userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void pullAndMerge(sessionsRef.current).then(async (merged) => {
+        sessionsRef.current = merged.sessions;
+        setSessions(merged.sessions);
+        setCloudNote(merged.note);
+        await saveHistory(merged.sessions);
+      });
+    });
+    return () => sub.remove();
+  }, [userId]);
+
   const addSession = useCallback(async (input: NewWorkoutRecord) => {
     const record = withId(input);
     const next = [record, ...sessionsRef.current].slice(0, 200);
     sessionsRef.current = next;
     setSessions(next);
     await saveHistory(next);
-    const note = await pushSession(record);
-    if (note) setCloudNote(note);
     void track('workout_finish', {
       completed: record.completed,
       completion_pct: record.completionPct,
@@ -66,6 +79,9 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       ftp_watts: record.ftpWatts,
       hard_watts: record.hardWatts,
       easy_watts: record.easyWatts,
+    });
+    void pushSession(record).then((note) => {
+      if (note) setCloudNote(note);
     });
   }, []);
 

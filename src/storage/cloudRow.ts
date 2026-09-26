@@ -87,3 +87,16 @@ export function workoutRowsForRetry(
 export function feedbackDeviceProblem(message: string): boolean {
   return /device_id/i.test(message) && /schema cache|could not find|does not exist|foreign key|violates/i.test(message);
 }
+
+/** The row is already in the cloud, so the outbox copy can be dropped. */
+export function cloudDuplicate(message: string): boolean {
+  return /duplicate key|unique constraint|23505/i.test(message);
+}
+
+export function clientColumnMissing(column: 'client_id' | 'client_event_id', message: string): boolean {
+  return new RegExp(column, 'i').test(message) && /schema cache|could not find|does not exist/i.test(message);
+}
+
+export function trimOutbox<T>(items: T[], max: number): T[] {
+  return items.slice(0, Math.max(0, max));
+}

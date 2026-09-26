@@ -9,7 +9,7 @@ import { PowerMeterProvider } from '../state/PowerMeterContext';
 import { SettingsProvider, useSettings } from '../state/SettingsContext';
 import { WorkoutProvider } from '../state/WorkoutContext';
 import { noteAppOpen } from '../storage/cloud';
-import { flushFeedbackOutbox } from '../storage/feedback';
+import { scheduleSync } from '../storage/sync';
 import { colors } from '../theme/colors';
 
 export default function RootLayout() {
@@ -41,8 +41,8 @@ function RootNavigator() {
   const history = useHistory();
   useEffect(() => {
     if (!auth.ready) return;
-    void noteAppOpen();
-    void flushFeedbackOutbox();
+    noteAppOpen();
+    scheduleSync();
   }, [auth.ready]);
   if (!settings.ready || !auth.ready || !history.ready) {
     return (
