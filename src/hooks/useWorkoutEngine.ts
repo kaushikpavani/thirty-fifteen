@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, primeRockyPlayback, speakCue, stopSpeech } from '../audio/cues';
+import { initAudio, speakCue, stopSpeech, unlockRockyFromGesture } from '../audio/cues';
 import { inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
@@ -152,13 +152,13 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setElapsedMs(0);
     setSegmentIndex(0);
     anchorWallRef.current = null;
+    unlockRockyFromGesture();
     try {
       await activateKeepAwakeAsync('workout');
     } catch {
       // ignore
     }
     await initAudio();
-    await primeRockyPlayback();
     anchorWallRef.current = Date.now();
     pausedAccumRef.current = 0;
     setStatus('running');

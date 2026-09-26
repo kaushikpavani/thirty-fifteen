@@ -219,7 +219,9 @@ export function speakCue(cue: { key: string; line: string }, settings: WorkoutSe
     player.volume = 1;
     void player.seekTo(0).then(() => {
       if (token !== rockyToken) return;
-      player.play();
+      swallowPlayRejections(() => {
+        player.play();
+      });
     }).catch(() => {
       if (token !== rockyToken) return;
       speakFallback(cue.line, settings);
@@ -243,20 +245,50 @@ export function stopSpeech(): void {
   pauseRocky();
 }
 
-/** Unlock clip playback from the Start gesture so the welcome line is not blocked on web. */
-export async function primeRockyPlayback(): Promise<void> {
-  await initAudio();
+function swallowPlayRejections(run: () => void): void {
+  if (typeof HTMLAudioElement === 'undefined') {
+    run();
+    return;
+  }
+  const proto = HTMLAudioElement.prototype;
+  const original = proto.play;
+  proto.play = function playWithCatch(this: HTMLAudioElement) {
+    const result = original.call(this);
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+    return result;
+  };
+  try {
+    run();
+  } finally {
+    proto.play = original;
+  }
+}
+
+/**
+ * Web only. A Start tap can unlock audio, but pausing in the same turn aborts play()
+ * and rejects. Play a silent tick, then stop it on a later turn.
+ */
+export function unlockRockyFromGesture(): void {
+  if (typeof document === 'undefined' || !rockyReady) return;
   const player = rockyCache.welcome;
   if (!player) return;
   try {
     player.volume = 0;
-    await player.seekTo(0);
-    player.play();
-    player.pause();
-    await player.seekTo(0);
-    player.volume = 1;
+    swallowPlayRejections(() => {
+      player.play();
+    });
+    setTimeout(() => {
+      try {
+        if (player.volume !== 0) return;
+        player.pause();
+        void player.seekTo(0);
+        player.volume = 1;
+      } catch {
+        // ignore
+      }
+    }, 80);
   } catch {
-    // A rejected unlock still leaves the device path working.
+    // ignore
   }
 }
 
