@@ -1,6 +1,7 @@
 import * as Speech from 'expo-speech';
+import { Platform } from 'react-native';
 import type { WorkoutSettings } from '../types';
-import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
+import { attachMusicPlayers, duckMusic, kickBed, releaseMusicPlayers, setSessionHold } from './music';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 
 const beepModules = {
@@ -50,6 +51,9 @@ let voicePromise: Promise<void> | null = null;
 let voiceResolved = false;
 let voiceId: string | undefined;
 let rockyToken = 0;
+let workoutAudio = false;
+let audioGeneration = 0;
+let foreignDucks = 0;
 const cache: Partial<Record<BeepKind, Player>> = {};
 const rockyCache: Partial<Record<RockyKind, Player>> = {};
 
@@ -145,25 +149,118 @@ function prepareVoice(): Promise<void> {
   return voicePromise;
 }
 
+/**
+ * Hypothesis, checked against expo-audio SDK 57 AudioMode and the iOS
+ * AudioModule.setAudioMode source (category .playback):
+ *
+ * - mixWithOthers: cues and the bed play alongside other apps. On Android this
+ *   requests no audio focus, so a short beep is easy to lose under YouTube.
+ * - duckOthers: other apps keep playing, quieter, while our session plays.
+ *   iOS sets AVAudioSessionCategoryOptionDuckOthers. Because the bed loops for
+ *   the whole ride, leaving this on would duck YouTube the entire session.
+ * - doNotMix: exclusive focus. Other apps pause. Required for
+ *   setActiveForLockScreen, which Android needs or background playback stops
+ *   after about three minutes.
+ *
+ * iOS rests on mixWithOthers and switches to duckOthers only while a beep or
+ * Rocky line is playing (holdForeignDuck). The bed is already ducked to silence
+ * under those cues. Android stays on doNotMix for the ride so the media
+ * foreground service can outlast a 30/15 session. YouTube pauses on Android;
+ * it keeps playing on iOS and dips under each cue.
+ */
+let modeChain: Promise<void> = Promise.resolve();
+
+function enqueueSession(background: boolean): Promise<void> {
+  const generation = audioGeneration;
+  const run = modeChain.then(() => applySession(generation, background));
+  modeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function applySession(generation: number, background: boolean): Promise<void> {
+  if (generation !== audioGeneration) return;
+  const audio = loadExpoAudio();
+  if (!audio) return;
+  const interruptionMode = !background
+    ? 'mixWithOthers'
+    : Platform.OS === 'android'
+      ? 'doNotMix'
+      : foreignDucks > 0
+        ? 'duckOthers'
+        : 'mixWithOthers';
+  try {
+    await audio.setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: background,
+      interruptionMode,
+    });
+  } catch {
+    return;
+  }
+  if (generation !== audioGeneration) return;
+  if (background && workoutAudio) kickBed();
+}
+
+/** Arm background playback for a running ride. The looping bed holds the session between cues. */
+export function enterWorkoutAudio(): Promise<void> {
+  audioGeneration += 1;
+  workoutAudio = true;
+  setSessionHold(true);
+  return enqueueSession(true);
+}
+
+/** Drop background playback. Call before pausing or stopping the bed. */
+export function leaveWorkoutAudio(): void {
+  audioGeneration += 1;
+  workoutAudio = false;
+  foreignDucks = 0;
+  setSessionHold(false);
+  void enqueueSession(false);
+}
+
+/** iOS only. Duck other apps for this cue, then mix again. Android stays on doNotMix. */
+export function holdForeignDuck(ms: number): void {
+  if (Platform.OS !== 'ios' || !workoutAudio || ms <= 0) return;
+  foreignDucks += 1;
+  if (foreignDucks === 1) void enqueueSession(true);
+  setTimeout(() => {
+    foreignDucks = Math.max(0, foreignDucks - 1);
+    if (!workoutAudio || foreignDucks > 0) return;
+    void enqueueSession(true);
+  }, ms);
+}
+
+function duckFor(ms: number): void {
+  if (ms <= 0) return;
+  duckMusic(ms);
+  holdForeignDuck(ms);
+}
+
 async function preparePlayers(): Promise<void> {
   if (audioReady || beepsUnavailable) return;
   const audio = loadExpoAudio();
   if (!audio) return;
   try {
-    await audio.setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-      interruptionMode: 'mixWithOthers',
-    });
+    if (!workoutAudio) {
+      await audio.setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'mixWithOthers',
+      });
+    }
+    const playerOptions = { keepAudioSessionActive: true as const };
     for (const key of Object.keys(beepModules) as BeepKind[]) {
-      const player = audio.createAudioPlayer(beepModules[key]);
+      const player = audio.createAudioPlayer(beepModules[key], playerOptions);
       player.volume = 0.85;
       cache[key] = player;
     }
     audioReady = true;
     try {
       for (const key of Object.keys(rockyModules) as RockyKind[]) {
-        const player = audio.createAudioPlayer(rockyModules[key]);
+        const player = audio.createAudioPlayer(rockyModules[key], playerOptions);
         player.volume = 1;
         player.shouldCorrectPitch = true;
         rockyCache[key] = player;
@@ -180,7 +277,7 @@ async function preparePlayers(): Promise<void> {
       }
       rockyReady = false;
     }
-    attachMusicPlayers((source) => audio.createAudioPlayer(source));
+    attachMusicPlayers((source) => audio.createAudioPlayer(source, playerOptions));
   } catch {
     releasePlayers();
     beepsUnavailable = true;
@@ -239,11 +336,11 @@ export function speakCue(cue: { key: string; line: string; clip?: string }, sett
   const kind = rockyClip(cue.key, cue.clip);
   const player = kind && rockyReady ? rockyCache[kind] : undefined;
   if (!player) {
-    duckMusic(rockyDuckMs(cue.key));
+    duckFor(rockyDuckMs(cue.key));
     speakFallback(cue.line, settings);
     return;
   }
-  duckMusic(rockyDuckMs(cue.key));
+  duckFor(rockyDuckMs(cue.key));
   const token = ++rockyToken;
   try {
     Speech.stop();
@@ -368,7 +465,7 @@ export async function playBeep(
     if (!audioReady) await initAudio();
     const player = cache[kind];
     if (!player) return;
-    if (duckMs > 0) duckMusic(duckMs);
+    if (duckMs > 0) duckFor(duckMs);
     player.volume =
       volume ?? (kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85));
     await player.seekTo(0);

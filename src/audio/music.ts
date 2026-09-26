@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
 
 const bedModules = {
@@ -9,6 +10,9 @@ const bedModules = {
 
 const BEDS = ['drive', 'driveB', 'recover', 'recoverB'] as const;
 
+type LockMeta = { title?: string; artist?: string };
+type LockOptions = { showSeekForward?: boolean; showSeekBackward?: boolean };
+
 type Player = {
   volume: number;
   loop: boolean;
@@ -18,6 +22,7 @@ type Player = {
   pause: () => void;
   seekTo: (seconds: number) => Promise<void>;
   remove: () => void;
+  setActiveForLockScreen?: (active: boolean, metadata?: LockMeta, options?: LockOptions) => void;
 };
 
 type CreatePlayer = (source: number) => Player;
@@ -31,6 +36,10 @@ let playing = false;
 let enabled = true;
 let duckUntil = 0;
 let restoreTimer: ReturnType<typeof setTimeout> | null = null;
+/** Workout is running, so a silent loop may hold the audio session when the bed is muted. */
+let sessionHold = false;
+let nowTitle = '30/15';
+let lockKey = '';
 
 function swallowPlay(run: () => void): void {
   if (typeof HTMLAudioElement === 'undefined') {
@@ -72,6 +81,85 @@ function applyVolume(): void {
       // ignore
     }
   }
+}
+
+function clearLockScreen(): void {
+  lockKey = '';
+  for (const key of BEDS) {
+    try {
+      players[key]?.setActiveForLockScreen?.(false);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Android sustained background audio needs a media session. Expo's docs require
+ * setActiveForLockScreen, which itself requires doNotMix. iOS does not: the
+ * playback category plus the looping bed is enough, and lock-screen controls
+ * would force exclusive focus and pause the rider's other audio.
+ */
+function publishLockScreen(): void {
+  if (Platform.OS !== 'android' || !sessionHold || !ready) return;
+  const player = players[active];
+  if (!player?.setActiveForLockScreen) return;
+  const key = `${active}:${nowTitle}`;
+  if (key === lockKey) return;
+  for (const bed of BEDS) {
+    if (bed === active) continue;
+    try {
+      players[bed]?.setActiveForLockScreen?.(false);
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    player.setActiveForLockScreen(
+      true,
+      { title: nowTitle, artist: '30/15' },
+      { showSeekForward: false, showSeekBackward: false },
+    );
+    lockKey = key;
+  } catch {
+    // ignore
+  }
+}
+
+function startSilentHold(): void {
+  const player = players[active] ?? players.recover;
+  if (!player) return;
+  try {
+    player.loop = true;
+    player.volume = 0;
+    swallowPlay(() => {
+      player.play();
+    });
+  } catch {
+    // ignore
+  }
+  publishLockScreen();
+}
+
+/** Keep the session up after an audio-mode change. No-op when the ride is paused. */
+export function kickBed(): void {
+  if (!ready) return;
+  if (playing && enabled) {
+    const player = players[active];
+    if (player?.paused) {
+      swallowPlay(() => {
+        player.play();
+      });
+    }
+    publishLockScreen();
+    return;
+  }
+  if (sessionHold) startSilentHold();
+}
+
+export function setSessionHold(hold: boolean): void {
+  sessionHold = hold;
+  if (!hold) clearLockScreen();
 }
 
 function scheduleRestore(): void {
@@ -174,11 +262,13 @@ function ensurePlaying(restart: boolean): void {
 }
 
 /** Keep the bed on the phase. Restarts the loop when the bed changes so the downbeat meets the chirp. */
-export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1): void {
+export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1, title?: string): void {
+  if (title) nowTitle = title;
   if (!ready) return;
   if (!musicEnabled) {
     enabled = false;
     pauseMusic();
+    if (sessionHold) startSilentHold();
     return;
   }
   enabled = true;
@@ -195,9 +285,11 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1): void 
   }
   if (!playing || changed) {
     ensurePlaying(changed && playing);
+    publishLockScreen();
     return;
   }
   applyVolume();
+  publishLockScreen();
   // A Start-tap play() can be rejected before the file is ready. Retry while
   // the element is still paused; never call play() on a bed that is already running.
   const player = players[active];
@@ -218,6 +310,7 @@ export function pauseMusic(): void {
       // ignore
     }
   }
+  if (!sessionHold) clearLockScreen();
 }
 
 export function duckMusic(ms: number): void {
@@ -238,7 +331,9 @@ export function stopMusic(): void {
   enabled = true;
   active = 'recover';
   duckUntil = 0;
+  nowTitle = '30/15';
   clearRestore();
+  clearLockScreen();
   for (const key of BEDS) {
     const player = players[key];
     if (!player) continue;
