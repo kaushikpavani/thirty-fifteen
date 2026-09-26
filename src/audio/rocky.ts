@@ -3,11 +3,10 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = 'Thirty hard. Fifteen easy. Settle in.';
-export const ROCKY_FINISH = 'That is the work. Easy spinning home.';
-
-const HARD_LINES = ['Steady. You have this.', 'Stay with the number.', 'Smooth. This is the rep.'];
-const EASY_LINES = ['Light now. Keep turning.', 'Easy breath. Stay on the pedals.'];
+export const ROCKY_WELCOME = "You're here. That's enough. Let's work.";
+export const ROCKY_HARD = 'Hold it. This is the part that builds you.';
+export const ROCKY_EASY = 'Breathe. Stay ready.';
+export const ROCKY_FINISH = "You showed up and did the hard thing. That's the win.";
 
 export type RockySegment = {
   id: string;
@@ -65,8 +64,7 @@ export function rockyCue(args: {
       elapsedIn < 12_000 &&
       !fired.has(`hard:${seg.id}`)
     ) {
-      const index = Math.max(0, (seg.repNumber ?? 1) - 1) % HARD_LINES.length;
-      return { key: `hard:${seg.id}`, line: HARD_LINES[index] };
+      return { key: `hard:${seg.id}`, line: ROCKY_HARD };
     }
 
     if (
@@ -75,8 +73,7 @@ export function rockyCue(args: {
       elapsedIn <= 3000 &&
       !fired.has(`easy:${seg.id}`)
     ) {
-      const index = Math.max(0, (seg.repNumber ?? 1) - 1) % EASY_LINES.length;
-      return { key: `easy:${seg.id}`, line: EASY_LINES[index] };
+      return { key: `easy:${seg.id}`, line: ROCKY_EASY };
     }
 
     const last = lastMainIndex(segments);

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { initAudio, speak, stopSpeech } from '../audio/cues';
-import { inSegmentSilence, rockyCue } from '../audio/rocky';
+import { initAudio, primeRockyPlayback, speakCue, stopSpeech } from '../audio/cues';
+import { inSegmentSilence, ROCKY_FINISH, rockyCue } from '../audio/rocky';
 import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../types';
 import { buildWorkout } from '../workout/builder';
+import {
+  restartTargetMs,
+  rockyKeysToRearm,
+  segmentStartMs,
+  shortenTargetMs,
+  skipTargetMs,
+} from '../workout/transport';
 
 const TICK_MS = 100;
 
@@ -105,7 +112,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     });
     if (!cue || firedRockyRef.current.has(cue.key)) return;
     firedRockyRef.current.add(cue.key);
-    speak(cue.line, s);
+    speakCue(cue, s);
   }, []);
 
   useEffect(() => {
@@ -144,14 +151,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setStartedAt(Date.now());
     setElapsedMs(0);
     setSegmentIndex(0);
-    anchorWallRef.current = Date.now();
-    setStatus('running');
+    anchorWallRef.current = null;
     try {
       await activateKeepAwakeAsync('workout');
     } catch {
       // ignore
     }
     await initAudio();
+    await primeRockyPlayback();
+    anchorWallRef.current = Date.now();
+    pausedAccumRef.current = 0;
+    setStatus('running');
   }, []);
 
   const pause = useCallback(() => {
@@ -170,6 +180,64 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = Date.now();
     setStatus('running');
   }, []);
+
+  const seekTo = useCallback(
+    (targetMs: number, rearmCurrent: boolean) => {
+      if (statusRef.current !== 'running' && statusRef.current !== 'paused') return;
+      const segs = workoutRef.current.segments;
+      const total = workoutRef.current.totalMs;
+      const current = resolvePosition(elapsedRef.current);
+      stopSpeech();
+
+      if (rearmCurrent && current.segment) {
+        firedStartRef.current.delete(`start:${current.segment.id}`);
+        for (const key of rockyKeysToRearm(current.segment, segmentStartMs(segs, current.index))) {
+          firedRockyRef.current.delete(key);
+        }
+      }
+
+      const next = Math.max(0, Math.min(targetMs, total));
+      if (next >= total) {
+        if (!firedRockyRef.current.has('finish')) {
+          firedRockyRef.current.add('finish');
+          speakCue({ key: 'finish', line: ROCKY_FINISH }, settingsRef.current);
+        }
+        elapsedRef.current = total;
+        pausedAccumRef.current = total;
+        anchorWallRef.current = null;
+        setElapsedMs(total);
+        setSegmentIndex(Math.max(0, segs.length - 1));
+        setStatus('finished');
+        void deactivateKeepAwake('workout');
+        return;
+      }
+
+      elapsedRef.current = next;
+      pausedAccumRef.current = next;
+      anchorWallRef.current = statusRef.current === 'running' ? Date.now() : null;
+      setElapsedMs(next);
+      setSegmentIndex(resolvePosition(next).index);
+    },
+    [resolvePosition],
+  );
+
+  const restartSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(restartTargetMs(segs, index), true);
+  }, [resolvePosition, seekTo]);
+
+  const shortenSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(shortenTargetMs(segs, index), false);
+  }, [resolvePosition, seekTo]);
+
+  const skipSegment = useCallback(() => {
+    const segs = workoutRef.current.segments;
+    const index = resolvePosition(elapsedRef.current).index;
+    seekTo(skipTargetMs(segs, index), false);
+  }, [resolvePosition, seekTo]);
 
   const stop = useCallback(() => {
     stopSpeech();
@@ -202,5 +270,5 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     workout,
   };
 
-  return { state, start, pause, resume, stop, armedRef };
+  return { state, start, pause, resume, stop, restartSegment, shortenSegment, skipSegment, armedRef };
 }

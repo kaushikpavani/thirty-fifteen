@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inSegmentSilence, rockyCue, ROCKY_FINISH, ROCKY_WELCOME } from '../audio/rocky.ts';
+import { inSegmentSilence, rockyCue, ROCKY_EASY, ROCKY_FINISH, ROCKY_HARD, ROCKY_WELCOME } from '../audio/rocky.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults.ts';
+import {
+  restartTargetMs,
+  rockyKeysToRearm,
+  segmentStartMs,
+  shortenTargetMs,
+  skipTargetMs,
+} from '../workout/transport.ts';
 
 test('default FTP 125 derives 150 hard and 63 easy', () => {
   assert.equal(DEFAULT_SETTINGS.ftpWatts, 125);
@@ -46,12 +53,9 @@ test('rocky lines are grit without guilt or comparison', () => {
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
     { id: 'cd', kind: 'cooldown', durationMs: 600_000 },
   ];
-  const lines = [
-    ROCKY_WELCOME,
-    ROCKY_FINISH,
-    rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) })?.line ?? '',
-    rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line ?? '',
-  ];
+  const lines = [ROCKY_WELCOME, ROCKY_HARD, ROCKY_EASY, ROCKY_FINISH];
+  assert.equal(rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_HARD);
+  assert.equal(rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_EASY);
   for (const line of lines) {
     assert.ok(line.length > 0);
     assert.doesNotMatch(line, /streak|badge|KOM|come back|excuse|everyone else|don’t blink/i);
@@ -79,10 +83,11 @@ test('rocky speaks only outside the silence window', () => {
 
   const hard = rockyCue({ elapsedMs: 11_000, segments, fired: new Set(['welcome']) });
   assert.equal(hard?.key, 'hard:h1');
-  assert.ok(hard && hard.line.length > 0);
+  assert.equal(hard?.line, ROCKY_HARD);
 
   const easy = rockyCue({ elapsedMs: 30_000 + 2000, segments, fired: new Set(['welcome']) });
   assert.equal(easy?.key, 'easy:e1');
+  assert.equal(easy?.line, ROCKY_EASY);
   assert.equal(rockyCue({ elapsedMs: 30_000 + 500, segments, fired: none }), null);
 
   const finishAt = 30_000 + 15_000 + 1500;
@@ -90,6 +95,46 @@ test('rocky speaks only outside the silence window', () => {
   assert.equal(finish?.key, 'finish');
   assert.equal(finish?.line, ROCKY_FINISH);
   assert.equal(rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome', 'finish']) }), null);
+});
+
+test('restart, shorten, and skip move the playhead without ending early', () => {
+  const built = buildWorkout(DEFAULT_SETTINGS);
+  const segments = built.segments;
+  const firstHard = segments.findIndex((segment) => segment.kind === 'hard');
+  const rest = segments.findIndex((segment) => segment.kind === 'set_rest');
+  const cooldown = segments.findIndex((segment) => segment.kind === 'cooldown');
+  assert.equal(segments[0]?.kind, 'warmup');
+  assert.equal(segments[1]?.kind, 'accel');
+  assert.ok(firstHard > 1);
+  assert.ok(rest > firstHard);
+  assert.equal(segments[rest - 1]?.kind, 'easy');
+
+  assert.equal(restartTargetMs(segments, 0), 0);
+  assert.equal(shortenTargetMs(segments, 0), segmentStartMs(segments, 1));
+  assert.equal(skipTargetMs(segments, 0), segmentStartMs(segments, firstHard));
+  assert.equal(skipTargetMs(segments, 1), segmentStartMs(segments, firstHard));
+
+  assert.equal(restartTargetMs(segments, firstHard), segmentStartMs(segments, firstHard));
+  assert.equal(shortenTargetMs(segments, firstHard), segmentStartMs(segments, firstHard + 1));
+  assert.equal(skipTargetMs(segments, firstHard), segmentStartMs(segments, firstHard + 1));
+  assert.equal(segments[firstHard + 1]?.kind, 'easy');
+
+  const easyBeforeRest = rest - 1;
+  assert.equal(shortenTargetMs(segments, easyBeforeRest), segmentStartMs(segments, rest));
+  assert.equal(skipTargetMs(segments, easyBeforeRest), segmentStartMs(segments, rest + 1));
+  assert.equal(segments[rest + 1]?.kind, 'hard');
+  assert.equal(skipTargetMs(segments, rest), segmentStartMs(segments, rest + 1));
+
+  assert.equal(shortenTargetMs(segments, cooldown), built.totalMs);
+  assert.equal(skipTargetMs(segments, cooldown), built.totalMs);
+  assert.equal(restartTargetMs(segments, cooldown), segmentStartMs(segments, cooldown));
+
+  assert.deepEqual(rockyKeysToRearm(segments[0], 0), [`hard:${segments[0].id}`, `easy:${segments[0].id}`, 'welcome']);
+  assert.deepEqual(rockyKeysToRearm(segments[firstHard], segmentStartMs(segments, firstHard)), [
+    `hard:${segments[firstHard].id}`,
+    `easy:${segments[firstHard].id}`,
+  ]);
+  assert.ok(rockyKeysToRearm(segments[cooldown], segmentStartMs(segments, cooldown)).includes('finish'));
 });
 
 test('feedback keeps free-form text and drops empty notes', () => {

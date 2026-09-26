@@ -66,6 +66,16 @@ If the server is missing, the note stays on the phone and sends on a later try.
 
 Rocky lines are spoken, never printed. One welcome just after you start. One line 10–12 seconds into each hard 30. One line in the first 3 seconds of each easy 15, after the opening second. One finish line a second after the last interval. From 3 seconds before a change through 1 second after it, the clock is silent.
 
+The four lines are recorded (a calm neural voice) and played with expo-audio, including when the phone is on silent. If a clip cannot load, the app falls back to the best on-device English voice it can find, pitched slightly down and never faster than a normal speaking rate.
+
+## During the ride
+
+Pause and Resume stay one tap. End asks once, then confirms. Three quieter controls stay on screen the whole time, including while paused:
+
+- **Restart** rewinds the current segment.
+- **Shorten** ends that segment now and continues with the next one.
+- **Skip** leaves the block: warm-up goes to the first hard interval, a hard interval goes to its easy, an easy or set rest goes to the next hard, and cool-down finishes the session.
+
 ## Power meter
 
 The app can read **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Nothing is simulated. The workout screen shows the target only.
@@ -103,7 +113,7 @@ Install that build (not Expo Go). Finish a session, then open Power meter. Wake 
 
 ## Audio cues
 
-Spoken cues use **expo-speech**. The player module is **expo-audio** (not expo-av). Transition beeps are not fired: the three seconds before a change and the second after it stay quiet.
+Rocky cues are short recordings played with **expo-audio** (not expo-av). **expo-speech** is only the fallback. Transition beeps are not fired: the three seconds before a change and the second after it stay quiet.
 
 ---
 

@@ -99,13 +99,34 @@ export function ActiveScreen() {
     pause: engine.pause,
     resume: engine.resume,
     finish: finishStop,
+    restart: engine.restartSegment,
+    shorten: engine.shortenSegment,
+    skip: engine.skipSegment,
   });
   actions.current.pause = engine.pause;
   actions.current.resume = engine.resume;
   actions.current.finish = finishStop;
-  const onPausePress = useCallback(() => actions.current.pause(), []);
+  actions.current.restart = engine.restartSegment;
+  actions.current.shorten = engine.shortenSegment;
+  actions.current.skip = engine.skipSegment;
+  const onPausePress = useCallback(() => {
+    setEndArmed(false);
+    actions.current.pause();
+  }, []);
   const onResumePress = useCallback(() => actions.current.resume(), []);
   const onStopPress = useCallback(() => actions.current.finish(), []);
+  const onRestartPress = useCallback(() => {
+    setEndArmed(false);
+    actions.current.restart();
+  }, []);
+  const onShortenPress = useCallback(() => {
+    setEndArmed(false);
+    actions.current.shorten();
+  }, []);
+  const onSkipPress = useCallback(() => {
+    setEndArmed(false);
+    actions.current.skip();
+  }, []);
 
   if (state.status === 'idle') {
     return <View style={styles.idle} />;
@@ -164,14 +185,14 @@ export function ActiveScreen() {
       <WorkoutControls
         running={state.status === 'running'}
         endArmed={endArmed}
-        onPause={() => {
-          setEndArmed(false);
-          onPausePress();
-        }}
+        onPause={onPausePress}
         onResume={onResumePress}
         onArmEnd={() => setEndArmed(true)}
         onCancelEnd={() => setEndArmed(false)}
         onConfirmEnd={onStopPress}
+        onRestart={onRestartPress}
+        onShorten={onShortenPress}
+        onSkip={onSkipPress}
       />
     </Screen>
   );
@@ -185,6 +206,9 @@ const WorkoutControls = React.memo(function WorkoutControls({
   onArmEnd,
   onCancelEnd,
   onConfirmEnd,
+  onRestart,
+  onShorten,
+  onSkip,
 }: {
   running: boolean;
   endArmed: boolean;
@@ -193,29 +217,63 @@ const WorkoutControls = React.memo(function WorkoutControls({
   onArmEnd: () => void;
   onCancelEnd: () => void;
   onConfirmEnd: () => void;
+  onRestart: () => void;
+  onShorten: () => void;
+  onSkip: () => void;
 }) {
   return (
-    <View style={styles.controls}>
-      {running ? (
-        <PrimaryButton variant="hairline" label="Pause" onPress={onPause} style={styles.control} testID="pause" />
-      ) : (
-        <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
-      )}
-      {endArmed ? (
-        <View style={styles.endSlot}>
-          <Pressable onPress={onCancelEnd} testID="end-cancel">
-            <Text style={styles.endCancel}>Keep going</Text>
-          </Pressable>
-          <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
-            <Text style={styles.chipText}>End session</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
-      )}
+    <View style={styles.footer}>
+      <View style={styles.transport}>
+        <TransportChip label="Restart" hint="Restart this segment" onPress={onRestart} testID="restart" />
+        <TransportChip label="Shorten" hint="End this segment and continue" onPress={onShorten} testID="shorten" />
+        <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
+      </View>
+      <View style={styles.controls}>
+        {running ? (
+          <PrimaryButton variant="hairline" label="Pause" onPress={onPause} style={styles.control} testID="pause" />
+        ) : (
+          <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
+        )}
+        {endArmed ? (
+          <View style={styles.endSlot}>
+            <Pressable onPress={onCancelEnd} testID="end-cancel">
+              <Text style={styles.endCancel}>Keep going</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={onConfirmEnd} testID="end-confirm">
+              <Text style={styles.chipText}>End session</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <PrimaryButton variant="quiet" label="End" onPress={onArmEnd} style={styles.control} testID="end" />
+        )}
+      </View>
     </View>
   );
 });
+
+function TransportChip({
+  label,
+  hint,
+  onPress,
+  testID,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint}
+      onPress={onPress}
+      testID={testID}
+      style={({ pressed }) => [styles.transportChip, pressed && styles.transportChipPressed]}
+    >
+      <Text style={styles.transportText}>{label}</Text>
+    </Pressable>
+  );
+}
 
 function FinishMeter() {
   const meter = usePowerMeter();
@@ -332,11 +390,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  footer: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    gap: 14,
+  },
+  transport: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  transportChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  transportChipPressed: { opacity: 0.55 },
+  transportText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   controls: {
     flexDirection: 'row',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
   },
   control: { flex: 1 },
   endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
