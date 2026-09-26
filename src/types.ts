@@ -47,6 +47,26 @@ export interface BuiltWorkout {
   easyWatts: number;
 }
 
-export type AppScreen = 'home' | 'active' | 'settings' | 'about';
-
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'finished';
+
+export interface WorkoutRecord {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  plannedDurationMs: number;
+  ftpWatts: number;
+  hardWatts: number;
+  easyWatts: number;
+  completed: boolean;
+  completionPct: number;
+}
+
+export type NewWorkoutRecord = Omit<WorkoutRecord, 'id'>;
+
+export interface AuthUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  provider: string;
+}

@@ -10,30 +10,56 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0E14"
+      "backgroundColor": "#070708"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
       "infoPlist": {
-        "UIBackgroundModes": []
+        "UIBackgroundModes": [],
+        "NSBluetoothAlwaysUsageDescription": "30/15 reads power and speed from your bike computer or trainer."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0E14",
+        "backgroundColor": "#070708",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.kaushikpavani.thirtyfifteen",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-web-browser",
+      [
+        "react-native-ble-plx",
+        {
+          "bluetoothAlwaysPermission": "30/15 reads power and speed from your bike computer or trainer.",
+          "neverForLocation": true
+        }
+      ]
     ]
   }
 }

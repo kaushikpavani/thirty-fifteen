@@ -131,7 +131,7 @@ export function buildWorkout(settings: WorkoutSettings): BuiltWorkout {
     durationMs: settings.cooldownMin * 60_000,
     label: 'Easy pedaling',
     startCue: 'Cool-down. Easy pedaling. Great work.',
-    endCue: 'Workout complete. Nice session.',
+    endCue: 'Workout complete.',
     targetWatts: easyW,
     targetHint: 'easy pedaling',
   });

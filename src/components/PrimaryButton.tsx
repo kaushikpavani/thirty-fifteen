@@ -1,72 +1,57 @@
 import React from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 import { colors } from '../theme/colors';
 
 type Props = {
   label: string;
   onPress: () => void;
   onLongPress?: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'orange';
-  size?: 'lg' | 'md' | 'sm';
+  variant?: 'solid' | 'hairline' | 'quiet' | 'danger';
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  testID?: string;
 };
 
 export function PrimaryButton({
   label,
   onPress,
   onLongPress,
-  variant = 'primary',
-  size = 'lg',
+  variant = 'solid',
   disabled,
   loading,
   style,
+  testID,
 }: Props) {
-  const bg =
-    variant === 'primary'
-      ? colors.teal
-      : variant === 'orange'
-        ? colors.orange
-        : variant === 'danger'
-          ? colors.danger
-          : variant === 'secondary'
-            ? colors.bgCard
-            : 'transparent';
-  const fg =
-    variant === 'ghost' || variant === 'secondary' ? colors.text : colors.bg;
-  const height = size === 'lg' ? 64 : size === 'md' ? 52 : 42;
-  const fontSize = size === 'lg' ? 20 : size === 'md' ? 17 : 15;
+  const solid = variant === 'solid';
+  const danger = variant === 'danger';
+  const hairline = variant === 'hairline';
+  const color = solid ? colors.black : danger ? colors.hard : colors.text;
 
   return (
     <Pressable
+      key={label}
       accessibilityRole="button"
+      testID={testID}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={550}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,
+        solid && styles.solid,
+        hairline && styles.hairline,
+        danger && styles.danger,
         {
-          backgroundColor: bg,
-          height,
-          opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
-          borderWidth: variant === 'secondary' || variant === 'ghost' ? 1 : 0,
-          borderColor: colors.border,
+          opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={fg} />
+        <ActivityIndicator color={color} />
       ) : (
-        <Text style={[styles.label, { color: fg, fontSize }]}>{label}</Text>
+        <Text style={[styles.label, { color }, !solid && styles.labelQuiet]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -74,14 +59,29 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 18,
+    minHeight: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 22,
-    minWidth: 120,
+    paddingHorizontal: 18,
+  },
+  solid: {
+    backgroundColor: colors.white,
+  },
+  hairline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  danger: {
+    backgroundColor: 'transparent',
   },
   label: {
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  labelQuiet: {
+    fontWeight: '500',
   },
 });

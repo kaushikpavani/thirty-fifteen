@@ -1,0 +1,91 @@
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { HistoryProvider, useHistory } from '../state/HistoryContext';
+import { PowerMeterProvider } from '../state/PowerMeterContext';
+import { SettingsProvider, useSettings } from '../state/SettingsContext';
+import { WorkoutProvider } from '../state/WorkoutContext';
+import { colors } from '../theme/colors';
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <View style={styles.frame}>
+        <View style={styles.column}>
+          <SettingsProvider>
+            <AuthProvider>
+              <HistoryProvider>
+                <WorkoutProvider>
+                  <PowerMeterProvider>
+                    <RootNavigator />
+                  </PowerMeterProvider>
+                </WorkoutProvider>
+              </HistoryProvider>
+            </AuthProvider>
+          </SettingsProvider>
+        </View>
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
+function RootNavigator() {
+  const settings = useSettings();
+  const auth = useAuth();
+  const history = useHistory();
+  if (!settings.ready || !auth.ready || !history.ready) {
+    return (
+      <View style={styles.boot}>
+        <Text style={styles.bootMark}>30/15</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'fade',
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="home" />
+      <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="auth-callback" options={{ animation: 'none' }} />
+    </Stack>
+  );
+}
+
+const styles = StyleSheet.create({
+  frame: {
+    flex: 1,
+    backgroundColor: '#000000',
+    alignItems: 'center',
+  },
+  column: {
+    flex: 1,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 430 : undefined,
+    backgroundColor: colors.bg,
+  },
+  boot: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bootMark: {
+    color: colors.textDim,
+    letterSpacing: 3,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});

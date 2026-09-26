@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
 
@@ -9,23 +9,23 @@ const beepModules = {
   done: require('../../assets/beep-done.wav'),
 } as const;
 
+type BeepKind = keyof typeof beepModules;
+
 let audioReady = false;
-const cache: Partial<Record<keyof typeof beepModules, Audio.Sound>> = {};
+const cache: Partial<Record<BeepKind, AudioPlayer>> = {};
 
 export async function initAudio(): Promise<void> {
   if (audioReady) return;
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers',
+      shouldPlayInBackground: false,
     });
-    for (const key of Object.keys(beepModules) as (keyof typeof beepModules)[]) {
-      const { sound } = await Audio.Sound.createAsync(beepModules[key], {
-        shouldPlay: false,
-        volume: 0.85,
-      });
-      cache[key] = sound;
+    for (const key of Object.keys(beepModules) as BeepKind[]) {
+      const player = createAudioPlayer(beepModules[key]);
+      player.volume = 0.85;
+      cache[key] = player;
     }
     audioReady = true;
   } catch {
@@ -55,18 +55,14 @@ export function stopSpeech(): void {
   }
 }
 
-export async function playBeep(
-  settings: WorkoutSettings,
-  kind: keyof typeof beepModules = 'go',
-): Promise<void> {
+export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go'): Promise<void> {
   if (!settings.beepsEnabled) return;
   try {
     if (!audioReady) await initAudio();
-    const sound = cache[kind];
-    if (sound) {
-      await sound.setPositionAsync(0);
-      await sound.playAsync();
-    }
+    const player = cache[kind];
+    if (!player) return;
+    await player.seekTo(0);
+    player.play();
   } catch {
     // ignore beep failures
   }
@@ -74,9 +70,9 @@ export async function playBeep(
 
 export async function unloadAudio(): Promise<void> {
   stopSpeech();
-  for (const key of Object.keys(cache) as (keyof typeof cache)[]) {
+  for (const key of Object.keys(cache) as BeepKind[]) {
     try {
-      await cache[key]?.unloadAsync();
+      cache[key]?.remove();
     } catch {
       // ignore
     }

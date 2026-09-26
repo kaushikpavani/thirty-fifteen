@@ -1,34 +1,23 @@
 # 30/15 Coach
 
-Polished Expo (SDK 57) bike coaching timer for **Rønnestad / GCN-style 30/15 micro-intervals**.
-
-Spoken cues fire a beat early (~0.8s), big countdown UI, dark cycling aesthetic, fixed structure with editable FTP and session params.
+Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on the workout screen, spoken cues a beat early, and targets from your FTP.
 
 **App name:** 30/15 Coach  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
 ---
 
-## Run on iPhone (Expo Go)
-
-Prefer the **same Wi‑Fi** as your computer. Avoid relying on tunnels if certificates fail.
+## Run in Expo Go
 
 ```bash
-cd /workspace/thirty-fifteen   # or your local clone path
 npm install
 npx expo start
 ```
 
-1. Install **Expo Go** from the App Store.
-2. Scan the QR code from the terminal / browser (Camera app or Expo Go).
-3. Keep phone and computer on the same network.
+1. Install **Expo Go**.
+2. Scan the QR code. Phone and computer should share a network.
 
-Optional:
-
-```bash
-npx expo start --lan     # LAN (recommended)
-# npx expo start --tunnel  # only if LAN cannot connect
-```
+Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go has no Bluetooth stack. See [Power meter](#power-meter).
 
 ---
 
@@ -37,53 +26,110 @@ npx expo start --lan     # LAN (recommended)
 | Block | Detail |
 |--------|--------|
 | Warm-up | 12 min progressive spin + **3× ~10s accelerations** near the end |
-| Main | **3 sets × 13 reps** of **30s HARD / 15s EASY** (~9.5 min/set) |
+| Main | **3 sets × 13 reps** of **30s HARD / 15s EASY** |
 | Between sets | **4 min** easy spinning |
 | Cool-down | **10 min** easy pedaling |
 
 ### Default power (editable)
 
-- **FTP = 125 W** (asked on first launch; always editable in Settings)
-- **HARD** = 120% FTP → **150 W** (“above FTP”)
-- **EASY** = 50% FTP → **63 W** (“light pressure, don’t coast”)
+- **FTP = 120 W** (asked once, always editable)
+- **HARD** = 120% FTP → **144 W**
+- **EASY** = 50% FTP → **60 W**
 
-Changing FTP (onboarding modal or Settings) immediately updates derived HARD/EASY targets.
+A saved FTP is left alone. Only a fresh install starts at 120 W.
+
+---
+
+## Welcome, account, history
+
+The first screen greets you by time of day. A streak of completed sessions replaces that line. If you are signed in, the name comes from Google or Facebook. Otherwise type one. It stays on the phone.
+
+Sessions are written to **AsyncStorage** when a workout finishes, or when you stop after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. A streak counts **finished** sessions on consecutive days. Today can still be empty; yesterday’s chain still counts.
+
+### Google and Facebook (Supabase)
+
+Sign-in uses [Supabase Auth](https://supabase.com/docs/guides/auth) with `expo-auth-session` / `expo-web-browser`. That path works in Expo Go. Native Google and Facebook SDKs do not.
+
+1. Create a project at [database.new](https://database.new).
+2. Copy `.env.example` to `.env.local`:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+```
+
+`EXPO_PUBLIC_SUPABASE_ANON_KEY` is accepted if you still have the older anon key name.
+
+3. In Supabase, enable **Google** and **Facebook** under Authentication → Providers.
+   - Google Cloud: create a **Web** OAuth client. Authorized redirect URI: `https://YOUR_PROJECT.supabase.co/auth/v1/callback`
+   - Facebook: add the same Supabase callback as a valid OAuth redirect. Development mode only allows test users.
+4. Authentication → URL configuration → add the redirect the app shows on the sign-in note. In Expo Go it looks like `exp://127.0.0.1:8081/--/auth-callback`. Also add `thirtyfifteen://auth-callback` for a dev or store build.
+5. Open the SQL editor and run [`supabase/workout_sessions.sql`](supabase/workout_sessions.sql).
+
+Restart Expo after changing env vars (`npx expo start`). The session is stored in AsyncStorage, so the rider stays signed in.
+
+Without those env vars the app still rides. Google and Facebook explain what is missing. History stays on the device.
+
+---
+
+## Power meter
+
+The app speaks **FTMS Indoor Bike Data** (`0x2AD2`, power + speed) and the **Cycling Power Measurement** (`0x2A63`, watts only). Speed is shown only when the trainer sends it. Nothing is simulated.
+
+**Expo Go and the browser cannot connect.** Open Settings → Power meter → Connect and the screen says a development build is required.
+
+To connect a real meter:
+
+```bash
+npx expo install expo-dev-client
+```
+
+Add `eas.json` if you do not have one:
+
+```json
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": { "developmentClient": true, "distribution": "internal" },
+    "production": {}
+  }
+}
+```
+
+```bash
+npx eas-cli@latest build --profile development --platform ios
+npx expo start --dev-client
+```
+
+Install that build (not Expo Go). Settings → Power meter → Connect. Wake the trainer, pick it from the list. On the workout screen, **LIVE** watts replace the target as the power readout. The target stays underneath. If the radio drops for more than a few seconds, the screen falls back to target watts.
+
+`react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
 ---
 
 ## Audio cues
 
-Cues use **expo-speech** (spoken) and short **WAV beeps** (expo-av). They fire ~0.5–1s early so you can react.
-
-Examples:
-
-- Warm-up start / acceleration warnings
-- “Hard!” / “Easy. Light pressure. Do not coast.”
-- Set complete / between-set rest
-- Cool-down / workout done
-
-Pause freezes the timer and suppresses further cues until resume.
+Spoken cues use **expo-speech**. Beeps use **expo-audio** (not expo-av). They fire about 0.8s early. Beeps mix with other audio and play with the ringer switch off.
 
 ---
 
-## Settings (persisted)
+## Settings
 
-FTP, hard/easy %, warm-up min, sets, reps, work/recover seconds, between-set rest, cool-down, speech on/off, voice rate, beeps, haptics, cue lead time.
-
-Stored with **AsyncStorage**.
+FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, speech, voice rate, beeps, haptics, cue lead. Stored in AsyncStorage.
 
 ---
 
 ## Limitations
 
-- Timer uses **elapsed wall-clock** (`Date.now`) to limit drift while the app stays in the foreground.
-- If iOS suspends the JS thread in the background, phase timing is **best-effort** — keep the screen on (we use `expo-keep-awake`) and avoid locking the phone mid-set for critical accuracy.
-- No login, no backend, no power meter connection — targets are coaching numbers only.
+- The timer uses wall-clock elapsed time. Keep the screen on (`expo-keep-awake`). If iOS suspends JavaScript, phase timing is best-effort.
+- Cloud history sync needs the Supabase table and a signed-in session. Failures stay local and say so.
+- Bluetooth needs a development build. Expo Go is honest about that.
 
 ---
 
-## Typecheck
+## Checks
 
 ```bash
 npx tsc --noEmit
+npm test
 ```

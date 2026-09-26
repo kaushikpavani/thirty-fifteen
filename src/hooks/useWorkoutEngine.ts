@@ -10,6 +10,7 @@ const TICK_MS = 100;
 export interface EngineState {
   status: TimerStatus;
   elapsedMs: number;
+  startedAt: number | null;
   segmentIndex: number;
   segment: Segment | null;
   remainingInSegmentMs: number;
@@ -23,6 +24,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const [status, setStatus] = useState<TimerStatus>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [segmentIndex, setSegmentIndex] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const armedRef = useRef(false);
 
   const statusRef = useRef(status);
   const elapsedRef = useRef(0);
@@ -112,7 +115,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (!firedEndRef.current.has(key)) {
         firedEndRef.current.add(key);
         void playBeep(s, 'done');
-        speak('Workout complete. Nice session.', s);
+        speak('Workout complete.', s);
         if (s.hapticsEnabled) {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
@@ -152,6 +155,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     firedEndRef.current = new Set();
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
+    armedRef.current = true;
+    setStartedAt(Date.now());
     setElapsedMs(0);
     setSegmentIndex(0);
     anchorWallRef.current = Date.now();
@@ -183,9 +188,11 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
 
   const stop = useCallback(() => {
     stopSpeech();
+    armedRef.current = false;
     anchorWallRef.current = null;
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
+    setStartedAt(null);
     setElapsedMs(0);
     setSegmentIndex(0);
     setStatus('idle');
@@ -201,6 +208,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const state: EngineState = {
     status,
     elapsedMs,
+    startedAt,
     segmentIndex: pos.index,
     segment: status === 'idle' ? null : pos.segment,
     remainingInSegmentMs: status === 'idle' ? 0 : pos.remaining,
@@ -209,5 +217,5 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     workout,
   };
 
-  return { state, start, pause, resume, stop };
+  return { state, start, pause, resume, stop, armedRef };
 }
