@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Atmosphere } from '../components/Atmosphere';
 import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
@@ -31,6 +32,7 @@ export function HomeScreen() {
 
   return (
     <Screen bottom>
+      <Atmosphere variant="rest" />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.top}>
           <Text style={styles.brand}>30/15</Text>

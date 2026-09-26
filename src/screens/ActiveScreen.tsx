@@ -2,14 +2,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { bleGate } from '../ble/availability';
+import { Atmosphere } from '../components/Atmosphere';
+import { DigitClock, FadeLabel } from '../components/MotionText';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
+import { SegmentRail } from '../components/SegmentRail';
 import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { colors, phaseColor, phaseGlow, phaseLabel } from '../theme/colors';
+import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { formatClock } from '../workout/builder';
+
+const nativeMotion = Platform.OS !== 'web';
 
 export function ActiveScreen() {
   const engine = useWorkout();
@@ -18,14 +23,11 @@ export function ActiveScreen() {
   const { width } = useWindowDimensions();
   const savedRef = useRef<number | null>(null);
   const [endArmed, setEndArmed] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
-  const nativeDriver = Platform.OS !== 'web';
 
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
   const accent = phaseColor(kind);
-  const glow = phaseGlow(kind);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
@@ -41,16 +43,6 @@ export function ActiveScreen() {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => sub.remove();
   }, []);
-
-  useEffect(() => {
-    scale.setValue(0.94);
-    Animated.spring(scale, {
-      toValue: 1,
-      friction: 8,
-      tension: 90,
-      useNativeDriver: nativeDriver,
-    }).start();
-  }, [kind, nativeDriver, scale]);
 
   const record = (completed: boolean) => {
     const startedAt = state.startedAt;
@@ -146,42 +138,26 @@ export function ActiveScreen() {
   }
 
   const target = seg?.targetWatts;
+  const paused = state.status === 'paused';
+  const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
 
   return (
     <Screen bottom>
-      <PhaseWash color={glow} />
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(state.progress01 * 100)}%`, backgroundColor: accent }]} />
-      </View>
+      <Atmosphere color={accent} paused={paused} />
+      <SegmentRail progress={segmentProgress} color={accent} paused={paused} />
       <View style={styles.body}>
-        <Text style={[styles.phase, { color: accent }]} testID="phase">
-          {phaseLabel(kind)}
-        </Text>
-        <Animated.Text
-          style={[
-            styles.clock,
-            {
-              color: accent,
-              fontSize,
-              lineHeight: fontSize + 4,
-              opacity: state.status === 'paused' ? 0.55 : 1,
-              transform: [{ scale }],
-            },
-          ]}
-          testID="countdown"
-        >
-          {clock}
-        </Animated.Text>
+        <FadeLabel value={phaseLabel(kind)} style={{ ...styles.phase, color: accent }} testID="phase" />
+        <DigitClock value={clock} color={accent} fontSize={fontSize} dim={paused} testID="countdown" />
         {target != null ? (
           <View style={styles.wattsBlock}>
             <Text style={styles.wattsKicker}>TARGET</Text>
             <Text style={styles.watts} testID="target-watts">
               {target}
             </Text>
-            <Text style={styles.caption}>{caption}</Text>
+            <FadeLabel value={caption} style={styles.caption} />
           </View>
         ) : (
-          <Text style={styles.caption}>{caption}</Text>
+          <FadeLabel value={caption} style={styles.caption} />
         )}
       </View>
       <WorkoutControls
@@ -231,11 +207,7 @@ const WorkoutControls = React.memo(function WorkoutControls({
         <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
       </View>
       <View style={styles.controls}>
-        {running ? (
-          <PrimaryButton variant="hairline" label="Pause" onPress={onPause} style={styles.control} testID="pause" />
-        ) : (
-          <PrimaryButton label="Resume" onPress={onResume} style={styles.control} testID="resume" />
-        )}
+        <PauseResume running={running} onPause={onPause} onResume={onResume} />
         {endArmed ? (
           <View style={styles.endSlot}>
             <Pressable onPress={onCancelEnd} testID="end-cancel">
@@ -275,6 +247,67 @@ function TransportChip({
     >
       <Text style={styles.transportText}>{label}</Text>
     </Pressable>
+  );
+}
+
+function PauseResume({
+  running,
+  onPause,
+  onResume,
+}: {
+  running: boolean;
+  onPause: () => void;
+  onResume: () => void;
+}) {
+  const fill = useRef(new Animated.Value(running ? 0 : 1)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
+  const [word, setWord] = useState(running ? 'Pause' : 'Resume');
+  const seen = useRef(false);
+
+  useEffect(() => {
+    if (!seen.current) {
+      seen.current = true;
+      return;
+    }
+    Animated.timing(fill, {
+      toValue: running ? 0 : 1,
+      duration: 240,
+      useNativeDriver: false,
+    }).start();
+    const fade = Animated.timing(textOpacity, { toValue: 0, duration: 90, useNativeDriver: nativeMotion });
+    fade.start(({ finished }) => {
+      if (!finished) return;
+      setWord(running ? 'Pause' : 'Resume');
+      Animated.timing(textOpacity, { toValue: 1, duration: 160, useNativeDriver: nativeMotion }).start();
+    });
+    return () => fade.stop();
+  }, [fill, running, textOpacity]);
+
+  const backgroundColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0)', colors.white],
+  });
+  const borderColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.border, 'rgba(255,255,255,0)'],
+  });
+  const textColor = fill.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.text, colors.black],
+  });
+
+  return (
+    <Animated.View style={[styles.pauseShell, { backgroundColor, borderColor }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={running ? 'Pause' : 'Resume'}
+        testID={running ? 'pause' : 'resume'}
+        onPress={running ? onPause : onResume}
+        style={styles.pauseHit}
+      >
+        <Animated.Text style={[styles.pauseLabel, { color: textColor, opacity: textOpacity }]}>{word}</Animated.Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -323,40 +356,24 @@ function FinishMeter() {
   );
 }
 
-function PhaseWash({ color }: { color: string }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-  const [shown, setShown] = useState(color);
-  const native = Platform.OS !== 'web';
-
-  useEffect(() => {
-    if (shown === color) return;
-    Animated.timing(opacity, { toValue: 0, duration: 160, useNativeDriver: native }).start(({ finished }) => {
-      if (!finished) return;
-      setShown(color);
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: native }).start();
-    });
-  }, [color, native, opacity, shown]);
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        StyleSheet.absoluteFill,
-        { backgroundColor: shown, opacity },
-        Platform.OS === 'web' ? { pointerEvents: 'none' as const } : null,
-      ]}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
-  progressTrack: {
-    height: 2,
-    backgroundColor: colors.borderSoft,
-    marginHorizontal: 28,
-    marginTop: 8,
+  pauseShell: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  progressFill: { height: 2 },
+  pauseHit: {
+    flex: 1,
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
   body: {
     flex: 1,
     alignItems: 'center',
