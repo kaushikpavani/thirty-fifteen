@@ -100,7 +100,7 @@ function cloudNote(message: string): string {
   if (/workout_sessions|schema cache|relation/i.test(message)) {
     return 'Cloud table missing. Sessions stay on this phone.';
   }
-  return 'Couldn\u2019t reach the cloud. Sessions are on this phone.';
+  return 'Couldn’t reach the cloud. Sessions are on this phone.';
 }
 
 async function upsertWorkoutRows(rows: WorkoutSessionWrite[]): Promise<string | null> {
@@ -127,7 +127,7 @@ export async function pushSession(record: WorkoutRecord): Promise<string | null>
     const message = await upsertWorkoutRows([workoutSessionWrite(record, userId, deviceId)]);
     return message ? cloudNote(message) : null;
   } catch {
-    return 'Couldn\u2019t reach the cloud. Sessions are on this phone.';
+    return 'Couldn’t reach the cloud. Sessions are on this phone.';
   }
 }
 
@@ -135,7 +135,7 @@ export async function pullAndMerge(local: WorkoutRecord[]): Promise<CloudResult>
   try {
     return await pullAndMergeUnsafe(local);
   } catch {
-    return { sessions: local, note: 'Couldn\u2019t reach the cloud. Sessions are on this phone.' };
+    return { sessions: local, note: 'Couldn’t reach the cloud. Sessions are on this phone.' };
   }
 }
 
@@ -157,7 +157,7 @@ async function pullAndMergeUnsafe(local: WorkoutRecord[]): Promise<CloudResult> 
   if (error) {
     const note = /workout_sessions|schema cache|relation/i.test(error.message)
       ? 'Cloud table missing. Sessions stay on this phone.'
-      : 'Couldn\u2019t reach the cloud. Sessions are on this phone.';
+      : 'Couldn’t reach the cloud. Sessions are on this phone.';
     return { sessions: local, note };
   }
 
