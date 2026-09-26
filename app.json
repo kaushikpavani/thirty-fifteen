@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "thirtyfifteen",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A0E14"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
@@ -33,7 +28,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0E14",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain"
+        }
+      ],
       [
         "expo-audio",
         {
@@ -42,7 +44,8 @@
           "enableBackgroundPlayback": false,
           "enableBackgroundRecording": false
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
