@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import { bleGate } from '../ble/availability';
@@ -11,11 +11,12 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { roundWon, varietySalt } from '../audio/spirit';
+import { bedRate, roundWon, varietySalt } from '../audio/spirit';
 import { useAppActive } from '../hooks/useAppActive';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
 import { finishBloom, finishTitle } from '../workout/craft';
+import { phasePulse } from '../workout/heat';
 import { formatClock } from '../workout/builder';
 
 const nativeMotion = Platform.OS !== 'web';
@@ -43,8 +44,17 @@ export function ActiveScreen() {
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
   const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
-  const heroSize = Math.min(160, Math.round(width * 0.4));
+  const heroSize = Math.min(196, Math.round(width * 0.46));
   const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
+  const paused = state.status === 'paused';
+  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
+  const pulse = phasePulse({
+    kind,
+    music: settings.musicEnabled,
+    paused,
+    reduceMotion: rideMotion,
+    rate: bedRate(kind, salt),
+  });
 
   useEffect(() => {
     if (state.status === 'idle') {
@@ -90,14 +100,6 @@ export function ActiveScreen() {
     // record closes over the render that flipped status to finished
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status]);
-
-  const caption = useMemo(() => {
-    if (state.status === 'paused') return 'Paused';
-    if (seg?.setNumber && seg.repNumber) {
-      return `Set ${seg.setNumber} of ${settings.sets}  ·  Rep ${seg.repNumber}`;
-    }
-    return seg?.label ?? '';
-  }, [seg, settings.sets, state.status]);
 
   const leave = () => {
     engine.stop();
@@ -162,7 +164,6 @@ export function ActiveScreen() {
           still
           reduceMotion={reduceMotion}
         />
-        <SegmentRail progress={1} color={colors.go} reduceMotion={reduceMotion} />
         <View style={styles.done}>
           <FinishTitle title={finishTitle(varietySalt(state.startedAt))} reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
@@ -173,9 +174,7 @@ export function ActiveScreen() {
     );
   }
 
-  const paused = state.status === 'paused';
   const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
-  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
 
   return (
     <Screen bottom>
@@ -184,6 +183,9 @@ export function ActiveScreen() {
         paused={paused}
         heat={cool ? 'cool' : 'hot'}
         reduceMotion={rideMotion}
+        pulse={pulse.pulse}
+        beatMs={pulse.beatMs}
+        road
       />
       <SegmentRail
         progress={segmentProgress}
@@ -196,14 +198,14 @@ export function ActiveScreen() {
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
         <DigitClock
           value={clock}
-          color={colors.text}
+          color={colors.white}
           fontSize={fontSize}
           dim={paused}
           phase={kind}
           reduceMotion={rideMotion}
           testID="countdown"
         />
-        <FadeLabel value={caption} style={styles.caption} />
+        {paused ? <FadeLabel value="Paused" style={styles.caption} /> : null}
       </View>
       <WorkoutControls
         running={state.status === 'running'}
@@ -530,6 +532,12 @@ const styles = StyleSheet.create({
   },
   stack: {
     gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   confirmRow: {
     minHeight: 48,
