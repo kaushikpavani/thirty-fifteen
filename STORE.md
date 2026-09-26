@@ -1,6 +1,6 @@
 # 30/15 — App Store listing
 
-Listing plan for **30/15**, a Rønnestad-style 30/15 micro-interval coach. Paste the fenced blocks into App Store Connect. Everything outside a fence is for the owner: locks, art direction, and checks that keep the listing honest.
+Listing plan for **30/15**, a Rønnestad-style 30/15 micro-interval coach. Paste the fenced blocks into App Store Connect. Everything outside a fence is for the owner: locks, art direction, and checks that keep the listing accurate.
 
 The name is locked. The product is one session done well: a huge clock, a sparse coach voice, music that moves with HARD and EASY, offline-first, optional account. It is free for good. It is not a generic timer, and it is not a product you pay to keep using.
 
@@ -54,9 +54,9 @@ Unanimous pass. If another line in this file disagrees with this section, this s
 
 **Voice.** Keep the sparse grit. Lines that stay: “sparse coach voice”, “Earn the quiet after.” No cheerleader spam, no Balboa or Rocky trademark, no streak guilt. “Hits on HARD” is product heat — the music and the phase — not a shout at the rider.
 
-**Craft.** Keep the six-shot order. In every frame, kill TARGET and watts, Rocky captions, streak badges, a login wall, and a second call to action. Shot 5: the countdown stays the visual hero. The ears-free line sits in the margin and does not cover the clock. Shot 6: an honest session list only.
+**Craft.** Keep the six-shot order. In every frame, kill TARGET and watts, Rocky captions, streak badges, a login wall, and a second call to action. Shot 5: the countdown stays the visual hero. The ears-free line sits in the margin and does not cover the clock. Shot 6: a plain session list only.
 
-**Flow.** “Open. Start. Ride.” stands. Starting without an account is the honest path. Kill any frame where login appears before Start, and any tip or carousel that covers the orange Start pill.
+**Flow.** “Open. Start. Ride.” stands. Starting without an account is the real path. Kill any frame where login appears before Start, and any tip or carousel that covers the orange Start pill.
 
 **Power.** Rønnestad 30/15 and offline stay. Kill the live-watt dial, a %FTP hero, and green/red on-target chrome. Until BLE is real, the only color on the clock is phase glow.
 
@@ -246,7 +246,7 @@ Do not ship a frame that contains any of these:
 | 3–10s | HARD. Giant countdown, warm phase glow. | Music hits — the bed, not a cheer. One short coach line, then silence |
 | 10–16s | EASY. Cool phase glow. Fifteen seconds. | Music settles. Beep at the edge |
 | 16–22s | Eyes up. If the phone is in frame, the countdown is still the hero. | Bed only |
-| 22–27s | Done, then one honest history row. No watts on it. | Bed fades |
+| 22–27s | Done, then one real history row. No watts on it. | Bed fades |
 | 27–30s | Wordmark on `#070708`. | Out |
 
 Same frame kills as the stills: no login before Start, no tip over the pill, no second button, no TARGET, no watt dial, no %FTP, no green/red on-target chrome, no streak, no persona, no price, no paywall. Cut the eyes-up shot before any claim that audio continues under another app, unless that build actually does it.

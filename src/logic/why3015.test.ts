@@ -6,17 +6,17 @@ import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults.ts';
 test('why sheet hero is the short-hard explanation', () => {
   assert.equal(
     WHY_HERO,
-    'Short hard, short easy — so you can stay in the work that grows your engine. That’s why 30/15: more honest time near your limit, not a longer slog that fades.',
+    'Short hard, short easy — so you can stay in the work that grows your engine. That’s why 30/15: more real time near your limit, not a longer slog that fades.',
   );
 });
 
-test('why sheet bullets stay honest about the format, FTP, and limits', () => {
+test('why sheet bullets stay accurate about the format, FTP, and limits', () => {
   assert.deepEqual(WHY_BULLETS, [
     '30s hard / 15s easy is a researched cycling short-interval format (Rønnestad-style).',
     'Short recoveries help you pile up work near your aerobic ceiling — time near VO₂max matters for fitness.',
     'HARD / EASY targets come from your FTP (default 125 W → ~150 / ~63 W); edit FTP anytime.',
     'Offline coach: clock + cues; no account required to ride.',
-    'Not a medical device — honest intervals for riders who want to get better.',
+    'Not a medical device — plain intervals for riders who want to get better.',
   ]);
 });
 
