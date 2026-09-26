@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Atmosphere } from '../components/Atmosphere';
 import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { WhySheet } from '../components/WhySheet';
 import { Screen } from '../components/Screen';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSettings } from '../state/SettingsContext';
@@ -20,6 +21,7 @@ export function HomeScreen() {
   const engine = useWorkout();
   const reduceMotion = useReduceMotion();
   const [ftpOpen, setFtpOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
   const [tip] = useState(() => homeTip(Date.now()));
   const summary = sessionSummary(settings);
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
@@ -76,6 +78,15 @@ export function HomeScreen() {
         <Text style={styles.structure}>
           {settings.sets} × {settings.reps} · {settings.workSec}/{settings.recoverSec} · ~{summary.totalMin} min
         </Text>
+        <Pressable
+          onPress={() => setWhyOpen(true)}
+          testID="why-3015"
+          accessibilityRole="link"
+          hitSlop={6}
+          style={styles.whyHit}
+        >
+          <Text style={styles.whyLink}>Why 30/15</Text>
+        </Pressable>
         {tip ? <Text style={styles.tip}>{tip}</Text> : null}
 
         <View style={styles.goWrap}>
@@ -88,6 +99,8 @@ export function HomeScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <WhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
 
       <FtpOnboardingModal
         visible={ftpOpen}
@@ -169,6 +182,16 @@ const styles = StyleSheet.create({
     marginTop: 28,
     color: colors.text,
     fontSize: 16,
+    fontWeight: '500',
+  },
+  whyHit: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingVertical: 4,
+  },
+  whyLink: {
+    color: colors.textMuted,
+    fontSize: 14,
     fontWeight: '500',
   },
   tip: {
