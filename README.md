@@ -11,8 +11,10 @@ Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on t
 
 ```bash
 npm install
-npx expo start
+npx expo start -c --lan
 ```
+
+Use **`npx expo`**, not `npm expo`. If install reports `Cannot find module 'expo/config-plugins'`, the tree is stale. Delete `node_modules` and run `npm install` again. Do not run `npm audit fix`; it can leave the Expo SDK 57 set.
 
 1. Install **Expo Go**.
 2. Scan the QR code. Phone and computer should share a network.

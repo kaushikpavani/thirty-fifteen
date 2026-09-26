@@ -1,4 +1,3 @@
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
 
@@ -10,27 +9,71 @@ const beepModules = {
 } as const;
 
 type BeepKind = keyof typeof beepModules;
+type ExpoAudioModule = Pick<typeof import('expo-audio'), 'createAudioPlayer' | 'setAudioModeAsync'>;
 
+let expoAudio: ExpoAudioModule | null | undefined;
 let audioReady = false;
-const cache: Partial<Record<BeepKind, AudioPlayer>> = {};
+let beepsUnavailable = false;
+let initPromise: Promise<void> | null = null;
+const cache: Partial<Record<BeepKind, ReturnType<ExpoAudioModule['createAudioPlayer']>>> = {};
 
-export async function initAudio(): Promise<void> {
-  if (audioReady) return;
+/**
+ * Load expo-audio only when cues are needed so a missing native module cannot
+ * crash the app during the initial bundle evaluation.
+ */
+function loadExpoAudio(): ExpoAudioModule | null {
+  if (expoAudio !== undefined) return expoAudio;
   try {
-    await setAudioModeAsync({
+    expoAudio = require('expo-audio') as ExpoAudioModule;
+  } catch {
+    expoAudio = null;
+    beepsUnavailable = true;
+  }
+  return expoAudio;
+}
+
+function releasePlayers(): void {
+  for (const key of Object.keys(cache) as BeepKind[]) {
+    try {
+      cache[key]?.remove();
+    } catch {
+      // ignore
+    }
+    delete cache[key];
+  }
+  audioReady = false;
+}
+
+async function preparePlayers(): Promise<void> {
+  if (audioReady || beepsUnavailable) return;
+  const audio = loadExpoAudio();
+  if (!audio) return;
+  try {
+    await audio.setAudioModeAsync({
       playsInSilentMode: true,
-      interruptionMode: 'mixWithOthers',
       shouldPlayInBackground: false,
+      interruptionMode: 'mixWithOthers',
     });
     for (const key of Object.keys(beepModules) as BeepKind[]) {
-      const player = createAudioPlayer(beepModules[key]);
+      const player = audio.createAudioPlayer(beepModules[key]);
       player.volume = 0.85;
       cache[key] = player;
     }
     audioReady = true;
   } catch {
-    audioReady = false;
+    releasePlayers();
+    beepsUnavailable = true;
   }
+}
+
+export function initAudio(): Promise<void> {
+  if (audioReady || beepsUnavailable) return Promise.resolve();
+  if (!initPromise) {
+    initPromise = preparePlayers().finally(() => {
+      initPromise = null;
+    });
+  }
+  return initPromise;
 }
 
 export function speak(text: string, settings: WorkoutSettings): void {
@@ -56,7 +99,7 @@ export function stopSpeech(): void {
 }
 
 export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go'): Promise<void> {
-  if (!settings.beepsEnabled) return;
+  if (!settings.beepsEnabled || beepsUnavailable) return;
   try {
     if (!audioReady) await initAudio();
     const player = cache[kind];
@@ -64,19 +107,11 @@ export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go')
     await player.seekTo(0);
     player.play();
   } catch {
-    // ignore beep failures
+    // Beeps are optional. Spoken cues still run.
   }
 }
 
 export async function unloadAudio(): Promise<void> {
   stopSpeech();
-  for (const key of Object.keys(cache) as BeepKind[]) {
-    try {
-      cache[key]?.remove();
-    } catch {
-      // ignore
-    }
-    delete cache[key];
-  }
-  audioReady = false;
+  releasePlayers();
 }

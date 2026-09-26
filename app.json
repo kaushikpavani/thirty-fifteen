@@ -43,6 +43,7 @@
     "plugins": [
       "expo-splash-screen",
       "expo-router",
+      "expo-asset",
       [
         "expo-audio",
         {
