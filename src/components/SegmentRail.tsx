@@ -65,15 +65,15 @@ function clamp(value: number): number {
 
 const styles = StyleSheet.create({
   track: {
-    height: 3,
+    height: 4,
     marginHorizontal: 28,
-    marginTop: 8,
+    marginTop: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     overflow: 'hidden',
   },
   fill: {
-    height: 3,
+    height: 4,
     borderRadius: 999,
     overflow: 'hidden',
   },

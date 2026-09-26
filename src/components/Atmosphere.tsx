@@ -95,9 +95,9 @@ function PhaseLight({ color, id }: { color: string; id: string }) {
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id={id} cx="50%" cy="62%" rx="68%" ry="48%">
-          <Stop offset="0" stopColor={color} stopOpacity="0.5" />
-          <Stop offset="0.38" stopColor={color} stopOpacity="0.2" />
+        <RadialGradient id={id} cx="50%" cy="58%" rx="72%" ry="52%">
+          <Stop offset="0" stopColor={color} stopOpacity="0.78" />
+          <Stop offset="0.4" stopColor={color} stopOpacity="0.34" />
           <Stop offset="1" stopColor={color} stopOpacity="0" />
         </RadialGradient>
       </Defs>
@@ -110,14 +110,14 @@ function RestLight() {
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id="rest-warm" cx="22%" cy="34%" rx="62%" ry="42%">
-          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.55" />
-          <Stop offset="0.45" stopColor="#FF9F0A" stopOpacity="0.16" />
+        <RadialGradient id="rest-warm" cx="18%" cy="36%" rx="70%" ry="48%">
+          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.9" />
+          <Stop offset="0.42" stopColor="#FF9F0A" stopOpacity="0.38" />
           <Stop offset="1" stopColor="#FF9F0A" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="rest-cool" cx="88%" cy="58%" rx="48%" ry="36%">
-          <Stop offset="0" stopColor="#64D2FF" stopOpacity="0.38" />
-          <Stop offset="0.5" stopColor="#64D2FF" stopOpacity="0.1" />
+        <RadialGradient id="rest-cool" cx="92%" cy="62%" rx="56%" ry="42%">
+          <Stop offset="0" stopColor="#64D2FF" stopOpacity="0.7" />
+          <Stop offset="0.46" stopColor="#64D2FF" stopOpacity="0.26" />
           <Stop offset="1" stopColor="#64D2FF" stopOpacity="0" />
         </RadialGradient>
       </Defs>

@@ -439,12 +439,14 @@ const styles = StyleSheet.create({
   },
   control: { flex: 1 },
   endSlot: { flex: 1, alignItems: 'flex-end', justifyContent: 'center', gap: 8 },
-  endCancel: { color: colors.textDim, fontSize: 14, paddingVertical: 6 },
+  endCancel: { color: colors.textMuted, fontSize: 14, paddingVertical: 6 },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: colors.bgSoft,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: colors.hard,
   },
   chipText: { color: colors.hard, fontSize: 15, fontWeight: '600' },
   done: {
