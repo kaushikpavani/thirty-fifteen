@@ -1,8 +1,4 @@
-# Typecheck and unit tests on every pull request.
-# This file is safe to carry on another branch unchanged: it runs `npm test`
-# and `npx tsc --noEmit`, so each branch's package.json scripts stay the source of truth.
-
-name: CI
+name: Check
 
 on:
   pull_request:
@@ -14,16 +10,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install
-        run: npm ci
-      - name: Typecheck
-        run: npx tsc --noEmit
-      - name: Test
-        run: npm test
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test

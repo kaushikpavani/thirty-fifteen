@@ -117,6 +117,7 @@ function scoreVoice(voice: Speech.Voice): number {
   if (NOVELTY.test(id)) return -1;
   let score = language.startsWith('en-us') ? 8 : language.startsWith('en-gb') || language.startsWith('en-au') ? 4 : 1;
   if (voice.quality === Speech.VoiceQuality.Enhanced) score += 24;
+  // Some enhanced system voices include the word "premium" in the name. That is not a product tier.
   if (id.includes('premium')) score += 40;
   if (id.includes('enhanced')) score += 24;
   if (id.includes('siri')) score += 18;

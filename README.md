@@ -5,6 +5,26 @@ Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on t
 **App name:** 30/15  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
+## Offline first
+
+The phone is the source of truth. Airplane mode still runs a complete session.
+
+- Workouts, FTP and the other settings, the feedback outbox, the install id, and the analytics outbox live on the device.
+- Start, the interval clock, spoken cues, the music bed, and history do not wait on the network or on Supabase.
+- Sync is best-effort and later. When the phone is online, queued notes and analytics flush. When you are also signed in, finished sessions merge. A failure stays queued. History may show a soft note. The ride does not stop.
+- Strava, Garmin, and BLE imports are optional and not part of this build. The coach does not call them to run a workout.
+- An account is optional. There is no login wall before Start.
+
+Not signed in, history, FTP, settings, and the outboxes live on this phone. Start does not ask for an account or a network. Finished sessions stay here until you sign in.
+
+Signed in, the profile and finished sessions copy to this app's Supabase project when the phone is online. Queued notes and analytics can flush when the project is configured, signed in or not. A miss stays queued. The ride still does not wait.
+
+FTP saved on the phone is what the ride uses. A profile in Supabase is only a copy.
+
+## Free
+
+This coach is free. Forever. There is no Pro tier, no paywall, no entitlement check, and no in-app purchase. The point is the ride.
+
 ---
 
 ## Run in Expo Go
@@ -44,21 +64,102 @@ A saved FTP is left alone. A fresh install starts at 125 W. Open the app and pre
 
 ## Start
 
-The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, and an optional note.
+The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, an optional note, and an optional account.
 
 ## History
 
 Sessions are written to **AsyncStorage** when a workout finishes, or when you end one after a few seconds. Each row stores date, duration, FTP, and whether you completed the plan. Open them from Settings. The home screen does not keep a streak.
 
-There is no sign-in on this path. The workout does not wait on an account.
+There is no sign-in on this path. The workout does not wait on an account. History on the screen is the copy on the phone. If you later sign in from Settings, finished sessions also copy to this app's Supabase project and merge back when the network is there.
 
 ### Feedback
 
 Settings → Leave a note. It is optional and free-form. No rating. No account.
 
-When Supabase is configured, Send writes a row to `app_feedback`. Run [`supabase/app_feedback.sql`](supabase/app_feedback.sql) in the SQL editor. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
+When Supabase is configured, Send writes a row to `app_feedback` and tags the install when it can. Anonymous inserts are allowed. Riders cannot read the table. You read notes in the Supabase Table Editor.
 
-If the server is missing, the note stays on the phone and sends on a later try.
+The note is stored on the phone first. If the server is missing, it stays in the outbox and sends on a later try.
+
+## Your data
+
+Settings → Your data. Local clears apply immediately. Cloud deletes wait until the phone is online and, for account data, signed in. A failed cloud delete stays queued. The screen says so. It does not claim the cloud copy is gone.
+
+| Action | On this phone | In the cloud |
+| --- | --- | --- |
+| Delete workout history | Sessions disappear from History | Signed-in sessions that ended before the tap are deleted. Newer rides stay |
+| Clear queued notes and analytics | Unsent feedback and analytics are dropped | Rows already delivered stay until account delete |
+| Reset defaults | FTP and the session structure return to the defaults | Nothing |
+| Erase data on this phone | History, queued notes, analytics, settings, rider name, and the install id | The install row, and the same session delete as history, when the network is there |
+| Delete account and cloud data | You are signed out only after the server accepts it | Profile, sessions, analytics, notes, connections, and imports for that rider, then the auth user. Devices stay, with no user attached |
+
+One confirm is required for **Delete account and cloud data**. The other actions run on tap.
+
+Anonymous notes have no user id, so a rider cannot pull them back. Notes sent while signed in are removed with the account.
+
+Account delete does not wipe sessions that are still stored on the phone. Delete workout history does that. If you sign in again later, sessions still on the phone can upload again.
+
+## Cloud
+
+30/15 uses its **own** Supabase project. Create a dedicated project for this app. Do not use the BioAge project. Do not share a Supabase project or tables with any other app.
+
+Without those keys, the app stays fully local. Workouts, notes, analytics, and Start all work.
+
+A second empty project is optional, for staging. Point a separate `.env.local` at it. Do not use the BioAge project for staging either.
+
+1. Create a new Supabase project for 30/15 only.
+2. Open the SQL editor and run these in order. Each file is safe to run again.
+   - [`supabase/migrations/20260926120000_foundation.sql`](supabase/migrations/20260926120000_foundation.sql)
+   - [`supabase/migrations/20260926143000_offline_outbox.sql`](supabase/migrations/20260926143000_offline_outbox.sql)
+   - [`supabase/migrations/20260926160000_deletion.sql`](supabase/migrations/20260926160000_deletion.sql)
+3. In Project Settings → API, copy the project URL and the publishable key.
+4. Copy `.env.example` to `.env.local` and paste the two values:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
+
+5. Restart Expo (`npx expo start -c`).
+
+Optional sign-in: in the Supabase dashboard, enable Google and Facebook, and allow the redirect `thirtyfifteen://auth-callback`. Settings → Account. Home → Start does not use it.
+
+What the script creates:
+
+| Table | Who can write | What it holds |
+| --- | --- | --- |
+| `profiles` | The signed-in rider | Display name, FTP copy, last seen |
+| `devices` | `touch_device` only | This install, before or after sign-in |
+| `app_events` | Insert only, including anonymous | App open, sign in, workout start/finish, feedback. `client_event_id` dedupes the phone outbox |
+| `workout_sessions` | The signed-in rider, own rows | Finished sessions. `source` defaults to `manual`. The phone copy is kept either way |
+| `app_feedback` | Insert only, including anonymous | Notes. No rider reads. `client_id` dedupes the phone outbox |
+| `connections` | Service role later | Strava / Garmin / BLE link status. No OAuth tokens |
+| `imported_activities` | Service role later | Imported activities, unique on provider + external id |
+
+`app_events.properties` holds sparse facts (watts, counts, provider, delivery). It rejects email, names, and feedback text.
+
+Riders can delete their own profile, sessions, events, signed-in notes, connections, and imports. `delete_my_account()` does that in one transaction and then removes the auth user. `delete_my_sessions(cutoff)` deletes sessions that ended at or before a history wipe. `delete_my_device(id)` removes one install row.
+
+`connections.metadata` rejects token-like keys. Real tokens belong in an Edge Function and Supabase Vault, not in a client-readable column.
+
+Owner views `owner_daily_active`, `owner_new_profiles`, `owner_workouts_completed`, and `owner_feedback_daily` are for the SQL editor. The app key cannot read them. There is no counter table. The views aggregate events, profiles, sessions, and notes.
+
+```sql
+select * from public.owner_daily_active order by day desc;
+select * from public.owner_new_profiles order by day desc;
+select * from public.owner_workouts_completed order by day desc;
+select * from public.owner_feedback_daily order by day desc;
+```
+
+### App management
+
+- One Supabase project for 30/15. Never BioAge, and never another app's tables.
+- AsyncStorage is the source of truth. Outboxes flush later. Start, the clock, voice, music, and history do not wait.
+- Auth is optional. `devices` and anonymous `app_events` work before login. A profile is upserted on sign-in.
+- History lives in `workout_sessions`. Product analytics live in append-only `app_events`. Counts are views, not mutable counters.
+- `connections` and `imported_activities` are stubs. Metadata and status only. OAuth tokens belong in an Edge Function and Vault.
+- The publishable key is the only key in the app. Row level security is on every table.
+- Sync upserts a session by id and keeps the newer `ended_at`. A failed flush stays queued.
+- The service role is not in the client. The app does not sell a subscription.
 
 ---
 
@@ -101,7 +202,7 @@ npx expo start --dev-client
 
 The development profile is in [`eas.json`](eas.json).
 
-Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The workout clock itself stays on target watts.
+Install that build (not Expo Go). Finish a session, then open Power meter. Wake the trainer and pick it from the list. Watts appear only after a real packet. The countdown stays the only number on the clock. Planned watts stay on Home.
 
 `react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
@@ -147,17 +248,19 @@ FTP, hard/easy %, warm-up, sets, reps, work/recover, rest, cool-down, music, spe
 ## Limitations
 
 - The timer is wall-clock time. While the app is in front, `expo-keep-awake` holds the screen on. In the background the bed (or a silent loop) holds the audio session. If the OS freezes or kills the process, the clock snaps forward on return and does not replay missed cues. See [BACKGROUND.md](BACKGROUND.md).
-- History on this path stays on the phone. There is no account step before the workout.
-- Feedback reaches you only after `app_feedback` exists. Until then the note stays on the phone.
+- History, FTP, notes, and analytics stay on the phone. Cloud sync is a later best-effort flush. Start, the clock, cues, and the music bed do not wait for it.
+- Feedback reaches the dashboard only after the SQL has been run and the phone can reach it. Until then the note stays in the outbox.
 - A power meter is optional after Finish, and only in a development build. Expo Go never shows a pair sheet.
 
 ---
 
 ## Checks
 
+From the repo root:
+
 ```bash
 npx tsc --noEmit
 npm test
 ```
 
-Pull requests run both in GitHub Actions (`.github/workflows/ci.yml`). The YouTube check is on a device. The steps are in [BACKGROUND.md](BACKGROUND.md).
+`npm test` runs the unit tests for the coach, history merge, outbox retry, analytics (no personal data), profile writes, deletion, the offline gates, and background catch-up (wall clock, cue windows, no double-fire). `npx tsc --noEmit` typechecks the app. GitHub Actions runs `npm ci`, then those two commands, on every pull request and on every push to `main`. The YouTube check is on a device. The steps are in [BACKGROUND.md](BACKGROUND.md).

@@ -1,14 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
+import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
+import { ensureDevice } from './cloud';
+import { workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
+import { loadDeletionState } from './deletionStore';
+import { createId } from './id';
+import { shouldUploadSession } from './historyGate';
+import { applyCloudMerge } from './merge';
+import { createQueue } from './queue';
+
+export { mergeRecords } from './merge';
+
+/**
+ * Workout history on this phone is the source of truth.
+ * Pull and push run later, and a miss leaves this list on screen.
+ */
 
 const KEY = '@thirtyfifteen/history/v1';
 
-export function createId(): string {
-  const cryptoRef = globalThis.crypto;
-  if (cryptoRef && typeof cryptoRef.randomUUID === 'function') return cryptoRef.randomUUID();
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+export { createId };
 
 function isRecord(value: unknown): value is WorkoutRecord {
   if (!value || typeof value !== 'object') return false;
@@ -27,15 +38,6 @@ function isRecord(value: unknown): value is WorkoutRecord {
   );
 }
 
-export function mergeRecords(local: WorkoutRecord[], remote: WorkoutRecord[]): WorkoutRecord[] {
-  const map = new Map<string, WorkoutRecord>();
-  for (const item of [...local, ...remote]) {
-    const prev = map.get(item.id);
-    if (!prev || item.endedAt > prev.endedAt) map.set(item.id, item);
-  }
-  return [...map.values()].sort((a, b) => (a.endedAt < b.endedAt ? 1 : -1)).slice(0, 200);
-}
-
 export async function loadHistory(): Promise<WorkoutRecord[]> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
@@ -48,12 +50,22 @@ export async function loadHistory(): Promise<WorkoutRecord[]> {
   }
 }
 
+const historyWrites = createQueue();
+
 export async function saveHistory(sessions: WorkoutRecord[]): Promise<void> {
-  try {
-    await AsyncStorage.setItem(KEY, JSON.stringify(sessions.slice(0, 200)));
-  } catch {
-    // ignore
-  }
+  const payload = JSON.stringify(sessions.slice(0, 200));
+  await historyWrites(async () => {
+    try {
+      await AsyncStorage.setItem(KEY, payload);
+    } catch {
+      // The in-memory list is still what the screen shows.
+    }
+  });
+}
+
+/** Drop every session stored on this phone. Does not talk to the cloud. */
+export async function clearHistory(): Promise<void> {
+  await saveHistory([]);
 }
 
 export function withId(input: NewWorkoutRecord): WorkoutRecord {
@@ -81,44 +93,54 @@ function rowToRecord(row: Record<string, unknown>): WorkoutRecord | null {
   return isRecord(record) ? record : null;
 }
 
-function recordToRow(record: WorkoutRecord, userId: string) {
-  return {
-    id: record.id,
-    user_id: userId,
-    started_at: record.startedAt,
-    ended_at: record.endedAt,
-    duration_ms: record.durationMs,
-    planned_duration_ms: record.plannedDurationMs,
-    ftp_watts: record.ftpWatts,
-    hard_watts: record.hardWatts,
-    easy_watts: record.easyWatts,
-    completed: record.completed,
-    completion_pct: record.completionPct,
-  };
-}
-
-export async function pushSession(record: WorkoutRecord): Promise<string | null> {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  const userId = data.session?.user.id;
-  if (!userId) return null;
-  const { error } = await supabase.from('workout_sessions').upsert(recordToRow(record, userId), {
-    onConflict: 'id',
-  });
-  if (!error) return null;
-  if (/workout_sessions|schema cache|relation/i.test(error.message)) {
+function cloudNote(message: string): string {
+  if (/workout_sessions|schema cache|relation/i.test(message)) {
     return 'Cloud table missing. Sessions stay on this phone.';
   }
   return 'Couldn’t reach the cloud. Sessions are on this phone.';
 }
 
+async function upsertWorkoutRows(rows: WorkoutSessionWrite[]): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase || rows.length === 0) return null;
+  const first = await supabase.from('workout_sessions').upsert(rows, { onConflict: 'id' });
+  if (!first.error) return null;
+  const retry = workoutRowsForRetry(rows, first.error.message);
+  if (!retry) return first.error.message;
+  const second = await supabase.from('workout_sessions').upsert(retry, { onConflict: 'id' });
+  return second.error ? second.error.message : null;
+}
+
+export async function pushSession(record: WorkoutRecord): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+    const user = await loadCachedAuthUser();
+    const gate = await loadDeletionState();
+    if (!user || !shouldUploadSession(true, user.id, record.endedAt, gate.historyDeletedThrough)) return null;
+    const userId = user.id;
+    const deviceId = await ensureDevice();
+    const message = await upsertWorkoutRows([workoutSessionWrite(record, userId, deviceId)]);
+    return message ? cloudNote(message) : null;
+  } catch {
+    return 'Couldn’t reach the cloud. Sessions are on this phone.';
+  }
+}
+
 export async function pullAndMerge(local: WorkoutRecord[]): Promise<CloudResult> {
+  try {
+    return await pullAndMergeUnsafe(local);
+  } catch {
+    return { sessions: local, note: 'Couldn’t reach the cloud. Sessions are on this phone.' };
+  }
+}
+
+async function pullAndMergeUnsafe(local: WorkoutRecord[]): Promise<CloudResult> {
   const supabase = getSupabase();
   if (!supabase) return { sessions: local, note: null };
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user.id;
-  if (!userId) return { sessions: local, note: null };
+  const user = await loadCachedAuthUser();
+  if (!user) return { sessions: local, note: null };
+  const userId = user.id;
 
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -138,13 +160,17 @@ export async function pullAndMerge(local: WorkoutRecord[]): Promise<CloudResult>
   const remote = (data ?? [])
     .map((row) => rowToRecord(row as Record<string, unknown>))
     .filter((row): row is WorkoutRecord => row != null);
-  const merged = mergeRecords(local, remote);
-  const remoteIds = new Set(remote.map((item) => item.id));
+  const gate = await loadDeletionState();
+  const merged = applyCloudMerge(local, remote, gate.historyDeletedThrough);
+  const remoteIds = new Set(
+    remote
+      .filter((item) => !gate.historyDeletedThrough || item.endedAt > gate.historyDeletedThrough)
+      .map((item) => item.id),
+  );
   const missing = merged.filter((item) => !remoteIds.has(item.id));
   if (missing.length) {
-    const { error: upsertError } = await supabase
-      .from('workout_sessions')
-      .upsert(missing.map((item) => recordToRow(item, userId)), { onConflict: 'id' });
+    const deviceId = await ensureDevice();
+    const upsertError = await upsertWorkoutRows(missing.map((item) => workoutSessionWrite(item, userId, deviceId)));
     if (upsertError) {
       return {
         sessions: merged,

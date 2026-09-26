@@ -9,6 +9,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
+import { track } from '../storage/cloud';
 import { markFtpOnboardingDone } from '../storage/settings';
 import { sessionSummary } from '../workout/builder';
 import { homeTip } from '../workout/craft';
@@ -32,6 +33,13 @@ export function HomeScreen() {
   const start = async () => {
     await engine.start();
     router.push('/workout');
+    void track('workout_start', {
+      ftp_watts: settings.ftpWatts,
+      sets: settings.sets,
+      reps: settings.reps,
+      work_sec: settings.workSec,
+      recover_sec: settings.recoverSec,
+    });
   };
 
   return (

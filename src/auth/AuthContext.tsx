@@ -1,11 +1,17 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createSessionFromUrl, signInWithProvider, signOutProvider } from './oauth';
 import { getSupabase } from './supabase';
 import { isSupabaseConfigured } from './config';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
+import { track } from '../storage/cloud';
+import { onCloudAccountDeleted } from '../storage/deletion';
+import { scheduleSync } from '../storage/sync';
 import { loadLocalName, saveLocalName } from '../storage/profile';
 import type { AuthUser } from '../types';
+import { mapAuthUser } from './mapUser';
+import { loadCachedAuthUser } from './sessionCache';
+
+export { mapAuthUser };
 
 type AuthContextValue = {
   ready: boolean;
@@ -18,35 +24,13 @@ type AuthContextValue = {
   busy: 'google' | 'facebook' | null;
   signIn: (provider: 'google' | 'facebook') => Promise<void>;
   signOut: () => Promise<void>;
+  /** Drop the local session after the cloud account is gone. Does not call the network. */
+  signOutLocal: () => Promise<void>;
   setLocalName: (value: string) => Promise<void>;
   dismissSetup: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function firstToken(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const token = value.trim().split(/\s+/)[0];
-  return token || null;
-}
-
-export function mapAuthUser(user: User | null): AuthUser | null {
-  if (!user) return null;
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const name =
-    firstToken(meta.full_name) ??
-    firstToken(meta.name) ??
-    firstToken(meta.user_name) ??
-    firstToken(user.email?.split('@')[0]);
-  const providerRaw = user.app_metadata?.provider;
-  const provider = typeof providerRaw === 'string' ? providerRaw : 'account';
-  return {
-    id: user.id,
-    name,
-    email: user.email ?? null,
-    provider,
-  };
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -56,6 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'google' | 'facebook' | null>(null);
   const configured = isSupabaseConfigured();
+  const sawAuthEvent = useRef(false);
+  const signedInSeen = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -64,16 +50,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const stored = await loadLocalName();
       if (cancelled) return;
       setLocalNameState(stored);
-      if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (cancelled) return;
-        setUser(mapAuthUser(data.session?.user ?? null));
-      }
+      // Cached session only. Token refresh can hang with no signal, and Start must not wait.
+      const cached = await loadCachedAuthUser();
+      if (cancelled) return;
+      if (cached) setUser(cached);
       setReady(true);
+      if (!supabase) return;
+      void supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          if (cancelled) return;
+          setUser(mapAuthUser(data.session?.user ?? null));
+        })
+        .catch(() => {
+          // Keep the cached rider. The ride does not need a fresh token.
+        });
     })();
 
-    const subscription = supabase?.auth.onAuthStateChange((_event, session) => {
-      setUser(mapAuthUser(session?.user ?? null));
+    const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+      const next = mapAuthUser(session?.user ?? null);
+      setUser(next);
+      const first = !sawAuthEvent.current;
+      sawAuthEvent.current = true;
+      scheduleSync();
+      // A restored session can arrive as the first callback. That is not a new sign-in.
+      if (first && event === 'SIGNED_IN') return;
+      if (event === 'SIGNED_OUT') {
+        signedInSeen.current.clear();
+        return;
+      }
+      if (event === 'SIGNED_IN' && next && !signedInSeen.current.has(next.id)) {
+        signedInSeen.current.add(next.id);
+        void track('sign_in', { provider: next.provider });
+      }
     });
 
     const linkSub = Linking.addEventListener('url', ({ url }) => {
@@ -83,10 +92,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
+    const appSub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      scheduleSync();
+    });
+
     return () => {
       cancelled = true;
       subscription?.data.subscription.unsubscribe();
       linkSub.remove();
+      appSub.remove();
     };
   }, []);
 
@@ -107,9 +122,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signOutLocal = useCallback(async () => {
+    setError(null);
+    setUser(null);
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // The rider is already cleared in memory.
+    }
+  }, []);
+
+  useEffect(() => onCloudAccountDeleted(() => signOutLocal()), [signOutLocal]);
+
   const signOut = useCallback(async () => {
     setError(null);
     try {
+      await track('sign_out');
       await signOutProvider();
       setUser(null);
     } catch (err) {
@@ -135,10 +165,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       busy,
       signIn,
       signOut,
+      signOutLocal,
       setLocalName,
       dismissSetup: () => setNeedsSetup(false),
     }),
-    [ready, configured, user, localName, needsSetup, error, busy, signIn, signOut, setLocalName],
+    [ready, configured, user, localName, needsSetup, error, busy, signIn, signOut, signOutLocal, setLocalName],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
