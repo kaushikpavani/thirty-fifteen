@@ -38,11 +38,22 @@ export type PhaseKind =
   | 'cooldown'
   | 'done';
 
-export function phaseColor(kind: PhaseKind): string {
+/**
+ * Around #FF453A. Hue stays within ±8° and saturation within −6%.
+ * Adjacent HARDs step the index, so the glow does not repeat immediately.
+ */
+export const HARD_FAMILY = ['#FF453A', '#FF5F3A', '#FF3A49', '#F94A40'] as const;
+
+function familyIndex(hardOrdinal: number, salt: number): number {
+  const ord = Number.isFinite(hardOrdinal) && hardOrdinal > 0 ? Math.floor(hardOrdinal) : 0;
+  return (ord + salt) % HARD_FAMILY.length;
+}
+
+export function phaseColor(kind: PhaseKind, hardOrdinal = 0, salt = 0): string {
   switch (kind) {
     case 'hard':
     case 'accel':
-      return colors.hard;
+      return HARD_FAMILY[familyIndex(hardOrdinal, salt)];
     case 'easy':
       return colors.easy;
     case 'set_rest':

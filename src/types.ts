@@ -23,6 +23,8 @@ export interface WorkoutSettings {
   cueLeadMs: number;
   beepsEnabled: boolean;
   hapticsEnabled: boolean;
+  /** Looping bed under the ride. Default on. Spoken cues and beeps still duck it. */
+  musicEnabled: boolean;
 }
 
 export interface Segment {

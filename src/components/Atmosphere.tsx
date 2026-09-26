@@ -14,6 +14,16 @@ type Props = {
   /** Easy and rest breathe slower and a notch quieter than hard. */
   heat?: 'hot' | 'cool';
   reduceMotion?: boolean;
+  /** One glow, then still. Finish passes 1. */
+  punch?: number;
+  /** How long the finish bloom lasts. */
+  bloomMs?: number;
+  /** 2 is the double-pulse finish. Then still. */
+  pulses?: 1 | 2;
+  /** No breath. The bloom plays once and the light stays put. */
+  still?: boolean;
+  /** HARD set nudge. 1 is the locked level. */
+  intensity?: number;
 };
 
 /**
@@ -26,8 +36,15 @@ export function Atmosphere({
   paused = false,
   heat = 'hot',
   reduceMotion = false,
+  punch = 0,
+  bloomMs = 520,
+  pulses = 1,
+  still = false,
+  intensity = 1,
 }: Props) {
   const breath = useRef(new Animated.Value(1)).current;
+  const burst = useRef(new Animated.Value(0)).current;
+  const punchSeen = useRef<number | null>(null);
   const aOpacity = useRef(new Animated.Value(1)).current;
   const bOpacity = useRef(new Animated.Value(0)).current;
   const [aColor, setAColor] = useState(color);
@@ -35,7 +52,7 @@ export function Atmosphere({
   const front = useRef<'a' | 'b'>('a');
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (reduceMotion || still) {
       breath.setValue(1);
       return;
     }
@@ -49,7 +66,7 @@ export function Atmosphere({
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, heat, paused, reduceMotion, variant]);
+  }, [breath, heat, paused, reduceMotion, still, variant]);
 
   useEffect(() => {
     const current = front.current === 'a' ? aColor : bColor;
@@ -71,6 +88,33 @@ export function Atmosphere({
       ]).start();
     }
   }, [aColor, aOpacity, bColor, bOpacity, color, reduceMotion]);
+
+  useEffect(() => {
+    if (punchSeen.current === punch) return;
+    const first = punchSeen.current === null;
+    punchSeen.current = punch;
+    if (reduceMotion || (first && punch === 0)) {
+      burst.setValue(0);
+      return;
+    }
+    burst.setValue(1);
+    const ease = Easing.out(Easing.cubic);
+    if (pulses === 2) {
+      const half = Math.max(120, Math.round(bloomMs / 2));
+      Animated.sequence([
+        Animated.timing(burst, { toValue: 0, duration: half, easing: ease, useNativeDriver: native }),
+        Animated.timing(burst, { toValue: 1, duration: 70, easing: ease, useNativeDriver: native }),
+        Animated.timing(burst, { toValue: 0, duration: half, easing: ease, useNativeDriver: native }),
+      ]).start();
+    } else {
+      Animated.timing(burst, {
+        toValue: 0,
+        duration: bloomMs,
+        easing: ease,
+        useNativeDriver: native,
+      }).start();
+    }
+  }, [bloomMs, burst, pulses, punch, reduceMotion]);
 
   const scale = breath.interpolate({
     inputRange: [0, 1],
@@ -94,10 +138,26 @@ export function Atmosphere({
         ) : (
           <>
             <Animated.View style={[styles.fill, { opacity: aOpacity }]} pointerEvents="none">
-              <PhaseLight color={aColor} id="phase-a" heat={heat} />
+              <PhaseLight color={aColor} id="phase-a" heat={heat} intensity={intensity} />
             </Animated.View>
             <Animated.View style={[styles.fill, { opacity: bOpacity }]} pointerEvents="none">
-              <PhaseLight color={bColor} id="phase-b" heat={heat} />
+              <PhaseLight color={bColor} id="phase-b" heat={heat} intensity={intensity} />
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.fill,
+                {
+                  opacity: burst,
+                  transform: [
+                    {
+                      scale: burst.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <PhaseLight color={colors.go} id="round-won" heat="hot" />
             </Animated.View>
           </>
         )}
@@ -106,9 +166,20 @@ export function Atmosphere({
   );
 }
 
-function PhaseLight({ color, id, heat }: { color: string; id: string; heat: 'hot' | 'cool' }) {
-  const core = heat === 'cool' ? '0.5' : '0.72';
-  const mid = heat === 'cool' ? '0.22' : '0.32';
+function PhaseLight({
+  color,
+  id,
+  heat,
+  intensity = 1,
+}: {
+  color: string;
+  id: string;
+  heat: 'hot' | 'cool';
+  intensity?: number;
+}) {
+  const gain = Number.isFinite(intensity) ? Math.min(1.12, Math.max(0.85, intensity)) : 1;
+  const core = String((heat === 'cool' ? 0.5 : 0.72) * gain);
+  const mid = String((heat === 'cool' ? 0.22 : 0.32) * gain);
   return (
     <Svg width="100%" height="100%">
       <Defs>

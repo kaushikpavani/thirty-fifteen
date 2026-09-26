@@ -1,18 +1,38 @@
 import * as Speech from 'expo-speech';
 import type { WorkoutSettings } from '../types';
+import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
+import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 
 const beepModules = {
   go: require('../../assets/beep-go.wav'),
   easy: require('../../assets/beep-easy.wav'),
   warn: require('../../assets/beep-warn.wav'),
   done: require('../../assets/beep-done.wav'),
+  rung3: require('../../assets/beep-rung-3.wav'),
+  rung3b: require('../../assets/beep-rung-3b.wav'),
+  rung3c: require('../../assets/beep-rung-3c.wav'),
+  rung2: require('../../assets/beep-rung-2.wav'),
+  rung2b: require('../../assets/beep-rung-2b.wav'),
+  rung2c: require('../../assets/beep-rung-2c.wav'),
+  rung1: require('../../assets/beep-rung-1.wav'),
+  rung1b: require('../../assets/beep-rung-1b.wav'),
+  rung1c: require('../../assets/beep-rung-1c.wav'),
+  win: require('../../assets/beep-win.wav'),
+  doneHeavy: require('../../assets/beep-done-heavy.wav'),
 } as const;
 
 const rockyModules = {
   welcome: require('../../assets/rocky/welcome.mp3'),
-  hard: require('../../assets/rocky/hard.mp3'),
-  easy: require('../../assets/rocky/easy.mp3'),
-  finish: require('../../assets/rocky/finish.mp3'),
+  go: require('../../assets/rocky/go.mp3'),
+  hard0: require('../../assets/rocky/hard.mp3'),
+  hard1: require('../../assets/rocky/hard-1.mp3'),
+  hard2: require('../../assets/rocky/hard-2.mp3'),
+  hard3: require('../../assets/rocky/hard-3.mp3'),
+  easy0: require('../../assets/rocky/easy.mp3'),
+  easy1: require('../../assets/rocky/easy-1.mp3'),
+  easy2: require('../../assets/rocky/easy-2.mp3'),
+  round0: require('../../assets/rocky/round.mp3'),
+  finish0: require('../../assets/rocky/finish.mp3'),
 } as const;
 
 type BeepKind = keyof typeof beepModules;
@@ -24,6 +44,7 @@ let expoAudio: ExpoAudioModule | null | undefined;
 let audioReady = false;
 let beepsUnavailable = false;
 let rockyReady = false;
+let boundaryHoldUntil = 0;
 let initPromise: Promise<void> | null = null;
 let voicePromise: Promise<void> | null = null;
 let voiceResolved = false;
@@ -67,16 +88,25 @@ function releasePlayers(): void {
     }
     delete rockyCache[key];
   }
+  releaseMusicPlayers();
   audioReady = false;
   rockyReady = false;
+  boundaryHoldUntil = 0;
 }
 
-function rockyKind(key: string): RockyKind | null {
+function rockyClip(key: string, clip?: string): RockyKind | null {
+  if (clip && clip in rockyModules) return clip as RockyKind;
   if (key === 'welcome') return 'welcome';
-  if (key === 'finish') return 'finish';
-  if (key.startsWith('hard:')) return 'hard';
-  if (key.startsWith('easy:')) return 'easy';
+  if (key === 'finish') return 'finish0';
+  if (key === 'go') return 'go';
+  if (key === 'round' || key.startsWith('round:')) return 'round0';
+  if (key.startsWith('hard:')) return 'hard0';
+  if (key.startsWith('easy:')) return 'easy0';
   return null;
+}
+
+function holdBoundary(ms: number): void {
+  boundaryHoldUntil = Math.max(boundaryHoldUntil, Date.now() + ms);
 }
 
 function scoreVoice(voice: Speech.Voice): number {
@@ -150,6 +180,7 @@ async function preparePlayers(): Promise<void> {
       }
       rockyReady = false;
     }
+    attachMusicPlayers((source) => audio.createAudioPlayer(source));
   } catch {
     releasePlayers();
     beepsUnavailable = true;
@@ -198,14 +229,21 @@ function pauseRocky(): void {
 }
 
 /** Recorded Rocky line when the clip is loaded. Tuned on-device voice if it is not. */
-export function speakCue(cue: { key: string; line: string }, settings: WorkoutSettings): void {
+export function speakCue(cue: { key: string; line: string; clip?: string }, settings: WorkoutSettings): void {
+  if (cue.key === 'finish') {
+    void playBeep(settings, 'doneHeavy', rockyDuckMs('finish'));
+  }
   if (!settings.speechEnabled || !cue.line.trim()) return;
-  const kind = rockyKind(cue.key);
+  if (cue.key === 'go') holdBoundary(700);
+  if (cue.key === 'round' || cue.key.startsWith('round:')) holdBoundary(rockyDuckMs(cue.key));
+  const kind = rockyClip(cue.key, cue.clip);
   const player = kind && rockyReady ? rockyCache[kind] : undefined;
   if (!player) {
+    duckMusic(rockyDuckMs(cue.key));
     speakFallback(cue.line, settings);
     return;
   }
+  duckMusic(rockyDuckMs(cue.key));
   const token = ++rockyToken;
   try {
     Speech.stop();
@@ -235,7 +273,9 @@ export function speak(text: string, settings: WorkoutSettings): void {
   speakCue({ key: 'fallback', line: text }, settings);
 }
 
-export function stopSpeech(): void {
+export function stopSpeech(force = false): void {
+  if (!force && Date.now() < boundaryHoldUntil) return;
+  boundaryHoldUntil = 0;
   rockyToken += 1;
   try {
     Speech.stop();
@@ -292,12 +332,45 @@ export function unlockRockyFromGesture(): void {
   }
 }
 
-export async function playBeep(settings: WorkoutSettings, kind: BeepKind = 'go'): Promise<void> {
+function rungVolume(kind: BeepKind): number | undefined {
+  if (kind.startsWith('rung3')) return 0.72;
+  if (kind.startsWith('rung2')) return 0.86;
+  if (kind.startsWith('rung1')) return 1;
+  return undefined;
+}
+
+export function playLadder(
+  settings: WorkoutSettings,
+  step: LadderStep,
+  texture: 'pitch' | 'volume' | 'strongThird',
+  duckMs: number,
+): Promise<void> {
+  if (texture === 'volume') {
+    const volume = step === 'three' ? 0.42 : step === 'two' ? 0.7 : 1;
+    return playBeep(settings, 'rung2', duckMs, volume);
+  }
+  if (texture === 'strongThird') {
+    const volume = step === 'one' ? 1 : 0.38;
+    const kind = step === 'one' ? 'rung1' : 'rung3';
+    return playBeep(settings, kind, duckMs, volume);
+  }
+  return playBeep(settings, ladderBeep(step, 0) as BeepKind, duckMs, 0.9);
+}
+
+export async function playBeep(
+  settings: WorkoutSettings,
+  kind: BeepKind = 'go',
+  duckMs: number = BEEP_DUCK_MS,
+  volume?: number,
+): Promise<void> {
   if (!settings.beepsEnabled || beepsUnavailable) return;
   try {
     if (!audioReady) await initAudio();
     const player = cache[kind];
     if (!player) return;
+    if (duckMs > 0) duckMusic(duckMs);
+    player.volume =
+      volume ?? (kind === 'doneHeavy' || kind === 'win' ? 1 : (rungVolume(kind) ?? 0.85));
     await player.seekTo(0);
     player.play();
   } catch {

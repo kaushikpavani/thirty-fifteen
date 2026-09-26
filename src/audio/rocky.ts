@@ -4,9 +4,52 @@ export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
 export const ROCKY_WELCOME = "Let's go. Time to get better.";
-export const ROCKY_HARD = 'Dig in — this is the round that builds you.';
-export const ROCKY_EASY = "Yes. Breathe fire. You're not done.";
+/** One per HARD. Consecutive reps never share a line. */
+export const HARD_LINES = [
+  'Dig in — this is the round that builds you.',
+  "Hold the line. You're in it.",
+  'This is the work. Stay with it.',
+  'Chin up. Push the watts.',
+] as const;
+export const EASY_LINES = [
+  "Yes. Breathe fire. You're not done.",
+  'Easy. Reload.',
+  "Good. Next one's yours.",
+] as const;
+export const ROCKY_HARD = HARD_LINES[0];
+export const ROCKY_EASY = EASY_LINES[0];
+/** Fixed. Not a pool. */
 export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
+/** One syllable on the first HARD chirp. Fixed. Never skipped. */
+export const ROCKY_GO = 'Go.';
+/** Once, when the last easy of a set opens the set rest. Fixed. */
+export const ROCKY_ROUND = 'Round won. Stay sharp.';
+
+export type LineTake = { line: string; clip: string };
+
+/** Every fourth easy is quiet, shifted by the session. 25% — inside 20–30%. */
+export function easySpeaks(ordinal: number, salt = 0): boolean {
+  return (ordinal + salt) % 4 !== 3;
+}
+
+export function hardTake(ordinal: number, salt = 0): LineTake {
+  const index = (ordinal + salt) % HARD_LINES.length;
+  return { line: HARD_LINES[index], clip: `hard${index}` };
+}
+
+export function easyTake(ordinal: number, salt = 0): LineTake | null {
+  if (!easySpeaks(ordinal, salt)) return null;
+  const index = (ordinal + salt) % EASY_LINES.length;
+  return { line: EASY_LINES[index], clip: `easy${index}` };
+}
+
+export function roundTake(): LineTake {
+  return { line: ROCKY_ROUND, clip: 'round0' };
+}
+
+export function finishTake(): LineTake {
+  return { line: ROCKY_FINISH, clip: 'finish0' };
+}
 
 /** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
 export const CLOCK_HIT_MS = 400;
@@ -34,7 +77,7 @@ export type RockySegment = {
   repNumber?: number;
 };
 
-export type RockyCue = { key: string; line: string };
+export type RockyCue = { key: string; line: string; clip: string };
 
 export function inSegmentSilence(elapsedInMs: number, durationMs: number): boolean {
   if (elapsedInMs <= SILENCE_AFTER_MS) return true;
@@ -60,21 +103,29 @@ export function rockyCue(args: {
   elapsedMs: number;
   segments: RockySegment[];
   fired: ReadonlySet<string>;
+  /** Session offset. Defaults to the first take so a missing clock still speaks. */
+  salt?: number;
 }): RockyCue | null {
-  const { elapsedMs, segments, fired } = args;
+  const { elapsedMs, segments, fired, salt = 0 } = args;
   let acc = 0;
+  let hardOrdinal = 0;
+  let easyOrdinal = 0;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const start = acc;
     const end = acc + seg.durationMs;
     acc = end;
+    const thisHard = hardOrdinal;
+    const thisEasy = easyOrdinal;
+    if (seg.kind === 'hard') hardOrdinal += 1;
+    if (seg.kind === 'easy') easyOrdinal += 1;
     if (elapsedMs < start || elapsedMs >= end) continue;
 
     const elapsedIn = elapsedMs - start;
     if (inSegmentSilence(elapsedIn, seg.durationMs)) return null;
 
     if (elapsedMs > SILENCE_AFTER_MS && elapsedMs <= 1800 && !fired.has('welcome')) {
-      return { key: 'welcome', line: ROCKY_WELCOME };
+      return { key: 'welcome', line: ROCKY_WELCOME, clip: 'welcome' };
     }
 
     if (
@@ -83,7 +134,8 @@ export function rockyCue(args: {
       elapsedIn < 12_000 &&
       !fired.has(`hard:${seg.id}`)
     ) {
-      return { key: `hard:${seg.id}`, line: ROCKY_HARD };
+      const take = hardTake(thisHard, salt);
+      return { key: `hard:${seg.id}`, line: take.line, clip: take.clip };
     }
 
     if (
@@ -92,12 +144,15 @@ export function rockyCue(args: {
       elapsedIn <= 3000 &&
       !fired.has(`easy:${seg.id}`)
     ) {
-      return { key: `easy:${seg.id}`, line: ROCKY_EASY };
+      const take = easyTake(thisEasy, salt);
+      if (!take) return null;
+      return { key: `easy:${seg.id}`, line: take.line, clip: take.clip };
     }
 
     const last = lastMainIndex(segments);
     if (last >= 0 && i === last + 1 && elapsedIn > SILENCE_AFTER_MS && elapsedIn <= 2200 && !fired.has('finish')) {
-      return { key: 'finish', line: ROCKY_FINISH };
+      const take = finishTake();
+      return { key: 'finish', line: take.line, clip: take.clip };
     }
 
     return null;

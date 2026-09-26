@@ -10,13 +10,17 @@ type Props = {
   color: string;
   paused?: boolean;
   reduceMotion?: boolean;
+  /** Increments when the last easy of a set opens the rest. One fill, then the rail is quiet. */
+  flash?: number;
 };
 
 /** The current interval, filling while the clock runs. Big jumps glide. */
-export function SegmentRail({ progress, color, paused = false, reduceMotion = false }: Props) {
+export function SegmentRail({ progress, color, paused = false, reduceMotion = false, flash = 0 }: Props) {
   const width = useRef(new Animated.Value(clamp(progress))).current;
   const life = useRef(new Animated.Value(0)).current;
+  const hit = useRef(new Animated.Value(0)).current;
   const last = useRef(progress);
+  const flashSeen = useRef<number | null>(null);
 
   useEffect(() => {
     const next = clamp(progress);
@@ -44,11 +48,25 @@ export function SegmentRail({ progress, color, paused = false, reduceMotion = fa
     return () => loop.stop();
   }, [life, paused, reduceMotion]);
 
+  useEffect(() => {
+    if (flashSeen.current === flash) return;
+    const first = flashSeen.current === null;
+    flashSeen.current = flash;
+    if (reduceMotion || (first && flash === 0)) {
+      hit.setValue(0);
+      return;
+    }
+    hit.setValue(1);
+    Animated.timing(hit, { toValue: 0, duration: 220, useNativeDriver: native }).start();
+  }, [flash, hit, reduceMotion]);
+
   const pct = width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
   const head = life.interpolate({ inputRange: [0, 1], outputRange: paused ? [0.35, 0.55] : [0.55, 1] });
 
+  const flashOpacity = hit.interpolate({ inputRange: [0, 1], outputRange: [0, 0.92] });
+
   return (
-    <View style={styles.track}>
+    <Animated.View style={styles.track}>
       <Animated.View style={[styles.fill, { width: pct, backgroundColor: color, opacity: paused ? 0.45 : 1 }]}>
         <Animated.View style={[styles.head, { opacity: head }]}>
           <LinearGradient
@@ -59,7 +77,8 @@ export function SegmentRail({ progress, color, paused = false, reduceMotion = fa
           />
         </Animated.View>
       </Animated.View>
-    </View>
+      <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flashOpacity }]} />
+    </Animated.View>
   );
 }
 
@@ -90,4 +109,12 @@ const styles = StyleSheet.create({
     width: 36,
   },
   headFill: { flex: 1 },
+  flash: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+  },
 });

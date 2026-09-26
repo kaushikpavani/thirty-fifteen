@@ -11,8 +11,10 @@ import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
+import { roundWon, varietySalt } from '../audio/spirit';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors, phaseColor, phaseLabel } from '../theme/colors';
+import { finishBloom, finishTitle } from '../workout/craft';
 import { formatClock } from '../workout/builder';
 
 const nativeMotion = Platform.OS !== 'web';
@@ -25,17 +27,32 @@ export function ActiveScreen() {
   const reduceMotion = useReduceMotion();
   const savedRef = useRef<number | null>(null);
   const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
+  const [won, setWon] = useState(0);
+  const prevKind = useRef<string | null>(null);
 
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
-  const accent = phaseColor(kind);
+  const salt = varietySalt(state.startedAt);
+  const hardOrdinal = hardOrdinalAt(state.workout.segments, state.segmentIndex);
+  const accent = phaseColor(kind, hardOrdinal, salt);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
   const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
   const heroSize = Math.min(160, Math.round(width * 0.4));
   const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
+
+  useEffect(() => {
+    if (state.status === 'idle') {
+      prevKind.current = null;
+      setWon(0);
+      return;
+    }
+    const previous = prevKind.current;
+    prevKind.current = kind;
+    if (roundWon(previous, kind)) setWon((value) => value + 1);
+  }, [kind, seg?.id, state.status]);
 
   useEffect(() => {
     if (!engine.armedRef.current) router.replace('/home');
@@ -130,12 +147,23 @@ export function ActiveScreen() {
   }
 
   if (state.status === 'finished') {
+    const bloom = finishBloom(varietySalt(state.startedAt));
     return (
       <Screen bottom>
+        <Atmosphere
+          color={bloom.warm ? colors.go : colors.hard}
+          heat="hot"
+          punch={1}
+          bloomMs={bloom.ms}
+          pulses={bloom.pulses}
+          still
+          reduceMotion={reduceMotion}
+        />
+        <SegmentRail progress={1} color={colors.go} reduceMotion={reduceMotion} />
         <View style={styles.done}>
-          <Text style={styles.doneTitle}>Done.</Text>
+          <FinishTitle title={finishTitle(varietySalt(state.startedAt))} reduceMotion={reduceMotion} />
           <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
-          <PrimaryButton label="Home" onPress={leave} testID="done-home" />
+          <PrimaryButton label="Done" onPress={leave} testID="done" />
           <FinishMeter />
         </View>
       </Screen>
@@ -148,8 +176,19 @@ export function ActiveScreen() {
 
   return (
     <Screen bottom>
-      <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
-      <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
+      <Atmosphere
+        color={accent}
+        paused={paused}
+        heat={cool ? 'cool' : 'hot'}
+        reduceMotion={reduceMotion}
+      />
+      <SegmentRail
+        progress={segmentProgress}
+        color={accent}
+        paused={paused}
+        flash={won}
+        reduceMotion={reduceMotion}
+      />
       <View style={styles.body}>
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
         <DigitClock
@@ -375,6 +414,23 @@ function PauseResume({
   );
 }
 
+function FinishTitle({ title, reduceMotion }: { title: string; reduceMotion: boolean }) {
+  const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.94)).current;
+  const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0.35)).current;
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    Animated.parallel([
+      Animated.timing(scale, { toValue: 1, duration: 460, useNativeDriver: nativeMotion }),
+      Animated.timing(opacity, { toValue: 1, duration: 380, useNativeDriver: nativeMotion }),
+    ]).start();
+  }, [opacity, reduceMotion, scale]);
+
+  return (
+    <Animated.Text style={[styles.doneTitle, { opacity, transform: [{ scale }] }]}>{title}</Animated.Text>
+  );
+}
+
 function FinishMeter() {
   const meter = usePowerMeter();
   const [open, setOpen] = useState(false);
@@ -418,6 +474,13 @@ function FinishMeter() {
       ) : null}
     </View>
   );
+}
+
+function hardOrdinalAt(segments: { kind: string }[], index: number): number {
+  let count = 0;
+  const end = Math.min(Math.max(0, index), segments.length);
+  for (let i = 0; i < end; i++) if (segments[i]?.kind === 'hard') count += 1;
+  return count;
 }
 
 const styles = StyleSheet.create({
