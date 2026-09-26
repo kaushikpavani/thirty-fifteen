@@ -1,29 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '../theme/colors';
 
 const native = Platform.OS !== 'web';
-const BREATH_MS = 4000;
 
 type Props = {
   variant?: 'ride' | 'rest';
-  /** Phase color. The wash stays behind the countdown, about 8–12% at its brightest. */
+  /** Solid phase color. The glow falls off before it reaches the type. */
   color?: string;
   paused?: boolean;
+  /** Easy and rest breathe slower and a notch quieter than hard. */
+  heat?: 'hot' | 'cool';
   reduceMotion?: boolean;
 };
 
 /**
- * Near-black field with one soft radial. It breathes on opacity only.
- * Phase color crossfades. It does not follow audio or watts.
+ * Light under the hero. A radial pool breathes and crossfades with the phase.
+ * The brightest part sits below the countdown so the number stays sharp.
  */
 export function Atmosphere({
   variant = 'ride',
   color = '#FFD60A',
   paused = false,
+  heat = 'hot',
   reduceMotion = false,
 }: Props) {
-  const breath = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const breath = useRef(new Animated.Value(0)).current;
   const aOpacity = useRef(new Animated.Value(1)).current;
   const bOpacity = useRef(new Animated.Value(0)).current;
   const [aColor, setAColor] = useState(color);
@@ -35,21 +39,22 @@ export function Atmosphere({
       breath.setValue(1);
       return;
     }
+    const half = paused ? 6200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4600 : 3000;
     const easing = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breath, { toValue: 1, duration: BREATH_MS, easing, useNativeDriver: native }),
-        Animated.timing(breath, { toValue: 0, duration: BREATH_MS, easing, useNativeDriver: native }),
+        Animated.timing(breath, { toValue: 1, duration: half, easing, useNativeDriver: native }),
+        Animated.timing(breath, { toValue: 0, duration: half, easing, useNativeDriver: native }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, reduceMotion]);
+  }, [breath, heat, paused, reduceMotion, variant]);
 
   useEffect(() => {
     const current = front.current === 'a' ? aColor : bColor;
     if (color === current) return;
-    const duration = reduceMotion ? 0 : 360;
+    const duration = reduceMotion ? 0 : 300;
     if (front.current === 'a') {
       setBColor(color);
       front.current = 'b';
@@ -67,14 +72,23 @@ export function Atmosphere({
     }
   }, [aColor, aOpacity, bColor, bOpacity, color, reduceMotion]);
 
+  const scale = breath.interpolate({
+    inputRange: [0, 1],
+    outputRange: reduceMotion || paused ? [1, 1] : [1, heat === 'cool' ? 1.05 : 1.08],
+  });
   const presence = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: reduceMotion ? [1, 1] : paused ? [0.7, 0.7] : [0.72, 1],
+    outputRange: paused ? [0.55, 0.72] : heat === 'cool' ? [0.7, 0.9] : [0.86, 1],
   });
 
   return (
     <View pointerEvents="none" style={styles.fill}>
-      <Animated.View style={[styles.fill, { opacity: presence }]}>
+      <LinearGradient
+        colors={['rgba(255,255,255,0.04)', 'rgba(7,7,8,0)', colors.bg] as [string, string, string]}
+        locations={[0, 0.55, 1] as [number, number, number]}
+        style={styles.fill}
+      />
+      <Animated.View style={[styles.fill, { opacity: presence, transform: [{ scale }] }]}>
         {variant === 'rest' ? (
           <RestLight />
         ) : (
@@ -96,9 +110,9 @@ function PhaseLight({ color, id }: { color: string; id: string }) {
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id={id} cx="50%" cy="46%" rx="62%" ry="42%">
-          <Stop offset="0" stopColor={color} stopOpacity="0.12" />
-          <Stop offset="0.55" stopColor={color} stopOpacity="0.05" />
+        <RadialGradient id={id} cx="50%" cy="58%" rx="72%" ry="52%">
+          <Stop offset="0" stopColor={color} stopOpacity="0.78" />
+          <Stop offset="0.4" stopColor={color} stopOpacity="0.34" />
           <Stop offset="1" stopColor={color} stopOpacity="0" />
         </RadialGradient>
       </Defs>
@@ -111,13 +125,19 @@ function RestLight() {
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id="rest-warm" cx="50%" cy="38%" rx="58%" ry="40%">
-          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.14" />
-          <Stop offset="0.5" stopColor="#FF9F0A" stopOpacity="0.05" />
+        <RadialGradient id="rest-warm" cx="18%" cy="36%" rx="70%" ry="48%">
+          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.9" />
+          <Stop offset="0.42" stopColor="#FF9F0A" stopOpacity="0.38" />
           <Stop offset="1" stopColor="#FF9F0A" stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="rest-cool" cx="92%" cy="62%" rx="56%" ry="42%">
+          <Stop offset="0" stopColor="#64D2FF" stopOpacity="0.7" />
+          <Stop offset="0.46" stopColor="#64D2FF" stopOpacity="0.26" />
+          <Stop offset="1" stopColor="#64D2FF" stopOpacity="0" />
         </RadialGradient>
       </Defs>
       <Rect x="0" y="0" width="100%" height="100%" fill="url(#rest-warm)" />
+      <Rect x="0" y="0" width="100%" height="100%" fill="url(#rest-cool)" />
     </Svg>
   );
 }

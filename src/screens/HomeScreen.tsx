@@ -69,7 +69,7 @@ export function HomeScreen() {
         <Text style={styles.tip}>{TIP}</Text>
 
         <View style={styles.goWrap}>
-          <PrimaryButton label="Start" onPress={() => void start()} testID="start" />
+          <PrimaryButton label="Start" alive onPress={() => void start()} testID="start" />
         </View>
 
         <View style={styles.links}>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brand: {
-    color: colors.textDim,
+    color: '#FFB020',
     letterSpacing: 3,
     fontSize: 13,
     fontWeight: '600',

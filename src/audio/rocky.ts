@@ -3,10 +3,10 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = "You're here. That's enough. Let's work.";
-export const ROCKY_HARD = 'Hold it. This is the part that builds you.';
-export const ROCKY_EASY = 'Breathe. Stay ready.';
-export const ROCKY_FINISH = "You showed up and did the hard thing. That's the win.";
+export const ROCKY_WELCOME = "Let's go. Time to get better.";
+export const ROCKY_HARD = 'Dig in — this is the round that builds you.';
+export const ROCKY_EASY = "Yes. Breathe fire. You're not done.";
+export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
 
 /** How long a phase-start chirp or a T−3 warn stays eligible, matching the 100ms tick. */
 export const CLOCK_HIT_MS = 400;

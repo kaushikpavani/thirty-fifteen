@@ -144,10 +144,11 @@ export function ActiveScreen() {
 
   const paused = state.status === 'paused';
   const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
+  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
 
   return (
     <Screen bottom>
-      <Atmosphere color={accent} paused={paused} reduceMotion={reduceMotion} />
+      <Atmosphere color={accent} paused={paused} heat={cool ? 'cool' : 'hot'} reduceMotion={reduceMotion} />
       <SegmentRail progress={segmentProgress} color={accent} paused={paused} reduceMotion={reduceMotion} />
       <View style={styles.body}>
         <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
@@ -156,6 +157,7 @@ export function ActiveScreen() {
           color={colors.text}
           fontSize={fontSize}
           dim={paused}
+          phase={kind}
           reduceMotion={reduceMotion}
           testID="countdown"
         />
@@ -347,7 +349,7 @@ function PauseResume({
 
   const backgroundColor = fill.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0)', colors.white],
+    outputRange: ['rgba(255,255,255,0)', colors.go],
   });
   const borderColor = fill.interpolate({
     inputRange: [0, 1],

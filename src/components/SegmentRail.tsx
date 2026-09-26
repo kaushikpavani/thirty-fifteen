@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const native = Platform.OS !== 'web';
 
 type Props = {
   /** 0–1 through the current segment. */
@@ -9,9 +12,10 @@ type Props = {
   reduceMotion?: boolean;
 };
 
-/** Thin fill for the current interval. No head, dots, or badges. */
-export function SegmentRail({ progress, color, paused = false }: Props) {
+/** The current interval, filling while the clock runs. Big jumps glide. */
+export function SegmentRail({ progress, color, paused = false, reduceMotion = false }: Props) {
   const width = useRef(new Animated.Value(clamp(progress))).current;
+  const life = useRef(new Animated.Value(0)).current;
   const last = useRef(progress);
 
   useEffect(() => {
@@ -25,11 +29,36 @@ export function SegmentRail({ progress, color, paused = false }: Props) {
     }
   }, [progress, width]);
 
+  useEffect(() => {
+    if (reduceMotion) {
+      life.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(life, { toValue: 1, duration: paused ? 1800 : 1100, useNativeDriver: native }),
+        Animated.timing(life, { toValue: 0, duration: paused ? 1800 : 1100, useNativeDriver: native }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [life, paused, reduceMotion]);
+
   const pct = width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const head = life.interpolate({ inputRange: [0, 1], outputRange: paused ? [0.35, 0.55] : [0.55, 1] });
 
   return (
     <View style={styles.track}>
-      <Animated.View style={[styles.fill, { width: pct, backgroundColor: color, opacity: paused ? 0.45 : 0.85 }]} />
+      <Animated.View style={[styles.fill, { width: pct, backgroundColor: color, opacity: paused ? 0.45 : 1 }]}>
+        <Animated.View style={[styles.head, { opacity: head }]}>
+          <LinearGradient
+            colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.9)'] as [string, string]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.headFill}
+          />
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -41,15 +70,24 @@ function clamp(value: number): number {
 
 const styles = StyleSheet.create({
   track: {
-    height: 2,
+    height: 4,
     marginHorizontal: 28,
-    marginTop: 12,
+    marginTop: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     overflow: 'hidden',
   },
   fill: {
-    height: 2,
+    height: 4,
     borderRadius: 999,
+    overflow: 'hidden',
   },
+  head: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 36,
+  },
+  headFill: { flex: 1 },
 });
