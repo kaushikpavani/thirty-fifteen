@@ -65,7 +65,7 @@ export function HomeScreen() {
         <Text style={styles.tip}>{TIP}</Text>
 
         <View style={styles.goWrap}>
-          <PrimaryButton label="GO" onPress={() => void start()} testID="go" />
+          <PrimaryButton label="Start" onPress={() => void start()} testID="start" />
         </View>
 
         <View style={styles.links}>

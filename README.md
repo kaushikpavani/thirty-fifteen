@@ -1,8 +1,8 @@
-# 30/15 Coach
+# 30/15
 
 Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on the workout screen, spoken cues a beat early, and targets from your FTP.
 
-**App name:** 30/15 Coach  
+**App name:** 30/15  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
 ---
@@ -36,13 +36,13 @@ Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go 
 - **HARD** = 120% FTP → **150 W**
 - **EASY** = 50% FTP → **63 W**
 
-A saved FTP is left alone. A fresh install starts at 125 W. Open the app and press **GO**. That is the start. There is no sign-in before the first hard interval.
+A saved FTP is left alone. A fresh install starts at 125 W. Open the app and press **Start**. There is no sign-in before the first hard interval.
 
 ---
 
 ## Start
 
-The first screen is home: FTP, the hard and easy targets, and **GO**. No account, no name, no streak. Settings holds the structure, spoken cues, past sessions, and an optional note.
+The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, spoken cues, past sessions, and an optional note.
 
 ## History
 
