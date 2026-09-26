@@ -15,11 +15,15 @@ The phone is the source of truth. Airplane mode still runs a complete session.
 - Strava, Garmin, and BLE imports are optional and not part of this build. The coach does not call them to run a workout.
 - An account is optional. There is no login wall before Start.
 
+Not signed in, history, FTP, settings, and the outboxes live on this phone. Start does not ask for an account or a network. Finished sessions stay here until you sign in.
+
+Signed in, the profile and finished sessions copy to this app's Supabase project when the phone is online. Queued notes and analytics can flush when the project is configured, signed in or not. A miss stays queued. The ride still does not wait.
+
 FTP saved on the phone is what the ride uses. A profile in Supabase is only a copy.
 
 ## Free
 
-This coach is free. There is no Pro tier, no paywall, and no in-app purchase. The point is the ride.
+This coach is free. Forever. There is no Pro tier, no paywall, no entitlement check, and no in-app purchase. The point is the ride.
 
 ---
 

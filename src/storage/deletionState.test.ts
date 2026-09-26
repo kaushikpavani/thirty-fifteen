@@ -112,6 +112,31 @@ test('the readme states the offline, deletion, and free-tool locks', () => {
   assert.match(readme, /Do not use the BioAge project/);
   assert.match(readme, /phone is the source of truth/i);
   assert.match(readme, /This coach is free/);
+  assert.match(readme, /Forever/);
   assert.match(readme, /Delete workout history/);
   assert.match(readme, /npm test/);
+  assert.match(readme, /no paywall/i);
+  assert.match(readme, /no in-app purchase/i);
+  assert.match(readme, /no login wall/i);
+  assert.match(readme, /Not signed in/);
+  assert.match(readme, /Signed in/);
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+  for (const name of names) {
+    assert.equal(/revenuecat|in-app-purchase|expo-iap|purchases/i.test(name), false, name);
+  }
+  const screens = fs.readdirSync(path.join(root, 'src/screens'));
+  for (const file of screens) {
+    const text = fs.readFileSync(path.join(root, 'src/screens', file), 'utf8');
+    assert.doesNotMatch(text, /paywall|upgrade to|pro tier|in-app purchase/i, file);
+  }
+  const sql = ['20260926120000_foundation.sql', '20260926143000_offline_outbox.sql', '20260926160000_deletion.sql']
+    .map((name) => fs.readFileSync(path.join(root, 'supabase/migrations', name), 'utf8'))
+    .join('\n');
+  assert.match(sql, /Signed out, history stays on the phone/);
+  assert.match(sql, /There is no entitlement, subscription, or purchase/);
+  assert.doesNotMatch(sql, /create table[^;]{0,120}(purchase|entitlement|subscription)/i);
 });

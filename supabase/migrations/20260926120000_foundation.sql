@@ -9,6 +9,10 @@
 -- The phone is the source of truth. These tables are a best-effort copy.
 -- A ride does not read them to start, keep time, speak, or play music.
 --
+-- Signed out, history stays on the phone. Signed in, profiles, sessions, and
+-- events may copy here. There is no entitlement, subscription, or purchase
+-- table. The coach is free.
+--
 -- After it succeeds, copy the project URL and publishable (anon) key into
 -- .env.local as EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 -- then restart Expo. Riders can start a workout with no account. Row level
