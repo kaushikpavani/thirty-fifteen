@@ -154,7 +154,9 @@ export function ActiveScreen() {
         <View style={[styles.progressFill, { width: `${Math.round(state.progress01 * 100)}%`, backgroundColor: accent }]} />
       </View>
       <View style={styles.body}>
-        <Text style={[styles.phase, { color: accent }]}>{phaseLabel(kind)}</Text>
+        <Text style={[styles.phase, { color: accent }]} testID="phase">
+          {phaseLabel(kind)}
+        </Text>
         <Animated.Text
           style={[
             styles.clock,
@@ -267,6 +269,7 @@ function TransportChip({
       accessibilityRole="button"
       accessibilityLabel={hint}
       onPress={onPress}
+      hitSlop={8}
       testID={testID}
       style={({ pressed }) => [styles.transportChip, pressed && styles.transportChipPressed]}
     >
