@@ -8,6 +8,7 @@ const bedModules = {
 type Player = {
   volume: number;
   loop: boolean;
+  paused: boolean;
   play: () => void;
   pause: () => void;
   seekTo: (seconds: number) => Promise<void>;
@@ -180,6 +181,14 @@ export function syncMusic(kind: string, musicEnabled: boolean): void {
     return;
   }
   applyVolume();
+  // A Start-tap play() can be rejected before the file is ready. Retry while
+  // the element is still paused; never call play() on a bed that is already running.
+  const player = players[active];
+  if (player?.paused) {
+    swallowPlay(() => {
+      player.play();
+    });
+  }
 }
 
 export function pauseMusic(): void {

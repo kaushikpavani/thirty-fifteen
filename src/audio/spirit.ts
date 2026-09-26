@@ -14,7 +14,8 @@ export const BED_VOLUME: Record<MusicBed, number> = {
 /** Hard duck. Speech and beeps stay in front of the bed. */
 export const DUCK_GAIN = 0.08;
 export const BEEP_DUCK_MS = 340;
-export const COUNT_DUCK_MS = 640;
+/** Long enough that three, two, and one keep the bed down as one phrase. */
+export const COUNT_DUCK_MS = 1200;
 
 const COUNT_AT_MS: Record<CountWord, number> = {
   three: 3000,
