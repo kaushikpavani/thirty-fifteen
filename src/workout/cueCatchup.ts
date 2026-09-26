@@ -43,6 +43,14 @@ export type DueRocky = {
 
 export type DueCue = DueChirp | DueWarn | DueLadder | DueRocky;
 
+/** Mark a cue played. False when that key is already in the set, so it cannot speak twice. */
+export function takeCue(firedClock: Set<string>, firedRocky: Set<string>, cue: DueCue): boolean {
+  const bucket = cue.type === 'rocky' ? firedRocky : firedClock;
+  if (bucket.has(cue.key)) return false;
+  bucket.add(cue.key);
+  return true;
+}
+
 type Window = { start: number; end: number };
 
 /** (from, to] crosses [start, end). `from` was already delivered. */
