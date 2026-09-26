@@ -1,14 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Animated, Easing, Platform, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { colors } from '../theme/colors';
 
@@ -88,11 +79,11 @@ export function PrimaryButton({
       then?.();
       return;
     }
-    Animated.spring(scale, {
+    Animated.timing(scale, {
       toValue: to,
+      duration: 150,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: native,
-      speed: to < 1 ? 48 : 28,
-      bounciness: to < 1 ? 0 : 4,
     }).start(({ finished }) => {
       if (finished) then?.();
     });

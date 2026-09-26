@@ -27,7 +27,7 @@ export function Atmosphere({
   heat = 'hot',
   reduceMotion = false,
 }: Props) {
-  const breath = useRef(new Animated.Value(0)).current;
+  const breath = useRef(new Animated.Value(1)).current;
   const aOpacity = useRef(new Animated.Value(1)).current;
   const bOpacity = useRef(new Animated.Value(0)).current;
   const [aColor, setAColor] = useState(color);
@@ -39,7 +39,7 @@ export function Atmosphere({
       breath.setValue(1);
       return;
     }
-    const half = paused ? 6200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4600 : 3000;
+    const half = paused ? 5200 : variant === 'rest' ? 3000 : heat === 'cool' ? 4400 : 2800;
     const easing = Easing.inOut(Easing.sin);
     const loop = Animated.loop(
       Animated.sequence([
@@ -78,7 +78,7 @@ export function Atmosphere({
   });
   const presence = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: paused ? [0.55, 0.72] : heat === 'cool' ? [0.7, 0.9] : [0.86, 1],
+    outputRange: reduceMotion ? [1, 1] : paused ? [0.75, 0.75] : heat === 'cool' ? [0.8, 1] : [0.82, 1],
   });
 
   return (
@@ -94,10 +94,10 @@ export function Atmosphere({
         ) : (
           <>
             <Animated.View style={[styles.fill, { opacity: aOpacity }]} pointerEvents="none">
-              <PhaseLight color={aColor} id="phase-a" />
+              <PhaseLight color={aColor} id="phase-a" heat={heat} />
             </Animated.View>
             <Animated.View style={[styles.fill, { opacity: bOpacity }]} pointerEvents="none">
-              <PhaseLight color={bColor} id="phase-b" />
+              <PhaseLight color={bColor} id="phase-b" heat={heat} />
             </Animated.View>
           </>
         )}
@@ -106,13 +106,15 @@ export function Atmosphere({
   );
 }
 
-function PhaseLight({ color, id }: { color: string; id: string }) {
+function PhaseLight({ color, id, heat }: { color: string; id: string; heat: 'hot' | 'cool' }) {
+  const core = heat === 'cool' ? '0.24' : '0.35';
+  const mid = heat === 'cool' ? '0.11' : '0.16';
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id={id} cx="50%" cy="58%" rx="72%" ry="52%">
-          <Stop offset="0" stopColor={color} stopOpacity="0.78" />
-          <Stop offset="0.4" stopColor={color} stopOpacity="0.34" />
+        <RadialGradient id={id} cx="50%" cy="52%" rx="78%" ry="58%">
+          <Stop offset="0" stopColor={color} stopOpacity={core} />
+          <Stop offset="0.45" stopColor={color} stopOpacity={mid} />
           <Stop offset="1" stopColor={color} stopOpacity="0" />
         </RadialGradient>
       </Defs>
@@ -125,9 +127,9 @@ function RestLight() {
   return (
     <Svg width="100%" height="100%">
       <Defs>
-        <RadialGradient id="rest-warm" cx="18%" cy="36%" rx="70%" ry="48%">
-          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.9" />
-          <Stop offset="0.42" stopColor="#FF9F0A" stopOpacity="0.38" />
+        <RadialGradient id="rest-warm" cx="46%" cy="40%" rx="78%" ry="56%">
+          <Stop offset="0" stopColor="#FFB020" stopOpacity="0.95" />
+          <Stop offset="0.42" stopColor="#FF9F0A" stopOpacity="0.42" />
           <Stop offset="1" stopColor="#FF9F0A" stopOpacity="0" />
         </RadialGradient>
         <RadialGradient id="rest-cool" cx="92%" cy="62%" rx="56%" ry="42%">
