@@ -85,7 +85,7 @@ export function workoutDeviceForeignKey(message: string): boolean {
 export function workoutRowsForRetry(
   rows: WorkoutSessionWrite[],
   message: string,
-): Array<WorkoutSessionWrite | LegacyWorkoutSessionWrite | Omit<WorkoutSessionWrite, 'summary'>> | null {
+): (WorkoutSessionWrite | LegacyWorkoutSessionWrite | Omit<WorkoutSessionWrite, 'summary'>)[] | null {
   if (cloudExtensionMissing(message)) {
     if (/device_id|source|external_id/i.test(message)) return rows.map(legacyWorkoutSessionWrite);
     if (/summary/i.test(message)) return rows.map(omitSessionSummary);

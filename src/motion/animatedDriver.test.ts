@@ -51,13 +51,13 @@ test('color and the opacity fade are different style objects', () => {
   assert.equal('opacity' in slots.shell, false);
 });
 
-test('the pause control renders those three hosts instead of one mixed text node', () => {
-  const source = readFileSync('src/screens/ActiveScreen.tsx', 'utf8');
-  const block = source.slice(source.indexOf('function PauseResume'), source.indexOf('function FinishTitle'));
-  assert.equal(block.includes('color: textColor, opacity: textOpacity'), false);
-  assert.match(block, /style=\{\[styles\.pauseShell, motion\.shell\]\}/);
-  assert.match(block, /style=\{motion\.fade\}/);
-  assert.match(block, /style=\{\[styles\.pauseLabel, motion\.label\]\}/);
+test('hold-to-end animates width on the JS driver only; the pause glass has no animated color', () => {
+  const source = readFileSync('src/components/ride/Controls.tsx', 'utf8');
+  const hold = source.slice(source.indexOf('export function HoldToEnd'), source.indexOf('export function StatTriplet'));
+  assert.equal(/useNativeDriver: true|useNativeDriver: native/.test(hold), false);
+  assert.match(hold, /useNativeDriver: false/);
+  const glass = source.slice(source.indexOf('export function PauseGlass'), source.indexOf('export function HoldToEnd'));
+  assert.equal(/interpolate/.test(glass), false);
 });
 
 /**
@@ -65,53 +65,31 @@ test('the pause control renders those three hosts instead of one mixed text node
  * component. Phase color is a plain string on its own layer, not a binding.
  */
 const activeRide: AnimatedHost[] = [
+  { id: 'field-fade', bindings: [{ value: 'fade', props: ['opacity'], driver: 'native' }] },
+  { id: 'field-shade', bindings: [{ value: 'shade', props: ['transform'], driver: 'native' }] },
+  { id: 'field-rise', bindings: [{ value: 'riseValue', props: ['transform'], driver: 'native' }] },
   {
-    id: 'transport',
+    id: 'phase-word',
     bindings: [
-      { value: 'open', props: ['opacity'], driver: 'native' },
-      { value: 'open', props: ['transform'], driver: 'native' },
+      { value: 'o', props: ['opacity'], driver: 'native' },
+      { value: 'y', props: ['transform'], driver: 'native' },
     ],
   },
+  { id: 'count-in', bindings: [{ value: 'scale', props: ['transform'], driver: 'native' }] },
+  { id: 'press-scale', bindings: [{ value: 'pressScale', props: ['transform'], driver: 'native' }] },
+  { id: 'hold-fill', bindings: [{ value: 'fill', props: ['width'], driver: 'js' }] },
   {
     id: 'finish-title',
     bindings: [
-      { value: 'opacity', props: ['opacity'], driver: 'native' },
-      { value: 'scale', props: ['transform'], driver: 'native' },
+      { value: 'rise', props: ['opacity'], driver: 'native' },
+      { value: 'rise', props: ['transform'], driver: 'native' },
     ],
   },
-  {
-    id: 'atmosphere-breath',
-    bindings: [
-      { value: 'breath', props: ['opacity'], driver: 'native' },
-      { value: 'breath', props: ['transform'], driver: 'native' },
-    ],
-  },
-  { id: 'atmosphere-phase-a', bindings: [{ value: 'aOpacity', props: ['opacity'], driver: 'native' }] },
-  { id: 'atmosphere-phase-b', bindings: [{ value: 'bOpacity', props: ['opacity'], driver: 'native' }] },
-  {
-    id: 'atmosphere-burst',
-    bindings: [
-      { value: 'burst', props: ['opacity'], driver: 'native' },
-      { value: 'burst', props: ['transform'], driver: 'native' },
-    ],
-  },
-  { id: 'rail-fill', bindings: [{ value: 'width', props: ['width'], driver: 'js' }] },
-  { id: 'rail-head', bindings: [{ value: 'life', props: ['opacity'], driver: 'native' }] },
-  { id: 'rail-flash', bindings: [{ value: 'hit', props: ['opacity'], driver: 'native' }] },
-  {
-    id: 'digit',
-    bindings: [
-      { value: 'opacity', props: ['opacity'], driver: 'native' },
-      { value: 'shift', props: ['transform'], driver: 'native' },
-    ],
-  },
-  { id: 'clock', bindings: [{ value: 'scale', props: ['transform'], driver: 'native' }] },
-  { id: 'phase-label', bindings: [{ value: 'opacity', props: ['opacity'], driver: 'native' }] },
 ];
 
 test('the rest of the active ride does not mix drivers on one node', () => {
   assert.deepEqual(driverConflicts(activeRide), []);
-  assert.equal(valuesPromotedToNative(activeRide, 'life').includes('width'), false);
-  assert.equal(valuesPromotedToNative(activeRide, 'breath').includes('aOpacity'), false);
+  assert.equal(valuesPromotedToNative(activeRide, 'fill').includes('width'), false);
+  assert.equal(valuesPromotedToNative(activeRide, 'fade').includes('shade'), false);
   assert.deepEqual(driverConflicts(activeRide.map((host) => ({ ...host, bindings: host.bindings.map((binding) => ({ ...binding, driver: 'js' as const })) }))), []);
 });

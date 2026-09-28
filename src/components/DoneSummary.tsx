@@ -1,185 +1,202 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path, Polyline } from 'react-native-svg';
+import React, { useEffect } from 'react';
+import { Animated, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useAnimatedValue } from '../hooks/useAnimatedValue';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
+import { useReduceMotion } from '../hooks/useReduceMotion';
+import { ink, radius, type } from '../theme/tokens';
 import type { RideSummary } from '../types';
-import { formatClock } from '../workout/builder';
+import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
+import { clockText } from '../logic/rideView';
+import { Icon } from './kit/Icon';
+import { Pill } from './kit/Pill';
+import { BIKE_TONES, RoadBike, RoadStream } from './bike/RoadBike';
 
-function Icon({ name, color }: { name: 'heart' | 'flame' | 'ring' | 'check' | 'timer' | 'bolt'; color: string }) {
+const native = Platform.OS !== 'web';
+const WEEKDAY = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+type Stat = { label: string; value: string; unit: string };
+
+export function doneStats(summary: RideSummary): Stat[] {
+  const out: Stat[] = [];
+  if (summary.avgHardWatts != null) out.push({ label: 'Hard avg', value: String(summary.avgHardWatts), unit: 'W' });
+  if (summary.avgEasyWatts != null) out.push({ label: 'Easy avg', value: String(summary.avgEasyWatts), unit: 'W' });
+  if (summary.workKj != null) out.push({ label: 'Work', value: String(summary.workKj), unit: 'kJ' });
+  if (summary.avgBpm != null) out.push({ label: 'Avg heart', value: String(summary.avgBpm), unit: 'bpm' });
+  if (summary.maxBpm != null) out.push({ label: 'Max heart', value: String(summary.maxBpm), unit: 'bpm' });
+  if (summary.avgHardWatts == null) out.push({ label: 'In HARD', value: clockText(summary.hardMs), unit: '' });
+  out.push({ label: 'Time', value: clockText(summary.durationMs), unit: '' });
+  return out;
+}
+
+/** Two soft lights, ember and glacier, that bloom once behind the title. */
+function Bloom({ width }: { width: number }) {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      {name === 'heart' ? (
-        <Path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z" fill={color} />
-      ) : null}
-      {name === 'flame' ? <Path d="M12 2s6 6 6 11a6 6 0 1 1-12 0c0-2 2-4 2-4s0 3 2 3 2-10 2-10z" fill={color} /> : null}
-      {name === 'ring' ? (
-        <>
-          <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth="2.4" fill="none" />
-          <Path d="M12 12 L12 6" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
-        </>
-      ) : null}
-      {name === 'check' ? (
-        <>
-          <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth="2" fill="none" />
-          <Path d="M8 12.5 11 15.5 16.5 9" stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" />
-        </>
-      ) : null}
-      {name === 'timer' ? (
-        <>
-          <Circle cx="12" cy="13" r="7" stroke={color} strokeWidth="2" fill="none" />
-          <Path d="M12 13 V9 M9 4 H15" stroke={color} strokeWidth="2" strokeLinecap="round" />
-        </>
-      ) : null}
-      {name === 'bolt' ? <Path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" fill={color} /> : null}
+    <Svg width={width} height={420} style={styles.bloom} pointerEvents="none">
+      <Defs>
+        <RadialGradient id="doneEmber" cx="50%" cy="50%" rx="50%" ry="50%">
+          <Stop offset="0" stopColor="#FF5A1F" stopOpacity={0.42} />
+          <Stop offset="1" stopColor="#FF5A1F" stopOpacity={0} />
+        </RadialGradient>
+        <RadialGradient id="doneGlacier" cx="50%" cy="50%" rx="50%" ry="50%">
+          <Stop offset="0" stopColor="#5CC8E6" stopOpacity={0.26} />
+          <Stop offset="1" stopColor="#5CC8E6" stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Ellipse cx={width * 0.3} cy={30} rx={200} ry={220} fill="url(#doneEmber)" />
+      <Ellipse cx={width * 0.85} cy={60} rx={180} ry={200} fill="url(#doneGlacier)" />
     </Svg>
   );
 }
 
-function Stat({
-  label,
-  value,
-  unit,
-  icon,
-  tint,
-  testID,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  icon: 'heart' | 'flame' | 'ring' | 'check' | 'timer' | 'bolt';
-  tint: string;
-  testID?: string;
-}) {
+function RepChart({ reps, perSet, target }: { reps: number[]; perSet: number; target: number }) {
+  const height = 96;
+  const lo = Math.min(target, ...reps) * 0.7;
+  const hi = Math.max(target, ...reps);
+  const scale = (w: number) => Math.max(6, Math.round(((w - lo) / Math.max(1, hi - lo)) * (height - 8)));
+  const targetY = scale(target);
   return (
-    <View style={styles.card} testID={testID}>
-      <View style={styles.cardTop}>
-        <Text style={styles.cardLabel}>{label}</Text>
-        <Icon name={icon} color={tint} />
-      </View>
-      <Text style={styles.cardValue}>
-        {value}
-        {unit ? <Text style={styles.cardUnit}> {unit}</Text> : null}
-      </Text>
-    </View>
-  );
-}
-
-function Sparkline({ values, durationMs, avg }: { values: number[]; durationMs: number; avg: number | null }) {
-  if (values.length < 2) return null;
-  const width = 320;
-  const height = 72;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = height - 8 - ((value - min) / span) * (height - 16);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  const mid = formatClock(durationMs / 2);
-  return (
-    <View style={styles.chart} testID="done-sparkline">
-      <View style={styles.chartTop}>
-        <Text style={styles.cardLabel}>Power</Text>
-        {avg != null ? <Text style={styles.chartAvg}>{avg} W</Text> : null}
-      </View>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-        <Polyline points={points} fill="none" stroke="#E7A4FF" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
-      </Svg>
-      <View style={styles.chartAxis}>
-        <Text style={styles.axis}>0:00</Text>
-        <Text style={styles.axis}>{mid}</Text>
-        <Text style={styles.axis}>{formatClock(durationMs)}</Text>
-      </View>
-    </View>
-  );
-}
-
-export function DoneSummary({ summary, onDone }: { summary: RideSummary; onDone: () => void }) {
-  const power = summary.avgWatts != null || summary.sparkline.length > 0;
-  const hr = summary.avgBpm != null;
-  return (
-    <View style={styles.wrap}>
-      <View style={styles.grid}>
-        {power ? (
-          <Stat label="Avg W" value={String(summary.avgWatts ?? '—')} unit="W" icon="heart" tint="#F2A6E0" testID="done-avg-watts" />
-        ) : null}
-        {power ? (
-          <Stat label="Peak W" value={String(summary.peakWatts ?? '—')} unit="W" icon="flame" tint="#E7A4FF" testID="done-peak-watts" />
-        ) : null}
-        <Stat label="Time in HARD" value={formatClock(summary.hardMs)} unit="min" icon="ring" tint="#FF6B8A" testID="done-hard-time" />
-        <Stat label="Time in EASY" value={formatClock(summary.easyMs)} unit="min" icon="ring" tint="#C9A6FF" testID="done-easy-time" />
-        <Stat
-          label="Sets"
-          value={`${summary.setsDone} of ${summary.setsPlanned}`}
-          icon="check"
-          tint="#E7A4FF"
-          testID="done-sets"
+    <View
+      style={[styles.chart, { height }]}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Average power for each hard rep. Target ${target} watts.`}
+    >
+      {reps.map((w, i) => (
+        <View
+          key={i}
+          style={{
+            flex: 1,
+            height: scale(w),
+            borderRadius: 3,
+            backgroundColor: w >= target ? ink.ember : '#B8471F',
+            marginLeft: i > 0 && i % Math.max(1, perSet) === 0 ? 10 : 0,
+          }}
         />
-        <Stat label="Duration" value={formatClock(summary.durationMs)} icon="timer" tint="#D7B4FF" testID="done-duration" />
-        {power ? (
-          <Stat label="Work" value={String(summary.workKj ?? 0)} unit="kJ" icon="bolt" tint="#E7A4FF" testID="done-work" />
+      ))}
+      <View style={[styles.targetLine, { bottom: targetY }]} />
+    </View>
+  );
+}
+
+export function DoneSummary({
+  summary,
+  reps,
+  hardTarget,
+  onDone,
+}: {
+  summary: RideSummary;
+  reps: number;
+  hardTarget: number;
+  onDone: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const reduce = useReduceMotion();
+  const rise = useAnimatedValue(reduce ? 1 : 0);
+
+  useEffect(() => {
+    if (reduce) return;
+    Animated.spring(rise, { toValue: 1, useNativeDriver: native, speed: 6, bounciness: 6 }).start();
+  }, [reduce, rise]);
+
+  const day = WEEKDAY[new Date().getDay()];
+  const complete = summary.setsDone >= summary.setsPlanned;
+  const kicker = `${day} · ${summary.setsDone} × ${reps}${complete ? ' COMPLETE' : ''}`;
+  const repWatts = summary.repWatts ?? [];
+  const stats = doneStats(summary);
+  const titleStyle = {
+    opacity: rise,
+    transform: [
+      { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+      { scale: rise.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+    ],
+  };
+
+  return (
+    <View style={styles.root}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: rise }]} pointerEvents="none">
+        <Bloom width={width} />
+      </Animated.View>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 16) + 8 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.kicker}>{kicker}</Text>
+        <Animated.Text style={[styles.title, titleStyle]} accessibilityRole="header">
+          {FINISH_TITLE}
+        </Animated.Text>
+        <Text style={styles.subtitle}>{FINISH_SUBTITLE}</Text>
+
+        {repWatts.length > 0 ? (
+          <View style={styles.card} testID="done-power">
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>Power, rep by rep</Text>
+              <View style={styles.targetKey}>
+                <View style={styles.targetDash} />
+                <Text style={styles.cardMeta}>Target {hardTarget} W</Text>
+              </View>
+            </View>
+            <RepChart reps={repWatts} perSet={reps} target={hardTarget} />
+          </View>
         ) : null}
-        {power && summary.avgHardWatts != null ? (
-          <Stat label="Hard avg" value={String(summary.avgHardWatts)} unit="W" icon="flame" tint="#FF8AA8" testID="done-hard-watts" />
-        ) : null}
-        {power && summary.avgEasyWatts != null ? (
-          <Stat label="Easy avg" value={String(summary.avgEasyWatts)} unit="W" icon="heart" tint="#C9A6FF" testID="done-easy-watts" />
-        ) : null}
-        {hr ? <Stat label="Avg HR" value={String(summary.avgBpm)} unit="bpm" icon="heart" tint="#FF8AA8" testID="done-avg-hr" /> : null}
-        {hr ? <Stat label="Max HR" value={String(summary.maxBpm ?? '—')} unit="bpm" icon="heart" tint="#FF6B8A" testID="done-max-hr" /> : null}
-        {hr && summary.avgHardBpm != null ? (
-          <Stat label="Hard HR" value={String(summary.avgHardBpm)} unit="bpm" icon="heart" tint="#FF8AA8" testID="done-hard-hr" />
-        ) : null}
-        {hr && summary.avgEasyBpm != null ? (
-          <Stat label="Easy HR" value={String(summary.avgEasyBpm)} unit="bpm" icon="heart" tint="#E7A4FF" testID="done-easy-hr" />
-        ) : null}
-      </View>
-      {power ? <Sparkline values={summary.sparkline} durationMs={summary.durationMs} avg={summary.avgWatts} /> : null}
-      <Pressable accessibilityRole="button" onPress={onDone} testID="done" style={styles.doneHit}>
-        <LinearGradient colors={['#FF9BB8', '#FF6B95']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.done}>
-          <Text style={styles.doneLabel}>Done</Text>
-        </LinearGradient>
-      </Pressable>
+
+        <View style={[styles.card, styles.grid]} testID="done-stats">
+          {stats.map((s) => (
+            <View key={s.label} style={styles.cell} accessible accessibilityLabel={`${s.label} ${s.value} ${s.unit}`}>
+              <Text style={styles.cellLabel}>{s.label}</Text>
+              <Text style={styles.cellValue}>
+                {s.value}
+                {s.unit ? <Text style={styles.cellUnit}> {s.unit}</Text> : null}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.flex} />
+        <View style={styles.bikeRow} pointerEvents="none">
+          <RoadBike width={Math.min(240, width * 0.6)} tone={BIKE_TONES.ember} wheelPeriodMs={reduce ? null : 1100} />
+          <RoadStream width={width - 32} periodMs={reduce ? null : 700} color="rgba(255,200,170,0.25)" />
+        </View>
+        <View style={styles.saved}>
+          <Icon name="check" size={14} color={ink.signal} />
+          <Text style={styles.savedText}>Saved on this iPhone</Text>
+        </View>
+        <Pill label="Done" variant="light" onPress={onDone} testID="done" />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  card: {
-    width: '47%',
-    flexGrow: 1,
-    backgroundColor: 'rgba(22,16,32,0.55)',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 84,
-    justifyContent: 'space-between',
+  root: { flex: 1, backgroundColor: "#000" },
+  bloom: { position: "absolute", top: 0, left: 0 },
+  scroll: { flexGrow: 1, paddingHorizontal: 16 },
+  kicker: { color: '#FF8A55', fontSize: 13, fontWeight: '600', letterSpacing: 1.5, paddingHorizontal: 4, fontVariant: ['tabular-nums'] },
+  title: { color: ink.text, fontSize: 44, lineHeight: 48, fontWeight: '700', letterSpacing: -1.4, marginTop: 10, paddingHorizontal: 4 },
+  subtitle: { color: '#A8A8AE', fontSize: 20, marginTop: 8, paddingHorizontal: 4 },
+  card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 },
+  cardTitle: { color: ink.text, fontSize: 15, fontWeight: '600' },
+  cardMeta: { color: ink.secondary, ...type.caption },
+  targetKey: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  targetDash: { width: 12, borderTopWidth: 2, borderStyle: 'dashed', borderColor: ink.secondary },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  targetLine: {
+    position: 'absolute',
+    left: -4,
+    right: -4,
+    borderTopWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.85)',
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: '500' },
-  cardValue: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'], marginTop: 8 },
-  cardUnit: { fontSize: 16, fontWeight: '600' },
-  chart: {
-    backgroundColor: 'rgba(22,16,32,0.55)',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 10,
-  },
-  chartTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  chartAvg: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' },
-  chartAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  axis: { color: 'rgba(255,255,255,0.55)', fontSize: 11 },
-  doneHit: { marginTop: 6, borderRadius: 16, overflow: 'hidden' },
-  done: { minHeight: 56, alignItems: 'center', justifyContent: 'center' },
-  doneLabel: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 0, paddingVertical: 6 },
+  cell: { width: '33.33%', paddingHorizontal: 16, paddingVertical: 12, gap: 2 },
+  cellLabel: { color: ink.secondary, ...type.caption },
+  cellValue: { color: ink.text, fontSize: 26, fontWeight: '600', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+  cellUnit: { color: ink.secondary, fontSize: 14, fontWeight: '500', letterSpacing: 0 },
+  flex: { flex: 1, minHeight: 12 },
+  bikeRow: { alignItems: 'center', marginBottom: 18, gap: 2 },
+  saved: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
+  savedText: { color: ink.tertiary, ...type.caption },
 });

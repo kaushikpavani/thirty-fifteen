@@ -13,9 +13,10 @@ const bedModules = {
   driveB: require('../../assets/beds/drive-b.wav'),
   recover: require('../../assets/beds/recover.wav'),
   recoverB: require('../../assets/beds/recover-b.wav'),
+  ambient: require('../../assets/beds/ambient.wav'),
 } as const;
 
-const BEDS = ['drive', 'driveB', 'recover', 'recoverB'] as const;
+const BEDS = ['drive', 'driveB', 'recover', 'recoverB', 'ambient'] as const;
 
 type LockMeta = { title?: string; artist?: string };
 type LockOptions = { showSeekForward?: boolean; showSeekBackward?: boolean };

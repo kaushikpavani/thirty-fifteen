@@ -2,23 +2,29 @@
 const CLOCK_HIT_MS = 400;
 const WARN_BEFORE_MS = 3000;
 
-export type MusicBed = 'drive' | 'driveB' | 'recover' | 'recoverB';
+export type MusicBed = 'drive' | 'driveB' | 'recover' | 'recoverB' | 'ambient';
 export type LadderStep = 'three' | 'two' | 'one';
-export type BoundaryChirp = 'go' | 'win';
+export type BoundaryChirp = 'go' | 'win' | 'release';
 
-/** Drive is the hot bed. The B takes are the same family, a notch hotter or cooler. */
+/**
+ * Pulse, the built-in score: 128 BPM, so a 30 s HARD is exactly 16 bars and a
+ * 15 s EASY exactly 8. Drive is HARD, recover is EASY, ambient carries warm-up,
+ * set rest and cool-down. The B takes are the same family in another key.
+ */
+export const PULSE_BPM = 128;
 export const BED_VOLUME: Record<MusicBed, number> = {
-  drive: 0.55,
+  drive: 0.6,
   driveB: 0.62,
-  recover: 0.22,
-  recoverB: 0.18,
+  recover: 0.42,
+  recoverB: 0.4,
+  ambient: 0.34,
 };
 
-/** Bed goes to silence under Rocky and from T−3 through T+1. */
-export const DUCK_GAIN = 0;
+/** The bed dips 12 dB under the coach and the ticks. It never drops to silence. */
+export const DUCK_GAIN = 0.25;
 export const BEEP_DUCK_MS = 340;
-/** The go chirp keeps the bed down through the first second of HARD. */
-export const HARD_OPEN_DUCK_MS = 1000;
+/** The go chirp only clears its own attack, so the drop lands on Go at full level. */
+export const HARD_OPEN_DUCK_MS = 250;
 /** Win chirp plus the longer of the two set-break lines. */
 export const ROUND_DUCK_MS = 4000;
 
@@ -28,9 +34,11 @@ const LADDER_AT_MS: Record<LadderStep, number> = {
   one: 1000,
 };
 
-/** HARD is hot. Accelerations stay on the drive bed. Everything else is cool. */
+/** HARD and accelerations drive. EASY recovers. Warm-up, set rest and cool-down float. */
 export function bedForKind(kind: string): MusicBed {
-  return kind === 'hard' || kind === 'accel' ? 'drive' : 'recover';
+  if (kind === 'hard' || kind === 'accel') return 'drive';
+  if (kind === 'easy') return 'recover';
+  return 'ambient';
 }
 
 /**
@@ -49,15 +57,14 @@ export function sessionBed(salt = 0): 0 | 1 | 2 {
 }
 
 export function bedId(kind: string, salt = 0): MusicBed {
-  const hot = kind === 'hard' || kind === 'accel';
-  if (sessionBed(salt) === 1) return hot ? 'driveB' : 'recoverB';
-  return hot ? 'drive' : 'recover';
+  const base = bedForKind(kind);
+  if (base === 'ambient' || sessionBed(salt) !== 1) return base;
+  return base === 'drive' ? 'driveB' : 'recoverB';
 }
 
-/** Third Start pick: same loops, HARD a little faster so the bed is not identical. */
-export function bedRate(kind: string, salt = 0): number {
-  if (sessionBed(salt) !== 2) return 1;
-  return kind === 'hard' || kind === 'accel' ? 1.04 : 1;
+/** Always 1: a faster bed would drift off the 16-bar phrase and miss Go. */
+export function bedRate(_kind: string, _salt = 0): number {
+  return 1;
 }
 
 export type LadderTexture = 'pitch' | 'volume' | 'strongThird';
@@ -119,6 +126,7 @@ export function ladderKeys(segmentId: string): string[] {
 export function boundaryChirp(kind: string): BoundaryChirp | null {
   if (kind === 'hard' || kind === 'accel' || kind === 'warmup') return 'go';
   if (kind === 'set_rest') return 'win';
+  if (kind === 'easy') return 'release';
   return null;
 }
 

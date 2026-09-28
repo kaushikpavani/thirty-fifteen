@@ -78,3 +78,32 @@ export function rockyKeysToRearm(segment: { id: string; kind: string }, atMs: nu
   if (segment.kind === 'cooldown') keys.push('finish');
   return keys;
 }
+
+/** End of the warm-up block (warm-up + accelerations): the first HARD's start. */
+export function warmupEndMs(segments: { kind: string; durationMs: number }[]): number {
+  let acc = 0;
+  for (const seg of segments) {
+    if (seg.kind !== 'warmup' && seg.kind !== 'accel') return acc;
+    acc += seg.durationMs;
+  }
+  return acc;
+}
+
+/** Skip lands this far before the first HARD, so the count-in and Go still happen. */
+export const SKIP_LEAD_MS = 8_000;
+
+/**
+ * Where a warm-up jump lands, or null when it would not move the clock.
+ * 'halve' cuts what is left of the warm-up in half; 'skip' goes to just before HARD.
+ */
+export function warmupJumpMs(
+  segments: { kind: string; durationMs: number }[],
+  elapsedMs: number,
+  mode: 'halve' | 'skip',
+): number | null {
+  const end = warmupEndMs(segments);
+  const floor = end - SKIP_LEAD_MS;
+  if (!(elapsedMs < floor)) return null;
+  const target = mode === 'skip' ? floor : Math.min(floor, elapsedMs + (end - elapsedMs) / 2);
+  return target > elapsedMs + 500 ? Math.round(target) : null;
+}

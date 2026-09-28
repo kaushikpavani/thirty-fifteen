@@ -25,7 +25,13 @@ export interface WorkoutSettings {
   hapticsEnabled: boolean;
   /** Looping bed under the ride. Default on. Spoken cues and beeps still duck it. */
   musicEnabled: boolean;
+  /** Which recorded coach speaks. 'off' keeps ticks and haptics only. */
+  coachVoice: CoachVoice;
+  /** The coach counts "Three, two, one" into every HARD. */
+  spokenCount: boolean;
 }
+
+export type CoachVoice = 'calm' | 'direct' | 'numbers' | 'off';
 
 export interface Segment {
   id: string;
@@ -68,6 +74,8 @@ export interface RideSummary {
   maxBpm: number | null;
   avgHardBpm: number | null;
   avgEasyBpm: number | null;
+  /** Average watts for each HARD rep that had samples, in ride order. Empty without a meter. */
+  repWatts?: number[];
 }
 
 export interface WorkoutRecord {

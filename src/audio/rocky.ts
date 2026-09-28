@@ -3,27 +3,33 @@
 export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
-export const ROCKY_WELCOME = "Let's go. Time to get better.";
-/** One per HARD. Consecutive reps never share a line. */
+/**
+ * The coach says less, and says it on time. These are the Calm lines; every
+ * voice speaks the same clip keys (see voices.ts), so timing never depends on
+ * who is talking.
+ */
+export const ROCKY_WELCOME = 'Warm-up. Easy spin to start.';
+/** Pool for HARD reps that are not a milestone. Consecutive reps never share a line. */
 export const HARD_LINES = [
-  'Dig in — this is the round that builds you.',
-  "Hold the line. You're in it.",
-  'This is the work. Stay with it.',
-  'Chin up. Push the watts.',
+  'Hold it.',
+  'Smooth and strong.',
+  'Quick feet.',
+  'Relax your shoulders.',
+  'Stay on it.',
 ] as const;
-export const EASY_LINES = [
-  "Yes. Breathe fire. You're not done.",
-  'Easy. Reload.',
-  "Good. Next one's yours.",
-] as const;
+export const EASY_LINES = ['Breathe.', 'Spin easy.', 'Good.'] as const;
+/** Rep-aware lines. The coach knows where you are. */
+export const HALFWAY = 'Halfway.';
+export const THREE_TO_GO = 'Three to go.';
+export const LAST_ONE = 'Last one. Empty it.';
 export const ROCKY_HARD = HARD_LINES[0];
 export const ROCKY_EASY = EASY_LINES[0];
 /** Fixed. Not a pool. */
-export const ROCKY_FINISH = "That's how it's done. You showed up and won the work.";
+export const ROCKY_FINISH = "That's the work. Cool down, easy spin.";
 /** One syllable on the first HARD chirp. Fixed. Never skipped. */
 export const ROCKY_GO = 'Go.';
 /** Once, when the last easy of a set opens the set rest. Fixed. */
-export const ROCKY_ROUND = 'Round won. Stay sharp.';
+export const ROCKY_ROUND = 'Set done. Spin easy, and drink.';
 
 export type LineTake = { line: string; clip: string };
 
@@ -32,7 +38,25 @@ export function easySpeaks(ordinal: number, salt = 0): boolean {
   return (ordinal + salt) % 4 !== 3;
 }
 
-export function hardTake(ordinal: number, salt = 0): LineTake {
+/** Milestone for this rep of a set, if any. Wins over the pool and over silence. */
+export function milestone(rep: number | undefined, reps: number): LineTake | null {
+  if (rep == null || reps < 4) return null;
+  if (rep === reps) return { line: LAST_ONE, clip: 'last' };
+  if (reps >= 8 && rep === reps - 2) return { line: THREE_TO_GO, clip: 'three' };
+  if (reps >= 6 && rep === Math.ceil(reps / 2) + (reps % 2 === 0 ? 1 : 0)) return { line: HALFWAY, clip: 'halfway' };
+  return null;
+}
+
+/** Plain HARD reps: every fourth is quiet, and never the first of a set. */
+export function hardSpeaks(ordinal: number, salt = 0, rep?: number): boolean {
+  if (rep === 1) return true;
+  return (ordinal + salt) % 4 !== 2;
+}
+
+export function hardTake(ordinal: number, salt = 0, rep?: number, reps = 0): LineTake | null {
+  const mark = milestone(rep, reps);
+  if (mark) return mark;
+  if (!hardSpeaks(ordinal, salt, rep)) return null;
   const index = (ordinal + salt) % HARD_LINES.length;
   return { line: HARD_LINES[index], clip: `hard${index}` };
 }
@@ -77,7 +101,7 @@ export type RockySegment = {
   repNumber?: number;
 };
 
-export type RockyCue = { key: string; line: string; clip: string };
+export type RockyCue = { key: string; line: string; clip: string; rep?: number };
 
 export function inSegmentSilence(elapsedInMs: number, durationMs: number): boolean {
   if (elapsedInMs <= SILENCE_AFTER_MS) return true;
@@ -110,6 +134,8 @@ export function rockyCue(args: {
   let acc = 0;
   let hardOrdinal = 0;
   let easyOrdinal = 0;
+  let reps = 0;
+  for (const seg of segments) if (seg.kind === 'hard' && seg.repNumber != null) reps = Math.max(reps, seg.repNumber);
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const start = acc;
@@ -134,8 +160,9 @@ export function rockyCue(args: {
       elapsedIn < 12_000 &&
       !fired.has(`hard:${seg.id}`)
     ) {
-      const take = hardTake(thisHard, salt);
-      return { key: `hard:${seg.id}`, line: take.line, clip: take.clip };
+      const take = hardTake(thisHard, salt, seg.repNumber, reps);
+      if (!take) return null;
+      return { key: `hard:${seg.id}`, line: take.line, clip: take.clip, rep: seg.repNumber };
     }
 
     if (

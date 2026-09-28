@@ -13,17 +13,17 @@ import {
 } from '../workout/heat.ts';
 
 test('drive glow breathes at the bed tempo, not at a made-up rate', () => {
-  assert.equal(DRIVE_BPM, 120);
-  assert.equal(driveBeatMs(1), 500);
-  assert.equal(driveBeatMs(bedRate('hard', 2)), 481);
-  assert.equal(driveBeatMs(1.04), Math.round(60_000 / 120 / 1.04));
-  assert.equal(driveBeatMs(0), 500);
-  assert.equal(driveBeatMs(Number.NaN), 500);
+  assert.equal(DRIVE_BPM, 128);
+  assert.equal(driveBeatMs(1), 469);
+  assert.equal(driveBeatMs(bedRate('hard', 2)), 469);
+  assert.equal(driveBeatMs(1.04), Math.round(60_000 / 128 / 1.04));
+  assert.equal(driveBeatMs(0), 469);
+  assert.equal(driveBeatMs(Number.NaN), 469);
 });
 
 test('paint pulse is HARD music only and never a countdown lock', () => {
   const riding = { music: true, paused: false, reduceMotion: false, rate: 1 };
-  assert.deepEqual(phasePulse({ ...riding, kind: 'hard' }), { pulse: true, beatMs: 500 });
+  assert.deepEqual(phasePulse({ ...riding, kind: 'hard' }), { pulse: true, beatMs: 469 });
   assert.equal(phasePulse({ ...riding, kind: 'accel' }).pulse, true);
   assert.equal(phasePulse({ ...riding, kind: 'easy' }).pulse, false);
   assert.equal(phasePulse({ ...riding, kind: 'set_rest' }).pulse, false);
@@ -34,7 +34,7 @@ test('paint pulse is HARD music only and never a countdown lock', () => {
   assert.equal(phasePulse({ ...riding, kind: 'hard', reduceMotion: true }).pulse, false);
   const pulsed = phasePulse({ ...riding, kind: 'hard', rate: 1.04 });
   assert.equal(Object.keys(pulsed).join(','), 'pulse,beatMs');
-  assert.equal(pulsed.beatMs, 481);
+  assert.equal(pulsed.beatMs, 451);
 });
 
 test('phase paint fills the field and stays under the white clock', () => {

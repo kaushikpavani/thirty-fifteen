@@ -1,47 +1,36 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, BackHandler, Easing, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DoneSummary } from '../components/DoneSummary';
+import { Icon } from '../components/kit/Icon';
+import { Pill } from '../components/kit/Pill';
+import { RepRail } from '../components/kit/ProfileChart';
+import { HoldToEnd, PauseGlass, StatTriplet, WarmupJump } from '../components/ride/Controls';
+import { PhaseField } from '../components/ride/PhaseField';
+import { PowerGauge } from '../components/ride/PowerGauge';
+import { BIKE_TONES, RoadBike, RoadStream } from '../components/bike/RoadBike';
 import { useHistory } from '../state/HistoryContext';
 import { useHeartRate } from '../state/HeartRateContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { pauseResumeDrivers, pauseResumeSlots } from '../motion/animatedDriver';
-import { colors, phaseLabel } from '../theme/colors';
-import type { PhaseKind, RideSummary, Segment } from '../types';
-import { formatClock } from '../workout/builder';
-import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
-import { summarizeRide, type RideSample } from '../logic/rideSummary';
+import { useRideRecorder } from '../hooks/useRideRecorder';
+import { fieldFor, fields, type as t } from '../theme/tokens';
+import type { PhaseKind } from '../types';
+import { clockText, nextHardRep, rideView } from '../logic/rideView';
+import { warmupJumpMs } from '../workout/transport';
 
-const nativeMotion = Platform.OS !== 'web';
-const pauseDrivers = pauseResumeDrivers(nativeMotion);
+const native = Platform.OS !== 'web';
 
-function fieldColors(kind: PhaseKind): [string, string] {
-  switch (kind) {
-    case 'hard':
-    case 'accel':
-      return ['#FF2D1A', '#B00008'];
-    case 'easy':
-      return ['#0E3C4C', '#071820'];
-    case 'warmup':
-      return ['#C56A28', '#3A1C10'];
-    case 'cooldown':
-      return ['#1A4E90', '#071018'];
-    default:
-      return ['#2C2C30', '#0C0C0E'];
-  }
-}
-
-function badge(kind: PhaseKind, segment: Segment | null, sets: number): string {
-  if (kind === 'warmup' || kind === 'accel') return 'WARM-UP';
-  if (kind === 'cooldown') return 'COOL-DOWN';
-  const label = phaseLabel(kind);
-  if (segment?.setNumber) return `${label} · Set ${segment.setNumber} of ${sets}`;
-  return label;
+/** Wheels turn with the effort: quick in HARD, loose in EASY, lazy in rest. */
+function wheelPeriod(kind: PhaseKind): number {
+  if (kind === 'hard' || kind === 'accel') return 380;
+  if (kind === 'easy') return 900;
+  if (kind === 'warmup') return 700;
+  return 1200;
 }
 
 export function ActiveScreen() {
@@ -52,29 +41,14 @@ export function ActiveScreen() {
   const heart = useHeartRate();
   const reduceMotion = useReduceMotion();
   const insets = useSafeAreaInsets();
-  const savedRef = useRef<number | null>(null);
-  const samplesRef = useRef<RideSample[]>([]);
-  const summaryRef = useRef<RideSummary | null>(null);
-  const elapsedRef = useRef(0);
-  const kindRef = useRef<PhaseKind>('warmup');
-  const wattsRef = useRef<number | null>(null);
-  const bpmRef = useRef<number | null>(null);
-  const [endArmed, setEndArmed] = useState(false);
-
+  const { width } = useWindowDimensions();
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
-  const duration = seg?.durationMs ?? 1;
-  const remaining = state.remainingInSegmentMs;
-  const short = duration <= 90_000;
-  const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
   const paused = state.status === 'paused';
   const watts = meter.live?.watts ?? null;
   const bpm = heart.live?.bpm ?? null;
-  elapsedRef.current = state.elapsedMs;
-  kindRef.current = kind;
-  wattsRef.current = watts;
-  bpmRef.current = bpm;
+  const { record, summary, hardAvg } = useRideRecorder({ state, settings, watts, bpm, addSession: history.addSession });
 
   useEffect(() => {
     if (!engine.armedRef.current) router.replace('/home');
@@ -86,65 +60,8 @@ export function ActiveScreen() {
   }, []);
 
   useEffect(() => {
-    if (state.status === 'idle') {
-      samplesRef.current = [];
-      summaryRef.current = null;
-    }
-  }, [state.status, state.startedAt]);
-
-  useEffect(() => {
-    if (state.status !== 'running') return;
-    const take = () => {
-      samplesRef.current.push({
-        atMs: elapsedRef.current,
-        kind: kindRef.current,
-        watts: wattsRef.current,
-        bpm: bpmRef.current,
-      });
-      if (samplesRef.current.length > 4000) samplesRef.current.shift();
-    };
-    take();
-    const id = setInterval(take, 1000);
-    return () => clearInterval(id);
-  }, [state.status, state.startedAt]);
-
-  const buildSummary = (completed: boolean, elapsedMs: number): RideSummary =>
-    summarizeRide({
-      segments: state.workout.segments,
-      elapsedMs,
-      plannedSets: settings.sets,
-      completed,
-      samples: samplesRef.current,
-    });
-
-  const record = (completed: boolean) => {
-    const startedAt = state.startedAt;
-    if (!startedAt || savedRef.current === startedAt) return;
-    if (!completed && state.elapsedMs < 5000) return;
-    savedRef.current = startedAt;
-    const total = state.workout.totalMs || 1;
-    const elapsed = completed ? total : state.elapsedMs;
-    const summary = buildSummary(completed, elapsed);
-    summaryRef.current = summary;
-    void history.addSession({
-      startedAt: new Date(startedAt).toISOString(),
-      endedAt: new Date().toISOString(),
-      durationMs: elapsed,
-      plannedDurationMs: total,
-      ftpWatts: settings.ftpWatts,
-      hardWatts: state.workout.hardWatts,
-      easyWatts: state.workout.easyWatts,
-      completed,
-      completionPct: completed ? 100 : Math.min(99, Math.round((state.elapsedMs / total) * 100)),
-      summary,
-    });
-  };
-
-  useEffect(() => {
     if (state.status === 'finished') record(true);
-    // record closes over the render that flipped status to finished
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status]);
+  }, [state.status, record]);
 
   const leave = () => {
     engine.stop();
@@ -156,307 +73,254 @@ export function ActiveScreen() {
     leave();
   };
 
-  const onPausePress = useCallback(() => {
-    setEndArmed(false);
-    engine.pause();
-  }, [engine]);
-  const onResumePress = useCallback(() => {
-    setEndArmed(false);
-    engine.resume();
-  }, [engine]);
+  const onPause = useCallback(() => engine.pause(), [engine]);
+  const onResume = useCallback(() => engine.resume(), [engine]);
+
+  const view = useMemo(
+    () =>
+      rideView({
+        segments: state.workout.segments,
+        index: state.segmentIndex,
+        remainingMs: state.remainingInSegmentMs,
+        elapsedMs: state.elapsedMs,
+        totalMs: state.workout.totalMs,
+        sets: settings.sets,
+        reps: settings.reps,
+        workMs: settings.workSec * 1000,
+        recoverMs: settings.recoverSec * 1000,
+        hardWatts: state.workout.hardWatts,
+        easyWatts: state.workout.easyWatts,
+      }),
+    [
+      state.workout,
+      state.segmentIndex,
+      state.remainingInSegmentMs,
+      state.elapsedMs,
+      settings.sets,
+      settings.reps,
+      settings.workSec,
+      settings.recoverSec,
+    ],
+  );
 
   if (state.status === 'idle') {
     return <View style={styles.idle} />;
   }
 
   if (state.status === 'finished') {
-    const summary = summaryRef.current ?? buildSummary(true, state.workout.totalMs);
+    if (!summary) return <View style={styles.idle} />;
+    return <DoneSummary summary={summary} reps={settings.reps} hardTarget={state.workout.hardWatts} onDone={leave} />;
+  }
+
+  const top = insets.top + 14;
+  const bottom = Math.max(insets.bottom, 16) + 20;
+
+  if (paused) {
     return (
       <View style={styles.root}>
-        <LinearGradient colors={['#241433', '#6A3E68', '#D4899A']} style={StyleSheet.absoluteFill} />
-        <ScrollView
-          contentContainerStyle={[styles.done, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 18 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <FinishTitle title={FINISH_TITLE} reduceMotion={reduceMotion} />
-          <Text style={styles.doneSub}>{FINISH_SUBTITLE}</Text>
-          <DoneSummary summary={summary} onDone={leave} />
-        </ScrollView>
+        <PhaseField field={fields.paused} progress={0} rise={null} reduceMotion={reduceMotion} />
+        <View style={[styles.stack, { paddingTop: top, paddingBottom: bottom }]}>
+          <View style={styles.header}>
+            <Text style={styles.phase} accessibilityRole="header">
+              PAUSED
+            </Text>
+            <Text style={styles.contextDim}>
+              {view.phase}
+              {view.context ? ` · ${view.context}` : ''}
+            </Text>
+          </View>
+          <View style={styles.railWrap}>
+            <Rail view={view} dim />
+          </View>
+          <Text style={[styles.frozen]} testID="countdown" accessibilityLabel={`${view.clock} left`}>
+            {view.clock}
+          </Text>
+          <Text style={styles.frozenLabel}>{kind === 'hard' || kind === 'easy' ? 'left in this rep' : 'left in this part'}</Text>
+          <View style={{ marginTop: 40, alignSelf: 'stretch' }}>
+            <StatTriplet
+              items={[
+                { value: hardAvg == null ? '—' : String(hardAvg), label: 'W hard avg' },
+                { value: bpm == null ? '—' : String(bpm), label: 'bpm' },
+                { value: clockText(state.elapsedMs), label: 'elapsed' },
+              ]}
+            />
+          </View>
+          <View style={styles.flex} />
+          <Pill label="Resume" icon="play" onPress={onResume} testID="resume" style={styles.stretch} />
+          <View style={{ height: 12 }} />
+          <HoldToEnd onEnd={finishStop} />
+          <Text style={styles.savedNote}>Ending saves the ride so far.</Text>
+        </View>
       </View>
     );
   }
 
-  const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
-  const [top, bottom] = fieldColors(kind);
-  const clockSize = clock.length > 3 ? 68 : 92;
+  const field = fieldFor(kind);
+  // Halve / Skip only while there is warm-up left to cut; the main set is never skippable.
+  const canJump = warmupJumpMs(state.workout.segments, state.elapsedMs, 'skip') != null;
+  const nextRep = view.countIn != null ? nextHardRep(state.workout.segments, state.segmentIndex) : null;
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[top, bottom]} style={StyleSheet.absoluteFill} />
-      <View style={[styles.ride, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={styles.hero}>
-          <View style={styles.wattsRow}>
-            <Text style={styles.watts} testID="live-watts" accessibilityLabel={watts == null ? 'No watts' : `${watts} watts`}>
-              {watts == null ? '—' : String(watts)}
-            </Text>
-            <Text style={styles.wattsUnit}>w</Text>
-          </View>
-          {bpm == null ? null : (
-            <Text style={styles.bpm} testID="live-bpm" accessibilityLabel={`${bpm} beats per minute`}>
-              {bpm} bpm
-            </Text>
-          )}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText} testID="phase">
-              {badge(kind, seg, settings.sets)}
-            </Text>
-          </View>
+      <PhaseField field={field} progress={view.progress} rise={view.rise} reduceMotion={reduceMotion} />
+      <View style={[styles.stack, { paddingTop: top, paddingBottom: bottom }]}>
+        <View style={styles.header}>
+          <PhaseWord word={view.phase} reduceMotion={reduceMotion} />
+          <Text style={styles.context} numberOfLines={1}>
+            {view.context}
+          </Text>
+        </View>
+        <View style={styles.railWrap}>
+          <Rail view={view} />
+        </View>
+        <View style={styles.captions}>
+          <Text style={styles.caption}>{view.caption}</Text>
+          <Text style={styles.caption}>{view.toGo}</Text>
         </View>
 
-        <View style={styles.clockBlock}>
-          <View style={styles.clockRow}>
-            <Text style={styles.timeLabel}>TIME</Text>
-            <Text style={[styles.clock, { fontSize: clockSize }]} testID="countdown">
-              {clock}
-            </Text>
+        <View style={styles.gauge}>
+          <PowerGauge watts={watts} target={view.target} width={Math.min(width - 32, 360)} reduceMotion={reduceMotion} />
+        </View>
+        {!view.cue.target ? (
+          <View style={styles.cue}>
+            <Text style={styles.cueText}>{view.cue.text}</Text>
           </View>
-          <Text style={styles.countLabel}>{short ? 'COUNTDOWN' : 'REMAINING'}</Text>
+        ) : null}
+
+        <View style={styles.bpmRow} testID="live-bpm" accessibilityLabel={bpm == null ? 'No heart rate' : `${bpm} beats per minute`}>
+          <Icon name="heart" size={24} color={bpm == null ? 'rgba(255,255,255,0.5)' : '#FFFFFF'} />
+          {bpm == null ? <View style={styles.emptyBpm} /> : <Text style={[t.bpm, styles.white]}>{bpm}</Text>}
+          <Text style={styles.bpmUnit}>bpm</Text>
         </View>
 
-        <View style={styles.footer}>
-          <PauseResume running={state.status === 'running'} onPause={onPausePress} onResume={onResumePress} />
-          {paused ? (
-            endArmed ? (
-              <View style={styles.endRow}>
-                <Pressable onPress={() => setEndArmed(false)} testID="end-cancel" hitSlop={8}>
-                  <Text style={styles.endCancel}>Cancel</Text>
-                </Pressable>
-                <Pressable onPress={finishStop} testID="end-confirm" hitSlop={8}>
-                  <Text style={styles.endConfirm}>End session</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable onPress={() => setEndArmed(true)} testID="end" hitSlop={8} style={styles.endHit}>
-                <Text style={styles.end}>End</Text>
-              </Pressable>
-            )
-          ) : null}
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.max(0, Math.min(100, Math.round(segmentProgress * 100)))}%` }]} />
-          </View>
+        <View style={styles.bikeWash} pointerEvents="none">
+          <RoadBike width={210} tone={BIKE_TONES.line} line wheelPeriodMs={reduceMotion ? null : wheelPeriod(kind)} />
+          <RoadStream width={260} periodMs={reduceMotion ? null : wheelPeriod(kind) * 0.6} color="rgba(255,255,255,0.8)" />
         </View>
+        {view.countIn != null ? (
+          <CountIn seconds={view.countIn} rep={nextRep} reduceMotion={reduceMotion} />
+        ) : (
+          <Text style={[t.countdown, styles.white]} testID="countdown" accessibilityLabel={`${view.clock} left`}>
+            {view.clock}
+          </Text>
+        )}
+        <View style={{ height: 24 }} />
+        {canJump ? (
+          <View style={styles.controlRow}>
+            <WarmupJump icon="forward" label="Halve" hint="Cuts what is left of the warm-up in half" onPress={() => engine.jumpWarmup('halve')} testID="warmup-halve" />
+            <PauseGlass onPress={onPause} />
+            <WarmupJump icon="skip" label="Skip" hint="Skips to just before the first hard rep" onPress={() => engine.jumpWarmup('skip')} testID="warmup-skip" />
+          </View>
+        ) : (
+          <PauseGlass onPress={onPause} />
+        )}
       </View>
     </View>
   );
 }
 
-function PauseResume({
-  running,
-  onPause,
-  onResume,
-}: {
-  running: boolean;
-  onPause: () => void;
-  onResume: () => void;
-}) {
-  const fill = useRef(new Animated.Value(running ? 0 : 1)).current;
-  const textOpacity = useRef(new Animated.Value(1)).current;
-  const [word, setWord] = useState(running ? 'Pause' : 'Resume');
-  const seen = useRef(false);
+function Rail({ view, dim = false }: { view: ReturnType<typeof rideView>; dim?: boolean }) {
+  const solid = dim ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.95)';
+  const faint = dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.3)';
+  if (view.rail.kind === 'reps') {
+    const full = view.phase === 'SET REST';
+    return (
+      <RepRail
+        count={view.rail.count}
+        done={view.rail.done}
+        progress={view.rail.progress}
+        solid={full && !dim ? '#5CC8E6' : solid}
+        faint={faint}
+      />
+    );
+  }
+  return <RepRail count={1} done={0} progress={view.rail.progress} solid={solid} faint={faint} />;
+}
 
+/** The phase word slides up 8 pt when it changes. */
+function PhaseWord({ word, reduceMotion }: { word: string; reduceMotion: boolean }) {
+  const y = useAnimatedValue(0);
+  const o = useAnimatedValue(1);
+  const first = useRef(true);
   useEffect(() => {
-    if (!seen.current) {
-      seen.current = true;
+    if (first.current || reduceMotion) {
+      first.current = false;
       return;
     }
-    let fadeIn: Animated.CompositeAnimation | null = null;
-    const fillAnim = Animated.timing(fill, {
-      toValue: running ? 0 : 1,
-      duration: 240,
-      useNativeDriver: pauseDrivers.fill,
-    });
-    const fadeOut = Animated.timing(textOpacity, {
-      toValue: 0,
-      duration: 90,
-      useNativeDriver: pauseDrivers.textOpacity,
-    });
-    fillAnim.start();
-    fadeOut.start(({ finished }) => {
-      if (!finished) return;
-      setWord(running ? 'Pause' : 'Resume');
-      fadeIn = Animated.timing(textOpacity, {
-        toValue: 1,
-        duration: 160,
-        useNativeDriver: pauseDrivers.textOpacity,
-      });
-      fadeIn.start();
-    });
-    return () => {
-      fillAnim.stop();
-      fadeOut.stop();
-      fadeIn?.stop();
-    };
-  }, [fill, running, textOpacity]);
-
-  const backgroundColor = useMemo(
-    () =>
-      fill.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.28)'],
-      }),
-    [fill],
-  );
-  const borderColor = useMemo(
-    () =>
-      fill.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.45)'],
-      }),
-    [fill],
-  );
-  const textColor = useMemo(
-    () =>
-      fill.interpolate({
-        inputRange: [0, 1],
-        outputRange: [colors.white, colors.white],
-      }),
-    [fill],
-  );
-  const motion = pauseResumeSlots({ backgroundColor, borderColor, textColor, textOpacity });
-
+    y.setValue(8);
+    o.setValue(0);
+    Animated.parallel([
+      Animated.spring(y, { toValue: 0, useNativeDriver: native, speed: 18, bounciness: 4 }),
+      Animated.timing(o, { toValue: 1, duration: 260, useNativeDriver: native }),
+    ]).start();
+  }, [word, reduceMotion, o, y]);
   return (
-    <Animated.View style={[styles.pauseShell, motion.shell]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={running ? 'Pause' : 'Resume'}
-        testID={running ? 'pause' : 'resume'}
-        onPress={running ? onPause : onResume}
-        style={styles.pauseHit}
-      >
-        <Animated.View pointerEvents="none" style={motion.fade}>
-          <Animated.Text style={[styles.pauseLabel, motion.label]}>{word === 'Pause' ? '❚❚  Pause' : word}</Animated.Text>
-        </Animated.View>
-      </Pressable>
-    </Animated.View>
+    <Animated.Text
+      style={[styles.phase, { opacity: o, transform: [{ translateY: y }] }]}
+      testID="phase"
+      accessibilityRole="header"
+      accessibilityLiveRegion="polite"
+    >
+      {word}
+    </Animated.Text>
   );
 }
 
-function FinishTitle({ title, reduceMotion }: { title: string; reduceMotion: boolean }) {
-  const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.94)).current;
-  const opacity = useRef(new Animated.Value(reduceMotion ? 1 : 0.35)).current;
-
+/** 3 · 2 · 1 in the incoming color's space. Each digit lands with a small settle. */
+function CountIn({ seconds, rep, reduceMotion }: { seconds: number; rep: number | null; reduceMotion: boolean }) {
+  const scale = useAnimatedValue(1);
   useEffect(() => {
     if (reduceMotion) return;
-    Animated.parallel([
-      Animated.timing(scale, { toValue: 1, duration: 460, useNativeDriver: nativeMotion }),
-      Animated.timing(opacity, { toValue: 1, duration: 380, useNativeDriver: nativeMotion }),
-    ]).start();
-  }, [opacity, reduceMotion, scale]);
-
+    scale.setValue(1.14);
+    Animated.timing(scale, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: native }).start();
+  }, [seconds, reduceMotion, scale]);
   return (
-    <Animated.Text style={[styles.doneTitle, { opacity, transform: [{ scale }] }]}>{title}</Animated.Text>
+    <View style={styles.countIn} accessibilityLiveRegion="assertive" accessibilityLabel={`Hard in ${seconds}`}>
+      <Text style={styles.countInLabel}>{rep != null ? `HARD ${rep} IN` : 'HARD IN'}</Text>
+      <Animated.Text style={[t.countIn, styles.white, { transform: [{ scale }] }]} testID="countdown">
+        {seconds}
+      </Animated.Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  idle: { flex: 1, backgroundColor: colors.bg },
-  ride: { flex: 1, paddingHorizontal: 22 },
-  hero: { alignItems: 'center', marginTop: 18 },
-  wattsRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' },
-  watts: {
-    color: colors.white,
-    fontSize: 96,
-    lineHeight: 100,
-    fontWeight: '700',
-    letterSpacing: -3,
-    fontVariant: ['tabular-nums'],
-  },
-  wattsUnit: {
-    color: colors.white,
-    fontSize: 36,
-    fontWeight: '600',
-    marginTop: 18,
-    marginLeft: 2,
-  },
-  bpm: {
-    color: colors.white,
-    fontSize: 22,
-    fontWeight: '600',
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
-  badge: {
-    marginTop: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
-  },
-  badgeText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  clockBlock: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  clockRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 },
-  timeLabel: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  clock: {
-    color: colors.white,
-    fontWeight: '700',
-    letterSpacing: -2,
-    fontVariant: ['tabular-nums'],
-  },
-  countLabel: {
-    marginTop: 6,
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 3,
-  },
-  footer: { gap: 12, paddingBottom: 6 },
-  pauseShell: {
-    alignSelf: 'stretch',
-    minHeight: 56,
-    borderRadius: 28,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  pauseHit: {
-    flex: 1,
-    minHeight: 56,
+  idle: { flex: 1, backgroundColor: '#000' },
+  stack: { flex: 1, alignItems: 'center', paddingHorizontal: 24 },
+  header: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  phase: { ...t.phase, color: '#FFFFFF' },
+  context: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'], flexShrink: 1, marginLeft: 12 },
+  contextDim: { color: 'rgba(255,255,255,0.75)', fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  railWrap: { alignSelf: 'stretch', marginTop: 12 },
+  captions: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  caption: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  wattsRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 52, maxWidth: '100%' },
+  white: { color: '#FFFFFF' },
+  emptyWatts: { width: 72, height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.45)', marginVertical: 69, marginRight: 8 },
+  emptyBpm: { width: 34, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.45)', marginVertical: 23 },
+  unit: { color: 'rgba(255,255,255,0.9)', marginLeft: 4 },
+  cue: {
+    marginTop: 4,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
-  pauseLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  endHit: { alignItems: 'center', paddingVertical: 4 },
-  end: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '600' },
-  endRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
-  endCancel: { color: 'rgba(255,255,255,0.75)', fontSize: 16 },
-  endConfirm: { color: colors.white, fontSize: 16, fontWeight: '700' },
-  track: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    overflow: 'hidden',
-  },
-  fill: { height: 3, backgroundColor: colors.white },
-  done: { flex: 1, paddingHorizontal: 20, gap: 8 },
-  doneTitle: {
-    color: colors.white,
-    fontSize: 40,
-    fontWeight: '700',
-    letterSpacing: -0.8,
-  },
-  doneSub: { color: 'rgba(255,255,255,0.82)', fontSize: 17, fontWeight: '500', marginBottom: 8 },
+  cueText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  bpmRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  gauge: { marginTop: 18 },
+  controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 36 },
+  bpmUnit: { color: 'rgba(255,255,255,0.9)', fontSize: 19, fontWeight: '600', alignSelf: 'flex-end', paddingBottom: 6 },
+  flex: { flex: 1 },
+  bikeWash: { flex: 1, alignItems: 'center', justifyContent: 'center', opacity: 0.16, gap: 2 },
+  countIn: { alignItems: 'center' },
+  countInLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: 3 },
+  frozen: { ...t.countdown, fontSize: 112, lineHeight: 118, color: 'rgba(255,255,255,0.55)', marginTop: 84 },
+  frozenLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 15, marginTop: 8 },
+  stretch: { alignSelf: 'stretch' },
+  savedNote: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 14 },
 });

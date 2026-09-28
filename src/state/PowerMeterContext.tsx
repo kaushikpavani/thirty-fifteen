@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { bleGate, bleGateCopy, type BleGate } from '../ble/availability';
 import { bleLog } from '../ble/log';
 import { BleClientError, createBleClient, type FoundDevice } from '../ble/client';
@@ -213,8 +213,11 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     [applyFailure, ensureClient, setMeterPhase],
   );
 
-  connectDeviceRef.current = connectDevice;
-  beginScanRef.current = beginScan;
+  // Scan and connect callbacks call each other through refs; keep them current after each commit.
+  useLayoutEffect(() => {
+    connectDeviceRef.current = connectDevice;
+    beginScanRef.current = beginScan;
+  });
 
   useEffect(() => {
     const pending = loadSavedPowerMeter();

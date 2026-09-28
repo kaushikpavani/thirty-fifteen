@@ -1,24 +1,98 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { SensorChip } from '../components/SensorChip';
-import { WhySheet } from '../components/WhySheet';
+import { Icon } from '../components/kit/Icon';
+import { Pill, tapHaptic } from '../components/kit/Pill';
+import { ProfileChart } from '../components/kit/ProfileChart';
+import { BIKE_TONES, RoadBike } from '../components/bike/RoadBike';
 import { Screen } from '../components/Screen';
+import { WhySheet } from '../components/WhySheet';
+import type { PowerConnectionState } from '../ble/cps';
 import { useHeartRate } from '../state/HeartRateContext';
+import { useHistory } from '../state/HistoryContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { colors } from '../theme/colors';
 import { track } from '../storage/cloud';
+import { lastRideLine } from './lastRide';
+import { ink, radius, type } from '../theme/tokens';
+
+function SensorTile({
+  kind,
+  state,
+  value,
+  name,
+  onPress,
+  testID,
+}: {
+  kind: 'power' | 'heart';
+  state: PowerConnectionState;
+  value: number | null;
+  name: string | null;
+  onPress: () => void;
+  testID: string;
+}) {
+  const connected = state === 'connected';
+  const busy = state === 'scanning' || state === 'connecting';
+  const title = kind === 'power' ? 'Power meter' : 'Heart rate';
+  const unit = kind === 'power' ? 'W' : 'bpm';
+  const accent = kind === 'power' ? ink.ember : ink.rose;
+  const soft = kind === 'power' ? ink.emberSoft : ink.roseSoft;
+  const status = connected ? 'Live' : busy ? (state === 'scanning' ? 'Searching' : 'Connecting') : 'Connect';
+  return (
+    <Pressable
+      onPress={() => {
+        tapHaptic('light');
+        onPress();
+      }}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${connected ? `Connected${name ? ` to ${name}` : ''}. ${value == null ? 'No reading' : `${value} ${unit}`}` : status}`}
+      style={({ pressed }) => [styles.tile, !connected && styles.tileIdle, pressed && styles.pressed]}
+    >
+      <View style={styles.tileTop}>
+        <View style={[styles.tileIcon, { backgroundColor: connected ? soft : ink.grouped }]}>
+          <Icon name={kind === 'power' ? 'bolt' : 'heart'} size={16} color={connected ? accent : '#8E8E93'} />
+        </View>
+        {connected ? (
+          <View style={styles.live}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>Live</Text>
+          </View>
+        ) : null}
+      </View>
+      {connected ? (
+        <View style={styles.tileBody}>
+          <Text style={styles.tileValue}>
+            {value == null ? '—' : value}
+            <Text style={styles.tileUnit}> {unit}</Text>
+          </Text>
+          <Text style={styles.tileName} numberOfLines={1}>
+            {name ?? title}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.tileBody}>
+          <Text style={styles.tileTitle}>{title}</Text>
+          <Text style={[styles.tileAction, busy && { color: ink.secondary }]}>{status}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
 
 export function HomeScreen() {
   const { settings } = useSettings();
   const engine = useWorkout();
   const meter = usePowerMeter();
   const heart = useHeartRate();
-  const { width } = useWindowDimensions();
+  const history = useHistory();
   const [whyOpen, setWhyOpen] = useState(false);
-  const startSize = Math.min(248, Math.round(width * 0.62));
+  const workout = engine.state.workout;
+  const minutes = Math.round(workout.totalMs / 60_000);
+  const lastRide = useMemo(() => lastRideLine(history.sessions, settings.reps), [history.sessions, settings.reps]);
+  const anyConnected = meter.connectionState === 'connected' || heart.connectionState === 'connected';
 
   const start = async () => {
     await engine.start();
@@ -32,69 +106,101 @@ export function HomeScreen() {
     });
   };
 
-  const watts = meter.live?.watts;
-  const bpm = heart.live?.bpm;
+  const meterName = meter.phase.phase === 'connected' ? meter.phase.name : null;
+  const heartName = heart.phase.phase === 'connected' ? heart.phase.name : null;
 
   return (
     <Screen bottom>
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,90,31,0)', 'rgba(255,90,31,0.10)', 'rgba(255,90,31,0.22)']}
+        locations={[0, 0.6, 1]}
+        style={styles.glow}
+      />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>30/15</Text>
+        <View style={styles.header}>
+          <Text style={styles.wordmark} accessibilityRole="header" accessibilityLabel="30 15">
+            30<Text style={{ color: ink.ember }}>/</Text>15
+          </Text>
+          <Pressable
+            onPress={() => router.push('/settings')}
+            testID="open-settings"
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={6}
+            style={({ pressed }) => [styles.gear, pressed && styles.pressed]}
+          >
+            <Icon name="sliders" size={20} />
+          </Pressable>
+        </View>
 
-        <View style={styles.chips}>
-          <SensorChip
+        <View style={styles.session}>
+          <View style={styles.sessionTop}>
+            <View>
+              <Text style={styles.caption}>
+                Today’s session · <Text style={type.tabular}>{minutes} min</Text>
+              </Text>
+              <Text style={styles.sessionTitle}>
+                {settings.sets} × {settings.reps}
+              </Text>
+            </View>
+            <RoadBike width={128} tone={BIKE_TONES.ember} wheelPeriodMs={2600} style={styles.bike} />
+          </View>
+          <ProfileChart segments={workout.segments} />
+        </View>
+
+        <View style={styles.tiles}>
+          <SensorTile
             kind="power"
-            title="Power meter"
             state={meter.connectionState}
-            live={watts != null}
-            value={watts == null ? '--' : String(watts)}
-            unit="watts"
+            value={meter.live?.watts ?? null}
+            name={meterName}
             onPress={() => router.push('/power')}
             testID="home-power"
           />
-          <SensorChip
+          <SensorTile
             kind="heart"
-            title="Heart rate"
             state={heart.connectionState}
-            live={bpm != null}
-            value={bpm == null ? '--' : String(bpm)}
-            unit="bpm"
+            value={heart.live?.bpm ?? null}
+            name={heartName}
             onPress={() => router.push('/heart')}
             testID="home-hr"
           />
         </View>
+        {!anyConnected ? (
+          <Text style={styles.optional}>Sensors are optional. Start any time.</Text>
+        ) : null}
 
-        <View style={styles.startWrap}>
+        {lastRide ? (
           <Pressable
+            onPress={() => router.push('/history')}
             accessibilityRole="button"
-            accessibilityLabel="Start"
-            onPress={() => void start()}
-            testID="start"
-            style={({ pressed }) => [
-              styles.start,
-              { width: startSize, height: startSize, borderRadius: startSize / 2 },
-              pressed && styles.startPressed,
-            ]}
+            accessibilityLabel={`Last ride. ${lastRide}`}
+            testID="home-last-ride"
+            style={({ pressed }) => [styles.lastRide, pressed && styles.pressed]}
           >
-            <Text style={styles.startLabel}>Start ›</Text>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.lastTitle}>Last ride</Text>
+              <Text style={styles.lastDetail} numberOfLines={1}>
+                {lastRide}
+              </Text>
+            </View>
+            <Icon name="chevron" size={14} color={ink.faint} />
           </Pressable>
-        </View>
+        ) : null}
 
-        <View style={styles.group}>
-          <Pressable
-            onPress={() => setWhyOpen(true)}
-            testID="why-3015"
-            accessibilityRole="link"
-            style={styles.row}
-          >
-            <Text style={styles.rowLabel}>Why 30/15</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
-          <View style={styles.hairline} />
-          <Pressable onPress={() => router.push('/settings')} testID="open-settings" style={styles.row}>
-            <Text style={styles.rowLabel}>Settings</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
-        </View>
+        <View style={styles.spacer} />
+
+        <Pill label="Start" onPress={() => void start()} testID="start" accessibilityHint="Starts the warm-up. Sensors are optional." />
+        <Pressable
+          onPress={() => setWhyOpen(true)}
+          testID="why-3015"
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.why, pressed && styles.pressed]}
+        >
+          <Icon name="info" size={16} color={ink.secondary} />
+          <Text style={styles.whyText}>Why 30/15</Text>
+        </Pressable>
       </ScrollView>
       <WhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
     </Screen>
@@ -102,51 +208,45 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-  },
-  title: {
-    marginTop: 8,
-    color: colors.white,
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-  },
-  chips: { marginTop: 22, gap: 10 },
-  startWrap: { alignItems: 'center', marginTop: 28, marginBottom: 28 },
-  start: {
-    backgroundColor: '#12151C',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  startPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
-  startLabel: { color: colors.white, fontSize: 32, fontWeight: '700', letterSpacing: -0.4 },
-  group: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  row: {
-    minHeight: 52,
+  glow: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 300 },
+  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+  wordmark: { color: ink.text, ...type.largeTitle, letterSpacing: -0.8 },
+  gear: { width: 44, height: 44, borderRadius: 22, backgroundColor: ink.grouped, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.7 },
+  session: { marginTop: 22, backgroundColor: ink.surface, borderRadius: radius.card, padding: 20, paddingBottom: 18, gap: 18 },
+  sessionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  caption: { color: ink.secondary, ...type.callout },
+  sessionTitle: { color: ink.text, fontSize: 44, lineHeight: 48, fontWeight: '600', letterSpacing: -1.5, ...type.tabular },
+  bike: { marginTop: 4, marginRight: -6 },
+  tiles: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  tile: { flex: 1, backgroundColor: ink.surface, borderRadius: radius.tile, padding: 16, minHeight: 112, gap: 14, justifyContent: 'space-between' },
+  tileIdle: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.14)' },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tileIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  live: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: ink.signal },
+  liveText: { color: ink.signal, fontSize: 12, fontWeight: '600' },
+  tileBody: { gap: 2 },
+  tileValue: { color: ink.text, ...type.metric },
+  tileUnit: { color: ink.secondary, fontSize: 15, fontWeight: '500', letterSpacing: 0 },
+  tileName: { color: ink.secondary, ...type.caption },
+  tileTitle: { color: ink.text, ...type.headline },
+  tileAction: { color: ink.emberText, ...type.caption, fontWeight: '600' },
+  optional: { color: '#8E8E93', ...type.caption, textAlign: 'center', marginTop: 14, paddingHorizontal: 12 },
+  lastRide: {
+    marginTop: 12,
+    backgroundColor: ink.surface,
+    borderRadius: radius.row,
+    minHeight: 60,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  rowLabel: { color: colors.white, fontSize: 17, fontWeight: '500' },
-  chevron: { color: '#0A84FF', fontSize: 22, fontWeight: '500' },
-  hairline: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginLeft: 16,
-  },
+  lastTitle: { color: ink.text, fontSize: 15, fontWeight: '600' },
+  lastDetail: { color: ink.secondary, ...type.caption, ...type.tabular },
+  spacer: { flex: 1, minHeight: 24 },
+  why: { marginTop: 6, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  whyText: { color: ink.secondary, ...type.callout },
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -8,6 +8,7 @@ import {
   leaveWorkoutAudio,
   playBeep,
   playLadder,
+  setCoachVoice,
   speakCue,
   stopSpeech,
   unlockRockyFromGesture,
@@ -15,6 +16,7 @@ import {
 import { armMusicFromGesture, kickBed, pauseMusic, releaseDuck, setBedTransportHandler, stopMusic, syncMusic } from '../audio/music';
 import { inSegmentSilence, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND } from '../audio/rocky';
 import {
+  BEEP_DUCK_MS,
   HARD_OPEN_DUCK_MS,
   ROUND_DUCK_MS,
   bedId,
@@ -39,6 +41,7 @@ import {
   segmentStartMs,
   shortenTargetMs,
   skipTargetMs,
+  warmupJumpMs,
 } from '../workout/transport';
 
 const TICK_MS = 100;
@@ -55,11 +58,24 @@ export interface EngineState {
   workout: BuiltWorkout;
 }
 
+/** Where an elapsed time falls in the ride. Pure; the render and the timers both use it. */
+export function positionAt(segs: Segment[], elapsed: number) {
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const end = acc + segs[i].durationMs;
+    if (elapsed < end) {
+      return { index: i, segment: segs[i], remaining: end - elapsed, next: segs[i + 1] ?? null };
+    }
+    acc = end;
+  }
+  const last = segs[segs.length - 1] ?? null;
+  return { index: Math.max(0, segs.length - 1), segment: last, remaining: 0, next: null };
+}
+
 export function useWorkoutEngine(settings: WorkoutSettings) {
   const workout = useMemo(() => buildWorkout(settings), [settings]);
   const [status, setStatus] = useState<TimerStatus>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [segmentIndex, setSegmentIndex] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const armedRef = useRef(false);
 
@@ -74,28 +90,14 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const startedAtRef = useRef<number | null>(null);
   const lastCueRef = useRef(0);
 
-  statusRef.current = status;
-  settingsRef.current = settings;
-  workoutRef.current = workout;
+  // Timers and audio callbacks read the latest values through refs; sync them after each commit.
+  useLayoutEffect(() => {
+    statusRef.current = status;
+    settingsRef.current = settings;
+    workoutRef.current = workout;
+  });
 
-  const resolvePosition = useCallback((elapsed: number) => {
-    const segs = workoutRef.current.segments;
-    let acc = 0;
-    for (let i = 0; i < segs.length; i++) {
-      const end = acc + segs[i].durationMs;
-      if (elapsed < end) {
-        return {
-          index: i,
-          segment: segs[i],
-          remaining: end - elapsed,
-          next: segs[i + 1] ?? null,
-        };
-      }
-      acc = end;
-    }
-    const last = segs[segs.length - 1] ?? null;
-    return { index: Math.max(0, segs.length - 1), segment: last, remaining: 0, next: null };
-  }, []);
+  const resolvePosition = useCallback((elapsed: number) => positionAt(workoutRef.current.segments, elapsed), []);
 
   const playDue = useCallback((cue: DueCue, salt: number) => {
     if (!takeCue(firedStartRef.current, firedRockyRef.current, cue)) return;
@@ -105,16 +107,26 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (s.hapticsEnabled) {
         const heavy = cue.kind === 'hard' || cue.kind === 'accel';
         void Haptics.impactAsync(
-          heavy ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium,
+          heavy
+            ? Haptics.ImpactFeedbackStyle.Heavy
+            : cue.kind === 'easy'
+              ? Haptics.ImpactFeedbackStyle.Light
+              : Haptics.ImpactFeedbackStyle.Medium,
         );
+        // Go is a double knock: you feel HARD start even with the phone in a bar mount.
+        if (heavy) setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 110);
       }
       const chirp = boundaryChirp(cue.kind);
       if (chirp === 'go') {
         void playBeep(s, 'go', cue.kind === 'hard' ? HARD_OPEN_DUCK_MS : undefined);
-        if (isFirstHard(cue.index, segs) && !firedRockyRef.current.has('go')) {
-          firedRockyRef.current.add('go');
+        const goKey = `go:${cue.segmentId}`;
+        const spokenGo = cue.kind === 'hard' && s.spokenCount;
+        if ((isFirstHard(cue.index, segs) || spokenGo) && !firedRockyRef.current.has(goKey)) {
+          firedRockyRef.current.add(goKey);
           speakCue({ key: 'go', line: ROCKY_GO, clip: 'go' }, s);
         }
+      } else if (chirp === 'release') {
+        void playBeep(s, 'easy', BEEP_DUCK_MS, 0.7);
       } else if (chirp === 'win') {
         void playBeep(s, 'win', ROUND_DUCK_MS);
         const roundKey = `round:${cue.segmentId}`;
@@ -132,6 +144,14 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     }
     if (cue.type === 'ladder') {
       if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const spoken = s.spokenCount && s.speechEnabled && s.coachVoice !== 'off';
+      if (spoken) {
+        // The coach counts; the tick stays underneath, softer, so the beat is still felt.
+        const n = cue.step === 'three' ? 3 : cue.step === 'two' ? 2 : 1;
+        speakCue({ key: `count:${n}`, line: ['One.', 'Two.', 'Three.'][n - 1]!, clip: `count${n}` }, s);
+        void playBeep(s, (cue.step === 'three' ? 'rung3' : cue.step === 'two' ? 'rung2' : 'rung1'), ladderDuckMs(cue.step), 0.35);
+        return;
+      }
       void playLadder(s, cue.step, ladderTexture(cue.approach, salt), ladderDuckMs(cue.step));
       return;
     }
@@ -170,7 +190,6 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     pausedAccumRef.current = total;
     anchorWallRef.current = null;
     setElapsedMs(total);
-    setSegmentIndex(Math.max(0, workoutRef.current.segments.length - 1));
     setStatus('finished');
     stopMusic();
     leaveWorkoutAudio();
@@ -188,18 +207,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
         firedClock: firedStartRef.current,
         firedRocky: firedRockyRef.current,
         salt: varietySalt(startedAtRef.current),
+        fullLadder: settingsRef.current.spokenCount && settingsRef.current.speechEnabled && settingsRef.current.coachVoice !== 'off',
       });
       if (!plan.step.commit) return;
       const to = plan.step.toMs;
       lastCueRef.current = to;
       elapsedRef.current = to;
       setElapsedMs(to);
-      const pos = resolvePosition(to);
-      setSegmentIndex(pos.index);
       if (plan.step.deliver) deliver(to, plan.cues);
       if (plan.step.finished) finishRunning();
     },
-    [deliver, finishRunning, resolvePosition],
+    [deliver, finishRunning],
   );
 
   useEffect(() => {
@@ -254,8 +272,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     startedAtRef.current = started;
     setStartedAt(started);
     setElapsedMs(0);
-    setSegmentIndex(0);
     anchorWallRef.current = null;
+    setCoachVoice(settingsRef.current.coachVoice);
     unlockRockyFromGesture();
     armMusicFromGesture(settingsRef.current.musicEnabled);
     try {
@@ -353,7 +371,6 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
         pausedAccumRef.current = total;
         anchorWallRef.current = null;
         setElapsedMs(total);
-        setSegmentIndex(Math.max(0, segs.length - 1));
         setStatus('finished');
         stopMusic();
         leaveWorkoutAudio();
@@ -368,7 +385,6 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       pausedAccumRef.current = next;
       anchorWallRef.current = statusRef.current === 'running' ? Date.now() : null;
       setElapsedMs(next);
-      setSegmentIndex(landed.index);
       if (statusRef.current === 'running' && landed.segment) {
         const salt = varietySalt(startedAtRef.current);
         syncMusic(bedForSegment(landed.segment, salt), settingsRef.current.musicEnabled, bedRate(landed.segment.kind, salt), landed.segment.label);
@@ -395,6 +411,17 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     seekTo(skipTargetMs(segs, index), false);
   }, [resolvePosition, seekTo]);
 
+  /** Warm-up only: halve what is left, or skip to just before the first HARD. */
+  const jumpWarmup = useCallback(
+    (mode: 'halve' | 'skip') => {
+      const target = warmupJumpMs(workoutRef.current.segments, elapsedRef.current, mode);
+      if (target == null) return false;
+      seekTo(target, false);
+      return true;
+    },
+    [seekTo],
+  );
+
   const stop = useCallback(() => {
     statusRef.current = 'idle';
     stopSpeech(true);
@@ -407,7 +434,6 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     lastCueRef.current = 0;
     setStartedAt(null);
     setElapsedMs(0);
-    setSegmentIndex(0);
     setStatus('idle');
     firedStartRef.current = new Set();
     firedRockyRef.current = new Set();
@@ -415,7 +441,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     void deactivateKeepAwake('workout');
   }, []);
 
-  const pos = resolvePosition(elapsedMs);
+  const pos = positionAt(workout.segments, elapsedMs);
   const progress01 =
     workout.totalMs > 0 ? Math.min(1, elapsedMs / workout.totalMs) : 0;
 
@@ -431,7 +457,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     workout,
   };
 
-  return { state, start, pause, resume, stop, restartSegment, shortenSegment, skipSegment, armedRef };
+  return { state, start, pause, resume, stop, restartSegment, shortenSegment, skipSegment, jumpWarmup, armedRef };
 }
 
 function bedForSegment(seg: { kind: string }, salt: number): MusicBed {

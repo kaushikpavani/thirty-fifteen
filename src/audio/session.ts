@@ -33,6 +33,8 @@ let modeChain: Promise<void> = Promise.resolve();
 function loadExpoAudio(): ExpoAudioModule | null {
   if (expoAudio !== undefined) return expoAudio;
   try {
+    // Lazy on purpose: a missing native module must not crash the bundle at load.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     expoAudio = require('expo-audio') as ExpoAudioModule;
   } catch {
     expoAudio = null;

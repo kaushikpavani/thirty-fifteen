@@ -1,14 +1,17 @@
-function readEnv(name: 'EXPO_PUBLIC_SUPABASE_URL' | 'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY' | 'EXPO_PUBLIC_SUPABASE_ANON_KEY'): string {
-  const value = process.env[name];
+/**
+ * Expo inlines EXPO_PUBLIC_* only for static `process.env.NAME` reads.
+ * A dynamic `process.env[name]` is undefined in release builds, so each read is spelled out.
+ */
+function clean(value: string | undefined): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 export function supabaseUrl(): string {
-  return readEnv('EXPO_PUBLIC_SUPABASE_URL');
+  return clean(process.env.EXPO_PUBLIC_SUPABASE_URL);
 }
 
 export function supabaseKey(): string {
-  return readEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY') || readEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  return clean(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) || clean(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 /** True when both a project URL and a publishable key are present. Blank means fully local. */

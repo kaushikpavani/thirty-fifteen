@@ -103,11 +103,11 @@ test('clock chirps at the phase and warns at T−3', () => {
   assert.equal(clockHit(1_700, 2_000), null);
 });
 
-test('rocky lines are grit without guilt or comparison', () => {
-  assert.equal(ROCKY_WELCOME, "Let's go. Time to get better.");
-  assert.equal(ROCKY_HARD, 'Dig in — this is the round that builds you.');
-  assert.equal(ROCKY_EASY, "Yes. Breathe fire. You're not done.");
-  assert.equal(ROCKY_FINISH, "That's how it's done. You showed up and won the work.");
+test('coach lines are short, calm, and never guilt or comparison', () => {
+  assert.equal(ROCKY_WELCOME, 'Warm-up. Easy spin to start.');
+  assert.equal(ROCKY_HARD, 'Hold it.');
+  assert.equal(ROCKY_EASY, 'Breathe.');
+  assert.equal(ROCKY_FINISH, "That's the work. Cool down, easy spin.");
   const segments = [
     { id: 'h1', kind: 'hard', durationMs: 30_000, repNumber: 1 },
     { id: 'e1', kind: 'easy', durationMs: 15_000, repNumber: 1 },
@@ -118,6 +118,7 @@ test('rocky lines are grit without guilt or comparison', () => {
   assert.equal(rockyCue({ elapsedMs: 32_000, segments, fired: new Set(['welcome']) })?.line, ROCKY_EASY);
   for (const line of lines) {
     assert.ok(line.length > 0);
+    assert.ok(line.split(' ').length <= 7, line);
     assert.doesNotMatch(line, /streak|badge|KOM|come back|excuse|everyone else|don’t blink/i);
   }
 });
@@ -157,14 +158,17 @@ test('rocky speaks only outside the silence window', () => {
   assert.equal(rockyCue({ elapsedMs: finishAt, segments, fired: new Set(['welcome', 'finish']) }), null);
 });
 
-test('drive bed is for hard and accel, and it ducks harder than it speaks', () => {
+test('drive is HARD, recover is EASY, ambient floats; the duck dips but never silences', () => {
   assert.equal(bedForKind('hard'), 'drive');
   assert.equal(bedForKind('accel'), 'drive');
-  for (const kind of ['warmup', 'easy', 'set_rest', 'cooldown', 'done']) {
-    assert.equal(bedForKind(kind), 'recover');
+  assert.equal(bedForKind('easy'), 'recover');
+  for (const kind of ['warmup', 'set_rest', 'cooldown', 'done']) {
+    assert.equal(bedForKind(kind), 'ambient');
   }
   assert.ok(BED_VOLUME.drive > BED_VOLUME.recover);
-  assert.equal(DUCK_GAIN, 0);
+  assert.ok(BED_VOLUME.recover > BED_VOLUME.ambient);
+  assert.equal(DUCK_GAIN, 0.25);
+  assert.equal(bedId('warmup', 1), 'ambient');
   assert.equal(sessionBed(0), 0);
   assert.equal(sessionBed(1), 1);
   assert.equal(sessionBed(2), 2);
@@ -172,7 +176,7 @@ test('drive bed is for hard and accel, and it ducks harder than it speaks', () =
   assert.equal(bedId('hard', 1), 'driveB');
   assert.equal(bedId('easy', 1), 'recoverB');
   assert.equal(bedId('hard', 2), 'drive');
-  assert.equal(bedRate('hard', 2), 1.04);
+  assert.equal(bedRate('hard', 2), 1);
   assert.equal(bedRate('easy', 2), 1);
   assert.equal(bedRate('hard', 0), 1);
   assert.ok(BED_VOLUME.driveB > BED_VOLUME.drive);
@@ -184,14 +188,24 @@ test('variety rotates by segment and session and never leaves the clock', () => 
   assert.equal(varietySalt(1_000), varietySalt(1_999));
   assert.notEqual(varietySalt(1_000), varietySalt(2_000));
 
-  assert.equal(hardTake(0, 0).line, HARD_LINES[0]);
-  assert.equal(hardTake(1, 0).line, "Hold the line. You're in it.");
-  assert.equal(hardTake(2, 0).line, 'This is the work. Stay with it.');
-  assert.equal(hardTake(3, 0).line, 'Chin up. Push the watts.');
-  for (let i = 0; i < 12; i++) assert.notEqual(hardTake(i, 0).line, hardTake(i + 1, 0).line);
+  assert.equal(hardTake(0, 0)?.line, HARD_LINES[0]);
+  assert.equal(hardTake(1, 0)?.line, 'Smooth and strong.');
+  assert.equal(hardTake(2, 0), null);
+  assert.equal(hardTake(2, 0, 1, 13)?.line, 'Quick feet.');
+  assert.equal(hardTake(3, 0)?.line, 'Relax your shoulders.');
+  for (let i = 0; i < 12; i++) {
+    const a = hardTake(i, 0);
+    const b = hardTake(i + 1, 0);
+    if (a && b) assert.notEqual(a.line, b.line);
+  }
+  // The coach knows where you are in a set of 13.
+  assert.equal(hardTake(6, 0, 7, 13)?.clip, 'halfway');
+  assert.equal(hardTake(10, 0, 11, 13)?.clip, 'three');
+  assert.equal(hardTake(12, 0, 13, 13)?.clip, 'last');
+  assert.equal(hardTake(2, 0, 13, 13)?.clip, 'last');
   assert.equal(easyTake(0, 0)?.line, EASY_LINES[0]);
-  assert.equal(easyTake(1, 0)?.line, 'Easy. Reload.');
-  assert.equal(easyTake(2, 0)?.line, "Good. Next one's yours.");
+  assert.equal(easyTake(1, 0)?.line, 'Spin easy.');
+  assert.equal(easyTake(2, 0)?.line, 'Good.');
   assert.equal(easyTake(3, 0), null);
   let silent = 0;
   for (let i = 0; i < 100; i++) if (!easySpeaks(i, 0)) silent += 1;
@@ -199,7 +213,7 @@ test('variety rotates by segment and session and never leaves the clock', () => 
 
   assert.equal(finishTake().line, ROCKY_FINISH);
   assert.equal(finishTake().clip, 'finish0');
-  assert.equal(roundTake().line, 'Round won. Stay sharp.');
+  assert.equal(roundTake().line, 'Set done. Spin easy, and drink.');
   assert.equal(ROCKY_GO, 'Go.');
 
   assert.equal(ladderSkipped(0), false);
@@ -277,17 +291,17 @@ test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into E
   assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'easy'), null);
   assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'warmup'), null);
   assert.equal(ladderStep(100, 2_000, 'hard'), null);
-  assert.equal(ladderDuckMs('three'), 4000);
-  assert.equal(ladderDuckMs('two'), 3000);
-  assert.equal(ladderDuckMs('one'), 2000);
-  assert.equal(HARD_OPEN_DUCK_MS, 1000);
+  assert.equal(ladderDuckMs('three'), 3250);
+  assert.equal(ladderDuckMs('two'), 2250);
+  assert.equal(ladderDuckMs('one'), 1250);
+  assert.equal(HARD_OPEN_DUCK_MS, 250);
   assert.equal(clockHit(settle.durationMs - 2900, settle.durationMs), 'warn');
   assert.equal(boundaryChirp('hard'), 'go');
-  assert.equal(boundaryChirp('easy'), null);
+  assert.equal(boundaryChirp('easy'), 'release');
   assert.equal(boundaryChirp('cooldown'), null);
   assert.equal(boundaryChirp('set_rest'), 'win');
   assert.equal(ROCKY_GO, 'Go.');
-  assert.equal(ROCKY_ROUND, 'Round won. Stay sharp.');
+  assert.equal(ROCKY_ROUND, 'Set done. Spin easy, and drink.');
 
   for (const at of [2900, 1900, 900]) {
     const elapsed = settle.durationMs - at;

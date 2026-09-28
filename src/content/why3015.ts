@@ -1,23 +1,33 @@
 /** Plain explanation of the 30/15 format. Shown only when the rider asks. */
 
-export const WHY_HERO =
-  'Short hard, short easy — so you can stay in the work that grows your engine. That’s why 30/15: more real time near your limit, not a longer slog that fades.';
+export const WHY_TITLE = 'Why 30/15';
 
-export const WHY_BULLETS = [
-  '30s hard / 15s easy is a researched cycling short-interval format (Rønnestad-style).',
-  'Short recoveries help you pile up work near your aerobic ceiling — time near VO₂max matters for fitness.',
-  'HARD / EASY targets come from your FTP (default 120 W → ~144 / ~60 W); edit FTP anytime.',
-  'Offline coach: clock + cues; no account required to ride.',
-  'Not a medical device — plain intervals for riders who want to get better.',
+export const WHY_SECTIONS = [
+  {
+    title: 'More time where it counts',
+    body: 'Fifteen seconds is too short for your oxygen uptake to fall. You stack up more minutes near VO₂max than you could hold in one long effort.',
+  },
+  {
+    title: 'Backed by research',
+    body: 'Trained cyclists doing 30/15 improved more than riders doing effort-matched 5-minute intervals.',
+    cite: 'Rønnestad et al., 2015',
+  },
+  {
+    title: 'A sharpener, not a base',
+    body: 'Once or twice a week. Keep your easy Zone 2 rides around it.',
+  },
+  {
+    title: 'How it should feel',
+    body: 'The first reps feel easy. The last three feel like a 9 out of 10. Easy means easy: keep the legs turning.',
+  },
+  {
+    title: 'Your targets',
+    body: 'HARD and EASY come from your FTP (default 120 W → 144 / 60 W). Change it any time in Settings. No account is required to ride.',
+  },
 ] as const;
 
-export const WHY_COMPARE_TITLE = 'Same clock, different work';
-
-export const WHY_COMPARE = [
-  'Forty minutes of steady moderate riding keeps you comfortable but rarely near your aerobic ceiling. The same forty minutes as 30/15 (hard / easy) flips you between short hard efforts and short recoveries — so more of the session is spent near the intensity that challenges VO₂max, without needing a longer all-out slog.',
-  'You still earn the ride either way. 30/15 just packs more of that high-end work into the same time — a training tool, not a medical promise.',
-] as const;
+export const WHY_FOOTNOTE = 'A coaching timer, not a medical device. Ride within your limits.';
 
 export function whyCopyBlob(): string {
-  return [WHY_HERO, ...WHY_BULLETS, WHY_COMPARE_TITLE, ...WHY_COMPARE].join('\n');
+  return [WHY_TITLE, ...WHY_SECTIONS.flatMap((s) => [s.title, s.body, 'cite' in s ? s.cite : '']), WHY_FOOTNOTE].join('\n');
 }

@@ -19,6 +19,7 @@ export function planCatchUp(args: {
   firedClock: ReadonlySet<string>;
   firedRocky: ReadonlySet<string>;
   salt?: number;
+  fullLadder?: boolean;
 }): CatchUpPlan {
   const step = stepPlayhead(args.fromMs, args.wallMs, args.totalMs);
   if (!step.deliver) return { step, cues: [] };
@@ -31,6 +32,7 @@ export function planCatchUp(args: {
       firedClock: args.firedClock,
       firedRocky: args.firedRocky,
       salt: args.salt,
+      fullLadder: args.fullLadder,
     }),
   };
 }

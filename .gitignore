@@ -41,3 +41,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Photo originals and scratch grabs: only graded copies ship (see CREDITS.md)
+assets/photos/vecteezy_*
+assets/photos/Screenshot*
+.DS_Store
+
+# Files retired by the redesign; safe to delete this folder
+_to_delete/

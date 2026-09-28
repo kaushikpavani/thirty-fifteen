@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
-import { sensorStatus } from '../components/SensorChip';
+import { Footer, Group, IconTile, LargeTitle, NavBack, Row, SectionHeader, Stepper } from '../components/kit/Grouped';
+import { Pill } from '../components/kit/Pill';
 import { useAuth } from '../auth/AuthContext';
+import type { PowerConnectionState } from '../ble/cps';
 import { useHistory } from '../state/HistoryContext';
 import { useHeartRate } from '../state/HeartRateContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
@@ -18,98 +19,20 @@ import {
   settingsResetNote,
 } from '../storage/deletionState';
 import { useSettings } from '../state/SettingsContext';
-import { colors } from '../theme/colors';
+import { ink, type } from '../theme/tokens';
 import type { WorkoutSettings } from '../types';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults';
+import { voiceName } from '../audio/voices';
 
-function Group({ children }: { children: React.ReactNode }) {
-  return <View style={styles.group}>{children}</View>;
+export function sensorValue(state: PowerConnectionState, name: string | null): string {
+  if (state === 'connected') return name ?? 'Connected';
+  if (state === 'connecting') return 'Connecting';
+  if (state === 'scanning') return 'Searching';
+  if (state === 'bluetoothUnavailable') return 'Unavailable';
+  return 'Not connected';
 }
 
-function Hairline() {
-  return <View style={styles.hairline} />;
-}
-
-function ChevronRow({
-  label,
-  value,
-  onPress,
-  testID,
-}: {
-  label: string;
-  value?: string;
-  onPress: () => void;
-  testID?: string;
-}) {
-  return (
-    <Pressable onPress={onPress} testID={testID} style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={styles.rowTrail}>
-        {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-        <Text style={styles.chevron}>›</Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function Stepper({
-  value,
-  onChange,
-  min,
-  max,
-  step = 1,
-}: {
-  value: number;
-  onChange: (next: number) => void;
-  min: number;
-  max: number;
-  step?: number;
-}) {
-  return (
-    <View style={styles.stepper}>
-      <Pressable
-        accessibilityLabel="Decrease"
-        onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
-        style={styles.stepHit}
-      >
-        <Text style={styles.stepGlyph}>−</Text>
-      </Pressable>
-      <View style={styles.stepSplit} />
-      <Pressable
-        accessibilityLabel="Increase"
-        onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
-        style={styles.stepHit}
-      >
-        <Text style={styles.stepGlyph}>+</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function Toggle({
-  label,
-  value,
-  onChange,
-  testID,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  testID?: string;
-}) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: '#3A3A3C', true: '#30D158' }}
-        thumbColor={colors.white}
-        testID={testID}
-      />
-    </View>
-  );
-}
+type Editor = 'ftp' | 'hard' | 'easy';
 
 export function SettingsScreen() {
   const { settings, update } = useSettings();
@@ -119,10 +42,12 @@ export function SettingsScreen() {
   const auth = useAuth();
   const [dataNote, setDataNote] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
-  const [editor, setEditor] = useState<'ftp' | 'hard' | 'easy' | null>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const [draftValue, setDraftValue] = useState(settings.ftpWatts);
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  useLayoutEffect(() => {
+    settingsRef.current = settings;
+  });
 
   const patch = (partial: Partial<WorkoutSettings>) => {
     const prev = settingsRef.current;
@@ -132,7 +57,12 @@ export function SettingsScreen() {
     if (auth.user && next.ftpWatts !== prev.ftpWatts) void syncProfile(auth.user);
   };
 
-  const openEditor = (which: 'ftp' | 'hard' | 'easy') => {
+  const step = (key: keyof WorkoutSettings, delta: number, min: number, max: number) => {
+    const current = settingsRef.current[key] as number;
+    patch({ [key]: Math.max(min, Math.min(max, Math.round(current + delta))) } as Partial<WorkoutSettings>);
+  };
+
+  const openEditor = (which: Editor) => {
     setDraftValue(which === 'ftp' ? settings.ftpWatts : which === 'hard' ? settings.hardPct : settings.easyPct);
     setEditor(which);
   };
@@ -147,37 +77,35 @@ export function SettingsScreen() {
     setEditor(null);
   };
 
+  const guard = async (work: () => Promise<void>) => {
+    if (acting) return;
+    setActing(true);
+    try {
+      await work();
+    } finally {
+      setActing(false);
+    }
+  };
+
   const resetSettings = async () => {
     await update({ ...DEFAULT_SETTINGS });
     setDataNote(settingsResetNote());
   };
 
-  const deleteHistory = async () => {
-    if (acting) return;
-    setActing(true);
-    try {
+  const deleteHistory = () =>
+    guard(async () => {
       const cloud = await history.clearSessions();
       setDataNote(historyDeleteNote(cloud));
-    } finally {
-      setActing(false);
-    }
-  };
+    });
 
-  const clearQueues = async () => {
-    if (acting) return;
-    setActing(true);
-    try {
+  const clearQueues = () =>
+    guard(async () => {
       await clearQueuedOutboxes();
       setDataNote(outboxClearNote());
-    } finally {
-      setActing(false);
-    }
-  };
+    });
 
-  const erasePhone = async () => {
-    if (acting) return;
-    setActing(true);
-    try {
+  const erasePhone = () =>
+    guard(async () => {
       await meter.forget();
       await heart.forget();
       const historyCloud = await history.clearSessions();
@@ -185,10 +113,7 @@ export function SettingsScreen() {
       await update({ ...DEFAULT_SETTINGS });
       await auth.setLocalName('');
       setDataNote(`${historyDeleteNote(historyCloud)} ${deviceEraseNote(deviceCloud)}`);
-    } finally {
-      setActing(false);
-    }
-  };
+    });
 
   const deleteAccount = () => {
     Alert.alert(
@@ -199,18 +124,11 @@ export function SettingsScreen() {
         {
           text: 'Delete account',
           style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              if (acting) return;
-              setActing(true);
-              try {
-                const cloud = await requestAccountDelete();
-                setDataNote(accountDeleteNote(cloud));
-              } finally {
-                setActing(false);
-              }
-            })();
-          },
+          onPress: () =>
+            void guard(async () => {
+              const cloud = await requestAccountDelete();
+              setDataNote(accountDeleteNote(cloud));
+            }),
         },
       ],
     );
@@ -226,287 +144,196 @@ export function SettingsScreen() {
   const previewHard = editor === 'hard' ? Math.round(draftValue) : settings.hardPct;
   const previewEasy = editor === 'easy' ? Math.round(draftValue) : settings.easyPct;
   const preview = derivedWatts(previewFtp, previewHard, previewEasy);
+  const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
+  const meterName = meter.phase.phase === 'connected' ? meter.phase.name : null;
+  const heartName = heart.phase.phase === 'connected' ? heart.phase.name : null;
+  const voice = settings.speechEnabled ? voiceName(settings.coachVoice) : 'Off';
+  const music = settings.musicEnabled ? 'Pulse' : 'Your music';
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} testID="settings-back">
-          <Text style={styles.back}>Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Settings</Text>
-      </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Group>
-          <ChevronRow
+        <NavBack label="Home" testID="settings-back" />
+        <LargeTitle>Settings</LargeTitle>
+
+        <SectionHeader>Sensors</SectionHeader>
+        <Group inset={58}>
+          <Row
             label="Power meter"
-            value={sensorStatus(meter.connectionState, meter.live != null)}
+            leading={<IconTile name="bolt" bg={ink.ember} fg="#000" />}
+            value={sensorValue(meter.connectionState, meterName)}
             onPress={() => router.push('/power')}
             testID="open-power"
           />
-        </Group>
-        <Group>
-          <ChevronRow
+          <Row
             label="Heart rate"
-            value={sensorStatus(heart.connectionState, heart.live != null)}
+            leading={<IconTile name="heart" bg={ink.rose} />}
+            value={sensorValue(heart.connectionState, heartName)}
             onPress={() => router.push('/heart')}
             testID="open-heart"
           />
         </Group>
-        <Group>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Workout Sets</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.sets}</Text>
-              <Stepper
-                value={settings.sets}
-                min={1}
-                max={6}
-                onChange={(sets) => patch({ sets: Math.round(sets) })}
-              />
-            </View>
-          </View>
-        </Group>
-        <Group>
-          <Text style={styles.groupLabel}>Targets</Text>
-          <Hairline />
-          <ChevronRow label="FTP" value={`${settings.ftpWatts} W`} onPress={() => openEditor('ftp')} testID="edit-ftp" />
-          <Hairline />
-          <ChevronRow label="Hard" value={`${settings.hardPct} %`} onPress={() => openEditor('hard')} testID="edit-hard" />
-          <Hairline />
-          <ChevronRow label="Easy" value={`${settings.easyPct} %`} onPress={() => openEditor('easy')} testID="edit-easy" />
-        </Group>
 
-        <Text style={styles.section}>Session</Text>
+        <SectionHeader>Workout</SectionHeader>
         <Group>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Warm-up</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.warmupMin} min</Text>
-              <Stepper
-                value={settings.warmupMin}
-                min={5}
-                max={30}
-                onChange={(warmupMin) => patch({ warmupMin: Math.round(warmupMin) })}
-              />
-            </View>
-          </View>
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Reps</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.reps}</Text>
-              <Stepper
-                value={settings.reps}
-                min={4}
-                max={20}
-                onChange={(reps) => patch({ reps: Math.round(reps) })}
-              />
-            </View>
-          </View>
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Work</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.workSec}s</Text>
-              <Stepper
-                value={settings.workSec}
-                min={15}
-                max={60}
-                step={5}
-                onChange={(workSec) => patch({ workSec: Math.round(workSec) })}
-              />
-            </View>
-          </View>
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Recover</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.recoverSec}s</Text>
-              <Stepper
-                value={settings.recoverSec}
-                min={10}
-                max={30}
-                step={5}
-                onChange={(recoverSec) => patch({ recoverSec: Math.round(recoverSec) })}
-              />
-            </View>
-          </View>
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Between sets</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.betweenSetRestMin} min</Text>
-              <Stepper
-                value={settings.betweenSetRestMin}
-                min={1}
-                max={10}
-                onChange={(betweenSetRestMin) => patch({ betweenSetRestMin: Math.round(betweenSetRestMin) })}
-              />
-            </View>
-          </View>
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Cool-down</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.cooldownMin} min</Text>
-              <Stepper
-                value={settings.cooldownMin}
-                min={3}
-                max={20}
-                onChange={(cooldownMin) => patch({ cooldownMin: Math.round(cooldownMin) })}
-              />
-            </View>
-          </View>
-        </Group>
-
-        <Text style={styles.section}>Ride</Text>
-        <Group>
-          <Toggle
-            label="Music"
-            value={settings.musicEnabled}
-            onChange={(musicEnabled) => patch({ musicEnabled })}
-            testID="music-toggle"
+          <Row
+            label="Sets"
+            value={String(settings.sets)}
+            trailing={<Stepper label="sets" onMinus={() => step('sets', -1, 1, 6)} onPlus={() => step('sets', 1, 1, 6)} />}
           />
-          <Hairline />
-          <Toggle
-            label="Spoken cues"
-            value={settings.speechEnabled}
-            onChange={(speechEnabled) => patch({ speechEnabled })}
+          <Row
+            label="Reps per set"
+            value={String(settings.reps)}
+            trailing={<Stepper label="reps" onMinus={() => step('reps', -1, 4, 20)} onPlus={() => step('reps', 1, 4, 20)} />}
           />
-          <Hairline />
-          <Toggle
-            label="Haptics"
-            value={settings.hapticsEnabled}
-            onChange={(hapticsEnabled) => patch({ hapticsEnabled })}
+          <Row
+            label="Hard rep"
+            value={`${settings.workSec} s`}
+            trailing={<Stepper label="hard seconds" onMinus={() => step('workSec', -5, 15, 60)} onPlus={() => step('workSec', 5, 15, 60)} />}
           />
-          <Hairline />
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Voice rate</Text>
-            <View style={styles.rowTrail}>
-              <Text style={styles.setsValue}>{settings.voiceRate.toFixed(2)}</Text>
+          <Row
+            label="Easy rep"
+            value={`${settings.recoverSec} s`}
+            trailing={<Stepper label="easy seconds" onMinus={() => step('recoverSec', -5, 10, 30)} onPlus={() => step('recoverSec', 5, 10, 30)} />}
+          />
+          <Row
+            label="Warm-up"
+            value={`${settings.warmupMin} min`}
+            trailing={<Stepper label="warm-up minutes" onMinus={() => step('warmupMin', -1, 5, 30)} onPlus={() => step('warmupMin', 1, 5, 30)} />}
+          />
+          <Row
+            label="Rest between sets"
+            value={`${settings.betweenSetRestMin} min`}
+            trailing={
               <Stepper
-                value={settings.voiceRate}
-                min={0.7}
-                max={1.4}
-                step={0.05}
-                onChange={(voiceRate) => patch({ voiceRate: +voiceRate.toFixed(2) })}
+                label="rest minutes"
+                onMinus={() => step('betweenSetRestMin', -1, 1, 10)}
+                onPlus={() => step('betweenSetRestMin', 1, 1, 10)}
               />
-            </View>
-          </View>
+            }
+          />
+          <Row
+            label="Cool-down"
+            value={`${settings.cooldownMin} min`}
+            trailing={<Stepper label="cool-down minutes" onMinus={() => step('cooldownMin', -1, 3, 20)} onPlus={() => step('cooldownMin', 1, 3, 20)} />}
+          />
+        </Group>
+        <Footer>
+          Each set is {settings.reps} reps of {settings.workSec} s hard, {settings.recoverSec} s easy.
+        </Footer>
+
+        <SectionHeader>Targets</SectionHeader>
+        <Group>
+          <Row label="FTP" value={`${settings.ftpWatts} W`} onPress={() => openEditor('ftp')} testID="edit-ftp" />
+          <Row
+            label="Hard"
+            leading={<View style={[styles.dot, { backgroundColor: ink.ember }]} />}
+            value={`${settings.hardPct}% · ${watts.hard} W`}
+            onPress={() => openEditor('hard')}
+            testID="edit-hard"
+          />
+          <Row
+            label="Easy"
+            leading={<View style={[styles.dot, { backgroundColor: ink.glacier }]} />}
+            value={`${settings.easyPct}% · ${watts.easy} W`}
+            onPress={() => openEditor('easy')}
+            testID="edit-easy"
+          />
+        </Group>
+        <Footer>Targets appear under your watts while you ride. Use a recent FTP test, or your best guess.</Footer>
+
+        <SectionHeader>Sound</SectionHeader>
+        <Group inset={58}>
+          <Row
+            label="Sound & haptics"
+            leading={<IconTile name="wave" bg="#5E5CE6" />}
+            value={`${voice} · ${music}`}
+            onPress={() => router.push('/sound')}
+            testID="open-sound"
+          />
         </Group>
 
-        <Text style={styles.section}>Library</Text>
+        <SectionHeader>Library</SectionHeader>
         <Group>
-          <ChevronRow label="Why 30/15" onPress={() => router.push('/about')} testID="open-about" />
-          <Hairline />
-          <ChevronRow label="Past sessions" onPress={() => router.push('/history')} testID="open-history" />
-          <Hairline />
-          <ChevronRow label="Leave a note" onPress={() => router.push('/feedback')} testID="settings-feedback" />
+          <Row label="Past rides" onPress={() => router.push('/history')} testID="open-history" />
+          <Row label="Leave a note" onPress={() => router.push('/feedback')} testID="settings-feedback" />
+          <Row label="Credits" onPress={() => router.push('/credits')} testID="open-credits" />
         </Group>
 
-        <Text style={styles.section}>Account</Text>
-        <Group>
-          <View style={styles.block}>
-            {auth.user ? (
-              <>
-                <Text style={styles.accountName}>{auth.user.name ?? 'Signed in'}</Text>
-                <Text style={styles.accountMeta}>
-                  {auth.user.provider}
-                  {auth.user.email ? ` · ${auth.user.email}` : ''}
-                </Text>
-                <Text style={styles.accountMeta}>Sessions on this phone also sync while you are signed in.</Text>
-                <PrimaryButton variant="hairline" label="Sign out" onPress={() => void auth.signOut()} testID="sign-out" />
-              </>
-            ) : (
-              <>
-                <Text style={styles.accountMeta}>Optional. Start never asks you to sign in.</Text>
-                <PrimaryButton
-                  variant="hairline"
-                  label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
-                  onPress={() => void auth.signIn('google')}
-                  disabled={auth.busy != null}
-                  testID="sign-in-google"
-                />
-                <PrimaryButton
-                  variant="hairline"
-                  label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
-                  onPress={() => void auth.signIn('facebook')}
-                  disabled={auth.busy != null}
-                  testID="sign-in-facebook"
-                />
-                {auth.needsSetup ? (
-                  <Text style={styles.accountMeta}>Cloud is not set up on this install. Sessions stay on this phone.</Text>
-                ) : null}
-              </>
-            )}
-            {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
-          </View>
-        </Group>
+        <SectionHeader>Account</SectionHeader>
+        {auth.user ? (
+          <Group inset={58}>
+            <Row
+              label={auth.user.name ?? 'Signed in'}
+              detail={`${auth.user.provider}${auth.user.email ? ` · ${auth.user.email}` : ''}`}
+              leading={<IconTile name="person" bg="#3A3A3C" fg="#AEAEB2" />}
+            />
+            <Row label="Sign out" tint={ink.emberText} onPress={() => void auth.signOut()} chevron={false} testID="sign-out" />
+          </Group>
+        ) : (
+          <Group>
+            <Row
+              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
+              tint={ink.emberText}
+              onPress={() => void auth.signIn('google')}
+              disabled={auth.busy != null}
+              chevron={false}
+              testID="sign-in-google"
+            />
+            <Row
+              label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
+              tint={ink.emberText}
+              onPress={() => void auth.signIn('facebook')}
+              disabled={auth.busy != null}
+              chevron={false}
+              testID="sign-in-facebook"
+            />
+          </Group>
+        )}
+        <Footer>
+          {auth.user
+            ? 'Rides save on this iPhone first, then sync while you are signed in.'
+            : auth.needsSetup
+              ? 'Cloud is not set up on this install. Rides stay on this iPhone.'
+              : 'Optional. Start never asks you to sign in. Every ride saves on this iPhone first.'}
+        </Footer>
+        {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
 
-        <Text style={styles.section}>Your data</Text>
+        <SectionHeader>Your data</SectionHeader>
         <Group>
-          <View style={styles.block}>
-            <Text style={styles.accountMeta}>
-              Sessions, FTP, and notes live on this phone. You can delete them here. An account is optional and copies finished sessions when you are online. This coach is free.
-            </Text>
-            <PrimaryButton
-              variant="hairline"
-              label="Delete workout history"
-              onPress={() => void deleteHistory()}
-              disabled={acting}
-              testID="delete-history"
-            />
-            <PrimaryButton
-              variant="hairline"
-              label="Clear queued notes and analytics"
-              onPress={() => void clearQueues()}
-              disabled={acting}
-              testID="clear-outbox"
-            />
-            <PrimaryButton
-              variant="hairline"
-              label="Erase data on this phone"
-              onPress={() => void erasePhone()}
-              disabled={acting}
-              testID="erase-device"
-            />
-            {auth.user ? (
-              <PrimaryButton
-                variant="danger"
-                label="Delete account and cloud data"
-                onPress={deleteAccount}
-                disabled={acting}
-                testID="delete-account"
-              />
-            ) : null}
-            {dataNote ? <Text style={styles.accountMeta}>{dataNote}</Text> : null}
-            <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => void resetSettings()} testID="reset-settings" />
-          </View>
+          <Row label="Delete ride history" tint={ink.danger} onPress={() => void deleteHistory()} disabled={acting} chevron={false} testID="delete-history" />
+          <Row label="Clear queued notes and analytics" tint={ink.danger} onPress={() => void clearQueues()} disabled={acting} chevron={false} testID="clear-outbox" />
+          <Row label="Erase data on this iPhone" tint={ink.danger} onPress={() => void erasePhone()} disabled={acting} chevron={false} testID="erase-device" />
+          {auth.user ? (
+            <Row label="Delete account and cloud data" tint={ink.danger} onPress={deleteAccount} disabled={acting} chevron={false} testID="delete-account" />
+          ) : null}
+          <Row label="Reset to defaults" onPress={() => void resetSettings()} chevron={false} testID="reset-settings" />
         </Group>
+        <Footer>{dataNote ?? 'Rides, FTP and notes live on this iPhone. An account only copies finished rides when you are online.'}</Footer>
+
+        <Text style={styles.free}>30/15 is free. Forever.</Text>
       </ScrollView>
 
       <Modal visible={editor != null} transparent animationType="slide" onRequestClose={() => setEditor(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setEditor(null)} />
+        <Pressable style={styles.backdrop} onPress={() => setEditor(null)} accessibilityLabel="Close" />
         <View style={styles.sheet}>
+          <View style={styles.grabber} />
           <Text style={styles.sheetTitle}>{editorMeta.label}</Text>
-          <Text style={styles.sheetValue}>
-            {Math.round(draftValue)} {editorMeta.suffix}
-          </Text>
-          {editor === 'ftp' || editor === 'hard' || editor === 'easy' ? (
-            <Text style={styles.sheetMeta}>
-              Hard {preview.hard} W · Easy {preview.easy} W
+          <View style={styles.sheetRow}>
+            <Text style={styles.sheetValue}>
+              {Math.round(draftValue)}
+              <Text style={styles.sheetSuffix}> {editorMeta.suffix}</Text>
             </Text>
-          ) : null}
-          <View style={styles.sheetStepper}>
             <Stepper
-              value={draftValue}
-              min={editorMeta.min}
-              max={editorMeta.max}
-              step={editorMeta.step}
-              onChange={setDraftValue}
+              label={editorMeta.label}
+              onMinus={() => setDraftValue((v) => Math.max(editorMeta.min, v - editorMeta.step))}
+              onPlus={() => setDraftValue((v) => Math.min(editorMeta.max, v + editorMeta.step))}
             />
           </View>
-          <PrimaryButton label="Done" onPress={saveEditor} testID="save-target" />
+          <Text style={styles.sheetMeta}>
+            Hard {preview.hard} W · Easy {preview.easy} W
+          </Text>
+          <Pill label="Done" variant="light" onPress={saveEditor} testID="save-target" />
         </View>
       </Modal>
     </Screen>
@@ -514,80 +341,24 @@ export function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
-  back: { color: '#0A84FF', fontSize: 17 },
-  title: {
-    color: colors.white,
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-  },
-  scroll: { paddingHorizontal: 16, paddingBottom: 48, gap: 14, paddingTop: 18 },
-  section: {
-    marginTop: 8,
-    marginLeft: 12,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  group: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  groupLabel: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  row: {
-    minHeight: 48,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  rowLabel: { color: colors.white, fontSize: 17, flexShrink: 1 },
-  rowTrail: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowValue: { color: '#D1D1D6', fontSize: 17, fontVariant: ['tabular-nums'] },
-  setsValue: { color: colors.white, fontSize: 17, fontVariant: ['tabular-nums'], minWidth: 28, textAlign: 'right' },
-  chevron: { color: '#0A84FF', fontSize: 22, fontWeight: '500', marginTop: -2 },
-  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginLeft: 16 },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: '#2C2C2E',
-    overflow: 'hidden',
-  },
-  stepHit: { width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
-  stepSplit: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.18)' },
-  stepGlyph: { color: colors.white, fontSize: 20, fontWeight: '500' },
-  block: { padding: 16, gap: 10 },
-  accountName: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  accountMeta: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
-  error: { color: colors.danger, fontSize: 14 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  scroll: { paddingBottom: 48 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  error: { color: ink.danger, ...type.caption, paddingHorizontal: 32, marginTop: 6 },
+  free: { color: '#636366', ...type.caption, textAlign: 'center', marginTop: 36 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
   sheet: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: ink.grouped,
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 28,
-    gap: 12,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    paddingTop: 10,
+    paddingBottom: 40,
+    gap: 16,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
   },
-  sheetTitle: { color: colors.white, fontSize: 20, fontWeight: '700' },
-  sheetValue: { color: colors.white, fontSize: 40, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  sheetMeta: { color: colors.textMuted, fontSize: 15 },
-  sheetStepper: { alignItems: 'flex-start' },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: '#48484A' },
+  sheetTitle: { color: ink.secondary, ...type.headline },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetValue: { color: ink.text, fontSize: 56, fontWeight: '600', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
+  sheetSuffix: { fontSize: 22, color: ink.secondary, letterSpacing: 0 },
+  sheetMeta: { color: ink.secondary, ...type.callout, fontVariant: ['tabular-nums'] },
 });

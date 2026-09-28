@@ -2,7 +2,11 @@
 
 Applies to **Power meter** (`0x1818` / `0x2A63`) and **Heart rate** (`0x180D` / `0x2A37`, including Garmin Fenix Broadcast HR).
 
-## Problem to fix
+## Status
+
+Done (Sept 2026): `src/components/SensorPanel.tsx`. Rows are full-width, enabled the moment a device appears, and the Searching spinner lives in the section header.
+
+## Problem that was fixed
 
 Scan results were hard to tap: either the row waited until scan finished, or only a small text span was hit-testable. Both sensors need the same fix.
 

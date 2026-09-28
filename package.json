@@ -13,6 +13,7 @@
     "expo-haptics": "~57.0.3",
     "expo-keep-awake": "~57.0.2",
     "expo-linear-gradient": "~57.0.2",
+    "expo-linking": "~57.0.11",
     "expo-router": "~57.0.23",
     "expo-speech": "~57.0.3",
     "expo-splash-screen": "~57.0.9",
@@ -29,6 +30,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -37,7 +40,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./scripts/register-ts-ext.mjs --experimental-strip-types --test src/logic/coach.test.ts src/logic/heat.test.ts src/logic/cueCatchup.test.ts src/logic/wallClock.test.ts src/logic/remoteTransport.test.ts src/logic/backgroundRide.test.ts src/logic/rideSummary.test.ts src/storage/cloudRow.test.ts src/storage/merge.test.ts src/storage/analytics.test.ts src/storage/deletionState.test.ts src/storage/queue.test.ts src/storage/historyGate.test.ts src/auth/storageKey.test.ts src/logic/why3015.test.ts src/motion/animatedDriver.test.ts src/ble/parse.test.ts src/ble/cps.test.ts src/ble/hrs.test.ts"
+    "test": "node --import ./scripts/register-ts-ext.mjs --experimental-strip-types --test src/logic/coach.test.ts src/logic/rideView.test.ts src/logic/heat.test.ts src/logic/cueCatchup.test.ts src/logic/wallClock.test.ts src/logic/remoteTransport.test.ts src/logic/backgroundRide.test.ts src/logic/rideSummary.test.ts src/storage/cloudRow.test.ts src/storage/merge.test.ts src/storage/analytics.test.ts src/storage/deletionState.test.ts src/storage/queue.test.ts src/storage/historyGate.test.ts src/auth/storageKey.test.ts src/logic/why3015.test.ts src/motion/animatedDriver.test.ts src/ble/parse.test.ts src/ble/cps.test.ts src/ble/hrs.test.ts",
+    "lint": "eslint src"
   },
   "private": true
 }

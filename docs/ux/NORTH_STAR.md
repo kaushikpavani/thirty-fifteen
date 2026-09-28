@@ -23,14 +23,16 @@ Match **Apple Fitness / Health / Settings** craft:
 - Pause-only while running.
 - Bloom Done (“You did it.” / “Great focus. Strong work.”).
 - Music as paint breath, not a second product.
-- Abstract bike / road wash ≤15% opacity under the ride clock. Reduce Motion = static phase color.
+- An original animated aero road bike (never a brand’s frame): rolling on Welcome, in the Home session card, as ≤16% line-art under the ride clock with wheels at phase pace, and on Done. Reduce Motion = still bike, static phase color.
+- Analog power gauge around the digital watts, target notch, green when on target.
+- Pulse music phrase-locked to the intervals; a motivating coach who counts you in.
 - Home: sensor chips + large Start + Why 30/15 + Settings.
 
 ## Kill (reject as-is)
 
 - Gym-HIIT athlete full-bleed photography.
 - ROUND / EXERCISE chrome, Work/Rest/Rounds maze.
-- Ring-as-watt-dial as the primary meter.
+- A dial without the digits: the number stays the hero inside the gauge.
 - Streak Finish, remind-tomorrow, engagement nagging.
 - Fake watts or fake BPM when disconnected.
 - FTP / hard W / easy W controls on Home.

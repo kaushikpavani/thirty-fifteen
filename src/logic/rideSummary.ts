@@ -106,6 +106,28 @@ function valuesFor(samples: RideSample[], kind: string | null, pick: (sample: Ri
   return out;
 }
 
+export const REP_WATTS_MAX = 60;
+
+/** Mean watts inside each HARD segment's window. Reps without samples are left out. */
+export function repWatts(segments: TimedSegment[], samples: RideSample[]): number[] {
+  const out: number[] = [];
+  let cursor = 0;
+  for (const segment of segments) {
+    const start = cursor;
+    const end = cursor + Math.max(0, segment.durationMs);
+    cursor = end;
+    if (segment.kind !== 'hard') continue;
+    const inside: number[] = [];
+    for (const sample of samples) {
+      if (sample.atMs >= start && sample.atMs < end && finite(sample.watts)) inside.push(sample.watts);
+    }
+    const avg = mean(inside);
+    if (avg != null) out.push(avg);
+    if (out.length >= REP_WATTS_MAX) break;
+  }
+  return out;
+}
+
 export function summarizeRide(input: {
   segments: TimedSegment[];
   elapsedMs: number;
@@ -138,6 +160,7 @@ export function summarizeRide(input: {
     maxBpm: peak(bpm),
     avgHardBpm: mean(hardBpm),
     avgEasyBpm: mean(easyBpm),
+    repWatts: repWatts(input.segments, input.samples),
   };
 }
 
@@ -189,6 +212,9 @@ export function parseStoredSummary(raw: unknown): RideSummary | undefined {
   const sparkline = Array.isArray(row.sparkline)
     ? row.sparkline.filter((point): point is number => typeof point === 'number' && Number.isFinite(point)).slice(0, SPARKLINE_MAX)
     : [];
+  const reps = Array.isArray(row.repWatts)
+    ? row.repWatts.filter((point): point is number => typeof point === 'number' && Number.isFinite(point)).slice(0, REP_WATTS_MAX)
+    : [];
   return {
     setsDone,
     setsPlanned,
@@ -205,5 +231,6 @@ export function parseStoredSummary(raw: unknown): RideSummary | undefined {
     maxBpm,
     avgHardBpm,
     avgEasyBpm,
+    repWatts: reps,
   };
 }

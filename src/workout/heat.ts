@@ -5,7 +5,7 @@
  */
 
 /** Beats per minute of `drive.wav` and `drive-b.wav`. */
-export const DRIVE_BPM = 120;
+export const DRIVE_BPM = 128;
 
 /** Bike texture under the digits. The whole layer, not each speck. */
 export const ROAD_WASH_OPACITY = 0.15;

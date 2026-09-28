@@ -1,14 +1,14 @@
 export const colors = {
-  bg: '#070708',
-  bgElevated: '#101012',
-  bgCard: '#141416',
+  bg: '#000000',
+  bgElevated: '#111113',
+  bgCard: '#111113',
   bgSoft: '#1C1C1E',
   border: 'rgba(255,255,255,0.10)',
   borderSoft: 'rgba(255,255,255,0.06)',
 
-  text: '#F5F5F7',
-  textMuted: '#8E8E93',
-  textDim: '#636366',
+  text: '#F5F5F2',
+  textMuted: '#9B9BA1',
+  textDim: '#7A7A80',
 
   hard: '#FF453A',
   hardGlow: 'rgba(255, 69, 58, 0.16)',
@@ -24,7 +24,7 @@ export const colors = {
 
   danger: '#FF453A',
   /** Saturated go. Primary actions use this, never white. */
-  go: '#FF7A1A',
+  go: '#FF5A1F',
   white: '#FFFFFF',
   black: '#000000',
 } as const;

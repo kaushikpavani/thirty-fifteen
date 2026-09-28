@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
-import { PrimaryButton } from '../components/PrimaryButton';
+import { LargeTitle, NavBack } from '../components/kit/Grouped';
+import { Pill } from '../components/kit/Pill';
 import { Screen } from '../components/Screen';
 import { useAuth } from '../auth/AuthContext';
 import { FEEDBACK_MAX, normalizeFeedback } from '../feedback/message';
 import { submitFeedback, type FeedbackDelivery } from '../storage/feedback';
-import { colors } from '../theme/colors';
+import { ink, radius, type } from '../theme/tokens';
 
 export function FeedbackScreen() {
   const auth = useAuth();
@@ -33,14 +33,9 @@ export function FeedbackScreen() {
 
   return (
     <Screen bottom>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} testID="feedback-back">
-          <Text style={styles.back}>Back</Text>
-        </Pressable>
-        <Text style={styles.kicker}>OPTIONAL</Text>
-        <Text style={styles.title}>Feedback</Text>
-        <Text style={styles.lead}>Say the good, the bad, or the thing you want. No score. No account.</Text>
-      </View>
+      <NavBack label="Settings" testID="feedback-back" />
+      <LargeTitle>Leave a note</LargeTitle>
+      <Text style={[styles.lead, styles.pad]}>Say the good, the bad, or the thing you want. No score. No account.</Text>
 
       {delivery ? (
         <View style={styles.done} testID="feedback-status">
@@ -50,7 +45,7 @@ export function FeedbackScreen() {
               ? 'I will read it.'
               : 'It sends the next time this app can reach the server.'}
           </Text>
-          <PrimaryButton variant="quiet" label="Write another" onPress={() => setDelivery(null)} testID="feedback-again" />
+          <Pill variant="glass" label="Write another" onPress={() => setDelivery(null)} testID="feedback-again" />
         </View>
       ) : (
         <View style={styles.form}>
@@ -58,20 +53,18 @@ export function FeedbackScreen() {
             value={draft}
             onChangeText={setDraft}
             placeholder="You suck. Or I want X, Y, and Z."
-            placeholderTextColor={colors.textDim}
+            placeholderTextColor={ink.tertiary}
             multiline
             maxLength={FEEDBACK_MAX}
             textAlignVertical="top"
             style={styles.input}
             testID="feedback-input"
           />
-          <PrimaryButton
-            label="Send"
-            onPress={() => void send()}
-            disabled={!body}
-            loading={busy}
-            testID="send-feedback"
-          />
+          {busy ? (
+            <ActivityIndicator color={ink.ember} />
+          ) : (
+            <Pill label="Send" onPress={() => void send()} disabled={!body} testID="send-feedback" />
+          )}
         </View>
       )}
     </Screen>
@@ -79,35 +72,18 @@ export function FeedbackScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 28, paddingTop: 8, gap: 12 },
-  back: { color: colors.textMuted, fontSize: 16 },
-  kicker: {
-    marginTop: 18,
-    color: colors.textDim,
-    letterSpacing: 2,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  title: {
-    color: colors.text,
-    fontSize: 40,
-    fontWeight: '200',
-    letterSpacing: -0.8,
-  },
-  lead: { color: colors.textMuted, fontSize: 16, lineHeight: 24 },
-  form: { flex: 1, paddingHorizontal: 28, paddingTop: 28, gap: 20 },
+  pad: { paddingHorizontal: 20, marginTop: 8 },
+  lead: { color: ink.secondary, ...type.callout },
+  form: { flex: 1, paddingHorizontal: 16, paddingTop: 20, gap: 16 },
   input: {
-    minHeight: 180,
-    color: colors.text,
-    fontSize: 18,
-    lineHeight: 26,
-    padding: 0,
+    minHeight: 200,
+    color: ink.text,
+    fontSize: 17,
+    lineHeight: 24,
+    padding: 16,
+    backgroundColor: ink.grouped,
+    borderRadius: radius.group,
   },
-  done: { paddingHorizontal: 28, paddingTop: 36, gap: 16 },
-  doneTitle: {
-    color: colors.text,
-    fontSize: 32,
-    fontWeight: '300',
-    letterSpacing: -0.4,
-  },
+  done: { paddingHorizontal: 20, paddingTop: 36, gap: 16 },
+  doneTitle: { color: ink.text, ...type.title },
 });

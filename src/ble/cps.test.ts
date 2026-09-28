@@ -93,6 +93,8 @@ test('start is not gated on power or heart rate', () => {
   const home = fs.readFileSync(path.join(root, 'screens/HomeScreen.tsx'), 'utf8');
   const settings = fs.readFileSync(path.join(root, 'screens/SettingsScreen.tsx'), 'utf8');
   const active = fs.readFileSync(path.join(root, 'screens/ActiveScreen.tsx'), 'utf8');
+  const done = fs.readFileSync(path.join(root, 'components/DoneSummary.tsx'), 'utf8');
+  const controls = fs.readFileSync(path.join(root, 'components/ride/Controls.tsx'), 'utf8');
   const power = fs.readFileSync(path.join(root, 'app/power.tsx'), 'utf8');
   assert.match(home, /Power meter/);
   assert.match(home, /Heart rate/);
@@ -101,17 +103,26 @@ test('start is not gated on power or heart rate', () => {
   assert.doesNotMatch(home, />FTP<|edit-ftp|disabled=\{/);
   assert.match(settings, /Power meter/);
   assert.match(settings, /Heart rate/);
-  assert.match(settings, /Workout Sets/);
+  assert.match(settings, /label="Sets"/);
   assert.match(power, /PowerMeterPanel variant="settings"/);
-  assert.match(active, /testID="live-watts"/);
+  const gauge = fs.readFileSync(path.join(root, 'components/ride/PowerGauge.tsx'), 'utf8');
+  assert.match(gauge, /testID="live-watts"/);
+  assert.match(active, /<PowerGauge watts=\{watts\}/);
   assert.match(active, /testID="live-bpm"/);
-  assert.match(active, /testID=\{running \? 'pause' : 'resume'\}/);
-  assert.match(active, /FINISH_TITLE/);
+  // Pause is the only control while the clock runs; Resume + hold-to-end after.
+  assert.match(active, /<PauseGlass onPress=\{onPause\} \/>/);
+  assert.match(active, /testID="resume"/);
+  assert.match(active, /<HoldToEnd onEnd=\{finishStop\} \/>/);
+  assert.match(controls, /testID="pause"/);
+  assert.match(controls, /testID="end"/);
+  assert.match(done, /FINISH_TITLE/);
   const craft = fs.readFileSync(path.join(root, 'workout/craft.ts'), 'utf8');
   assert.match(craft, /You did it\./);
   assert.match(craft, /Great focus\. Strong work\./);
+  // Only the warm-up may be shortened; the main set clock is never moved by a tap.
   assert.doesNotMatch(active, /testID="shorten"|testID="skip"|testID="restart"/);
-  assert.doesNotMatch(`${home}\n${settings}\n${active}`, /honest/i);
+  assert.match(active, /warmupJumpMs\(state\.workout\.segments, state\.elapsedMs, 'skip'\) != null/);
+  assert.doesNotMatch(`${home}\n${settings}\n${active}\n${done}`, /honest/i);
   assert.equal(connectionStateFor({ phase: 'blocked', reason: 'no-hr' }), 'disconnected');
 });
 

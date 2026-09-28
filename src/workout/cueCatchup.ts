@@ -38,6 +38,8 @@ export type DueRocky = {
   key: string;
   line: string;
   clip: string;
+  /** HARD rep number, so a numbers-only coach can say it. */
+  rep?: number;
   atMs: number;
 };
 
@@ -130,6 +132,8 @@ export function cuesDue(args: {
   firedRocky: ReadonlySet<string>;
   salt?: number;
   maxGapMs?: number;
+  /** A spoken count-in needs all three rungs every time, so no skipped ladders. */
+  fullLadder?: boolean;
 }): DueCue[] {
   const { segments, fromMs, toMs, firedClock, firedRocky } = args;
   const salt = args.salt ?? 0;
@@ -159,7 +163,7 @@ export function cuesDue(args: {
 
     if (!ladderArmed(seg.durationMs, nextKind)) continue;
     const approach = approachIntoNext(segments, index, nextKind);
-    if (ladderSkipped(approach)) {
+    if (!args.fullLadder && ladderSkipped(approach)) {
       const warnKey = `warn:${seg.id}`;
       const window = leadWindow(end, WARN_BEFORE_MS);
       if (!firedClock.has(warnKey) && keep(fromMs, toMs, window, maxGap)) {
@@ -209,7 +213,7 @@ export function cuesDue(args: {
     const sample = inside ? toMs : candidate.window.end - 1;
     const cue = rockyCue({ elapsedMs: sample, segments, fired: firedRocky, salt });
     if (!cue || cue.key !== candidate.key) continue;
-    rockyHits.push({ type: 'rocky', key: cue.key, line: cue.line, clip: cue.clip, atMs: candidate.window.start });
+    rockyHits.push({ type: 'rocky', key: cue.key, line: cue.line, clip: cue.clip, rep: cue.rep, atMs: candidate.window.start });
   }
   const rocky = rockyHits.reduce<DueRocky | null>(
     (best, cue) => (best == null || cue.atMs >= best.atMs ? cue : best),

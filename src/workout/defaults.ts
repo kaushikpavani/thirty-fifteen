@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   beepsEnabled: true,
   hapticsEnabled: true,
   musicEnabled: true,
+  coachVoice: 'direct',
+  spokenCount: true,
 };
 
 export const SCIENCE_BLURB =
