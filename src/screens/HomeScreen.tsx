@@ -1,36 +1,24 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
-import { Atmosphere } from '../components/Atmosphere';
-import { FtpOnboardingModal } from '../components/FtpOnboardingModal';
-import { PrimaryButton } from '../components/PrimaryButton';
+import { SensorChip } from '../components/SensorChip';
 import { WhySheet } from '../components/WhySheet';
 import { Screen } from '../components/Screen';
-import { useReduceMotion } from '../hooks/useReduceMotion';
+import { useHeartRate } from '../state/HeartRateContext';
+import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { colors } from '../theme/colors';
 import { track } from '../storage/cloud';
-import { markFtpOnboardingDone } from '../storage/settings';
-import { sessionSummary } from '../workout/builder';
-import { homeTip } from '../workout/craft';
-import { derivedWatts } from '../workout/defaults';
 
 export function HomeScreen() {
-  const { settings, update } = useSettings();
+  const { settings } = useSettings();
   const engine = useWorkout();
-  const reduceMotion = useReduceMotion();
-  const [ftpOpen, setFtpOpen] = useState(false);
+  const meter = usePowerMeter();
+  const heart = useHeartRate();
+  const { width } = useWindowDimensions();
   const [whyOpen, setWhyOpen] = useState(false);
-  const [tip] = useState(() => homeTip(Date.now()));
-  const summary = sessionSummary(settings);
-  const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
-
-  const saveFtp = async (ftp: number) => {
-    await update({ ...settings, ftpWatts: ftp });
-    await markFtpOnboardingDone();
-    setFtpOpen(false);
-  };
+  const startSize = Math.min(248, Math.round(width * 0.62));
 
   const start = async () => {
     await engine.start();
@@ -44,74 +32,71 @@ export function HomeScreen() {
     });
   };
 
+  const watts = meter.live?.watts;
+  const bpm = heart.live?.bpm;
+
   return (
     <Screen bottom>
-      <Atmosphere variant="rest" reduceMotion={reduceMotion} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.top}>
-          <Text style={styles.brand}>30/15</Text>
+        <Text style={styles.title}>30/15</Text>
+
+        <View style={styles.chips}>
+          <SensorChip
+            kind="power"
+            title="Power meter"
+            state={meter.connectionState}
+            live={watts != null}
+            value={watts == null ? '--' : String(watts)}
+            unit="watts"
+            onPress={() => router.push('/power')}
+            testID="home-power"
+          />
+          <SensorChip
+            kind="heart"
+            title="Heart rate"
+            state={heart.connectionState}
+            live={bpm != null}
+            value={bpm == null ? '--' : String(bpm)}
+            unit="bpm"
+            onPress={() => router.push('/heart')}
+            testID="home-hr"
+          />
         </View>
 
-        <Pressable
-          style={styles.hero}
-          onPress={() => setFtpOpen(true)}
-          testID="edit-ftp"
-        >
-          <Text style={styles.kicker}>FTP</Text>
-          <Text style={styles.ftp}>{settings.ftpWatts}</Text>
-          <Text style={styles.unit}>watts</Text>
-        </Pressable>
-
-        <View style={styles.split}>
-          <View style={styles.splitCol}>
-            <Text style={[styles.splitLabel, { color: colors.hard }]}>HARD</Text>
-            <Text style={styles.splitValue}>{watts.hard}</Text>
-            <Text style={styles.splitHint}>{settings.hardPct}%</Text>
-          </View>
-          <View style={styles.splitCol}>
-            <Text style={[styles.splitLabel, { color: colors.easy }]}>EASY</Text>
-            <Text style={styles.splitValue}>{watts.easy}</Text>
-            <Text style={styles.splitHint}>{settings.easyPct}%</Text>
-          </View>
+        <View style={styles.startWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Start"
+            onPress={() => void start()}
+            testID="start"
+            style={({ pressed }) => [
+              styles.start,
+              { width: startSize, height: startSize, borderRadius: startSize / 2 },
+              pressed && styles.startPressed,
+            ]}
+          >
+            <Text style={styles.startLabel}>Start ›</Text>
+          </Pressable>
         </View>
 
-        <Text style={styles.structure}>
-          {settings.sets} × {settings.reps} · {settings.workSec}/{settings.recoverSec} · ~{summary.totalMin} min
-        </Text>
-        <Pressable
-          onPress={() => setWhyOpen(true)}
-          testID="why-3015"
-          accessibilityRole="link"
-          hitSlop={6}
-          style={styles.whyHit}
-        >
-          <Text style={styles.whyLink}>Why 30/15</Text>
-        </Pressable>
-        {tip ? <Text style={styles.tip}>{tip}</Text> : null}
-
-        <View style={styles.goWrap}>
-          <PrimaryButton label="Start" alive onPress={() => void start()} testID="start" />
-        </View>
-
-        <View style={styles.links}>
-          <Pressable onPress={() => router.push('/settings')} testID="open-settings">
-            <Text style={styles.link}>Settings</Text>
+        <View style={styles.group}>
+          <Pressable
+            onPress={() => setWhyOpen(true)}
+            testID="why-3015"
+            accessibilityRole="link"
+            style={styles.row}
+          >
+            <Text style={styles.rowLabel}>Why 30/15</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          <View style={styles.hairline} />
+          <Pressable onPress={() => router.push('/settings')} testID="open-settings" style={styles.row}>
+            <Text style={styles.rowLabel}>Settings</Text>
+            <Text style={styles.chevron}>›</Text>
           </Pressable>
         </View>
       </ScrollView>
-
       <WhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
-
-      <FtpOnboardingModal
-        visible={ftpOpen}
-        initialFtp={settings.ftpWatts}
-        hardPct={settings.hardPct}
-        easyPct={settings.easyPct}
-        mode="edit"
-        onConfirm={(ftp) => {
-          void saveFtp(ftp);
-        }}
-      />
     </Screen>
   );
 }
@@ -119,97 +104,49 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
   },
-  top: {
+  title: {
     marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    color: colors.white,
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+  },
+  chips: { marginTop: 22, gap: 10 },
+  startWrap: { alignItems: 'center', marginTop: 28, marginBottom: 28 },
+  start: {
+    backgroundColor: '#12151C',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
   },
-  brand: {
-    color: '#FFB020',
-    letterSpacing: 3,
-    fontSize: 13,
-    fontWeight: '600',
+  startPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
+  startLabel: { color: colors.white, fontSize: 32, fontWeight: '700', letterSpacing: -0.4 },
+  group: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 14,
+    overflow: 'hidden',
   },
-  hero: {
-    marginTop: 48,
-    marginBottom: 28,
-  },
-  kicker: {
-    color: colors.textDim,
-    letterSpacing: 2.4,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  ftp: {
-    color: colors.text,
-    fontSize: 96,
-    lineHeight: 100,
-    fontWeight: '200',
-    letterSpacing: -3,
-    fontVariant: ['tabular-nums'],
-    marginTop: 4,
-  },
-  unit: {
-    color: colors.textMuted,
-    fontSize: 18,
-    marginTop: -4,
-  },
-  split: {
+  row: {
+    minHeight: 52,
+    paddingHorizontal: 16,
     flexDirection: 'row',
-    gap: 24,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  splitCol: { flex: 1, gap: 2, paddingTop: 14 },
-  splitLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.6,
-  },
-  splitValue: {
-    color: colors.text,
-    fontSize: 32,
-    fontWeight: '300',
-    fontVariant: ['tabular-nums'],
-  },
-  splitHint: { color: colors.textDim, fontSize: 13 },
-  structure: {
-    marginTop: 28,
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  whyHit: {
-    alignSelf: 'flex-start',
-    marginTop: 2,
-    paddingVertical: 4,
-  },
-  whyLink: {
-    color: colors.textMuted,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  tip: {
-    marginTop: 8,
-    color: colors.textDim,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  goWrap: { marginTop: 28 },
-  links: {
-    marginTop: 22,
-    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  link: {
-    color: colors.textMuted,
-    fontSize: 15,
-    fontWeight: '500',
-    paddingVertical: 8,
+  rowLabel: { color: colors.white, fontSize: 17, fontWeight: '500' },
+  chevron: { color: '#0A84FF', fontSize: 22, fontWeight: '500' },
+  hairline: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    marginLeft: 16,
   },
 });

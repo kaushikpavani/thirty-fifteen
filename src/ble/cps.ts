@@ -112,7 +112,9 @@ export function connectionStateFor(phase: { phase: string; reason?: string }): P
     case 'connected':
       return 'connected';
     case 'blocked':
-      if (phase.reason === 'no-devices' || phase.reason === 'no-power') return 'disconnected';
+      if (phase.reason === 'no-devices' || phase.reason === 'no-power' || phase.reason === 'no-hr') {
+        return 'disconnected';
+      }
       return 'bluetoothUnavailable';
     default:
       return 'disconnected';

@@ -17,7 +17,7 @@
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
-        "NSBluetoothAlwaysUsageDescription": "30/15 reads power and speed from your bike computer or trainer."
+        "NSBluetoothAlwaysUsageDescription": "30/15 reads cycling power and heart rate from your sensors."
       }
     },
     "android": {
@@ -57,7 +57,7 @@
       [
         "react-native-ble-plx",
         {
-          "bluetoothAlwaysPermission": "30/15 reads power and speed from your bike computer or trainer.",
+          "bluetoothAlwaysPermission": "30/15 reads cycling power and heart rate from your sensors.",
           "neverForLocation": true
         }
       ]

@@ -41,7 +41,7 @@ import {
   varietySalt,
 } from '../audio/spirit.ts';
 import { HARD_FAMILY, phaseColor } from '../theme/colors.ts';
-import { FINISH_TITLES, HOME_TIPS, finishBloom, finishTitle, homeTip } from '../workout/craft.ts';
+import { FINISH_SUBTITLE, FINISH_TITLES, HOME_TIPS, finishBloom, finishSubtitle, finishTitle, homeTip } from '../workout/craft.ts';
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
@@ -54,19 +54,21 @@ import {
   skipTargetMs,
 } from '../workout/transport.ts';
 
-test('default FTP 125 derives 150 hard and 63 easy', () => {
-  assert.equal(DEFAULT_SETTINGS.ftpWatts, 125);
+test('default FTP 120 and 2 sets derive 144 hard and 60 easy', () => {
+  assert.equal(DEFAULT_SETTINGS.ftpWatts, 120);
+  assert.equal(DEFAULT_SETTINGS.sets, 2);
+  assert.equal(DEFAULT_SETTINGS.reps, 13);
   assert.equal(DEFAULT_SETTINGS.hardPct, 120);
   assert.equal(DEFAULT_SETTINGS.easyPct, 50);
   assert.equal(DEFAULT_SETTINGS.musicEnabled, true);
-  assert.deepEqual(derivedWatts(125, 120, 50), { hard: 150, easy: 63 });
+  assert.deepEqual(derivedWatts(120, 120, 50), { hard: 144, easy: 60 });
   const built = buildWorkout(DEFAULT_SETTINGS);
-  assert.equal(built.hardWatts, 150);
-  assert.equal(built.easyWatts, 63);
+  assert.equal(built.hardWatts, 144);
+  assert.equal(built.easyWatts, 60);
   const hard = built.segments.filter((segment) => segment.kind === 'hard');
   const easy = built.segments.filter((segment) => segment.kind === 'easy');
-  assert.equal(hard.length, 39);
-  assert.equal(easy.length, 39);
+  assert.equal(hard.length, 26);
+  assert.equal(easy.length, 26);
   assert.equal(hard[0]?.durationMs, 30_000);
   assert.equal(easy[0]?.durationMs, 15_000);
 });
@@ -225,10 +227,12 @@ test('variety rotates by segment and session and never leaves the clock', () => 
 
   assert.equal(homeTip(3_000), null);
   assert.equal(homeTip(0), HOME_TIPS[0]);
-  assert.equal(finishTitle(0), 'Done.');
-  assert.equal(finishTitle(1), "That's the work.");
-  assert.equal(finishTitle(2), 'You showed up.');
-  assert.equal(FINISH_TITLES.length, 3);
+  assert.equal(finishTitle(0), 'You did it.');
+  assert.equal(finishTitle(2), 'You did it.');
+  assert.equal(finishSubtitle(), FINISH_SUBTITLE);
+  assert.equal(FINISH_SUBTITLE, 'Great focus. Strong work.');
+  assert.equal(FINISH_TITLES.length, 1);
+  assert.doesNotMatch(`${finishTitle(0)} ${finishSubtitle()}`, /honest/i);
   assert.equal(finishBloom(0).ms, 320);
   assert.equal(finishBloom(0).pulses, 1);
   assert.equal(finishBloom(1).ms, 480);

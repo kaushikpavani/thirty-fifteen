@@ -5,6 +5,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
 import { HistoryProvider, useHistory } from '../state/HistoryContext';
+import { HeartRateProvider } from '../state/HeartRateContext';
 import { PowerMeterProvider } from '../state/PowerMeterContext';
 import { SettingsProvider, useSettings } from '../state/SettingsContext';
 import { WorkoutProvider } from '../state/WorkoutContext';
@@ -23,7 +24,9 @@ export default function RootLayout() {
               <HistoryProvider>
                 <WorkoutProvider>
                   <PowerMeterProvider>
-                    <RootNavigator />
+                    <HeartRateProvider>
+                      <RootNavigator />
+                    </HeartRateProvider>
                   </PowerMeterProvider>
                 </WorkoutProvider>
               </HistoryProvider>
@@ -65,6 +68,8 @@ function RootNavigator() {
       <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
       <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="power" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="heart" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="auth-callback" options={{ animation: 'none' }} />

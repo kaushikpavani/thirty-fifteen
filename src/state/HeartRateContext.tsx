@@ -1,14 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { bleGate, bleGateCopy, type BleGate } from '../ble/availability';
 import { bleLog } from '../ble/log';
-import { BleClientError, createBleClient, type FoundDevice } from '../ble/client';
+import { HrClientError, createHrClient, type FoundHeartRate } from '../ble/hrClient';
 import { connectionStateFor, type PowerConnectionState } from '../ble/cps';
-import type { PowerReading } from '../ble/parse';
-import { clearSavedPowerMeter, loadSavedPowerMeter, savePowerMeter, type SavedPowerMeter } from '../storage/powerMeter';
+import { clearSavedHeartRate, loadSavedHeartRate, saveHeartRate, type SavedHeartRate } from '../storage/heartRate';
 
-type Client = Awaited<ReturnType<typeof createBleClient>>;
+type Client = Awaited<ReturnType<typeof createHrClient>>;
 
-export type MeterPhase =
+export type HeartPhase =
   | { phase: 'idle' }
   | { phase: 'scanning' }
   | { phase: 'list' }
@@ -16,37 +15,35 @@ export type MeterPhase =
   | { phase: 'connected'; name: string }
   | {
       phase: 'blocked';
-      reason: BleGate | 'unavailable' | 'bluetooth-off' | 'permission' | 'no-devices' | 'no-power';
+      reason: BleGate | 'unavailable' | 'bluetooth-off' | 'permission' | 'no-devices' | 'no-hr';
       detail?: string;
     };
 
-type PowerMeterContextValue = {
-  phase: MeterPhase;
+type HeartRateContextValue = {
+  phase: HeartPhase;
   connectionState: PowerConnectionState;
-  devices: FoundDevice[];
-  live: { watts: number; speedKph: number | null } | null;
+  devices: FoundHeartRate[];
+  live: { bpm: number } | null;
   connect: () => void;
-  pick: (device: FoundDevice) => void;
+  pick: (device: FoundHeartRate) => void;
   disconnect: () => Promise<void>;
   forget: () => Promise<void>;
-  /** Reconnect the saved meter when Settings is open. Scans if that link fails. */
   prepare: () => void;
-  /** Allow the next Settings visit to reconnect after an explicit disconnect. */
   releaseHold: () => void;
   dismiss: () => void;
   gateCopy: ReturnType<typeof bleGateCopy> | null;
 };
 
-const PowerMeterContext = createContext<PowerMeterContextValue | null>(null);
+const HeartRateContext = createContext<HeartRateContextValue | null>(null);
 
 const FRESH_MS = 4000;
 const SCAN_MS = 12000;
 
-export function PowerMeterProvider({ children }: { children: React.ReactNode }) {
+export function HeartRateProvider({ children }: { children: React.ReactNode }) {
   const clientRef = useRef<Client | null>(null);
-  const phaseRef = useRef<MeterPhase>({ phase: 'idle' });
-  const savedRef = useRef<SavedPowerMeter | null>(null);
-  const loadedRef = useRef<Promise<SavedPowerMeter | null> | null>(null);
+  const phaseRef = useRef<HeartPhase>({ phase: 'idle' });
+  const savedRef = useRef<SavedHeartRate | null>(null);
+  const loadedRef = useRef<Promise<SavedHeartRate | null> | null>(null);
   const userHeldRef = useRef(false);
   const scanOnFailRef = useRef(false);
   const fallbackLockRef = useRef(false);
@@ -58,9 +55,9 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
   const connectDeviceRef = useRef<(id: string, name: string, known: boolean) => Promise<void>>(async () => {});
   const beginScanRef = useRef<(autoConnectSaved: boolean) => Promise<void>>(async () => {});
 
-  const [phase, setPhase] = useState<MeterPhase>({ phase: 'idle' });
-  const [devices, setDevices] = useState<FoundDevice[]>([]);
-  const [sample, setSample] = useState<(PowerReading & { updatedAt: number }) | null>(null);
+  const [phase, setPhase] = useState<HeartPhase>({ phase: 'idle' });
+  const [devices, setDevices] = useState<FoundHeartRate[]>([]);
+  const [sample, setSample] = useState<{ bpm: number; updatedAt: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const clearScanTimer = () => {
@@ -68,38 +65,34 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     scanTimer.current = null;
   };
 
-  const setMeterPhase = useCallback((next: MeterPhase) => {
+  const setHeartPhase = useCallback((next: HeartPhase) => {
     phaseRef.current = next;
     if (!mountedRef.current) return;
     setPhase(next);
-    bleLog('state', connectionStateFor(next));
+    bleLog('hr-state', connectionStateFor(next));
   }, []);
 
   const applyFailure = useCallback(
     (error: unknown) => {
-      const code = error instanceof BleClientError ? error.message : '';
-      if (code === 'bluetooth-off' || code === 'permission' || code === 'unavailable' || code === 'no-power') {
-        setMeterPhase({ phase: 'blocked', reason: code });
+      const code = error instanceof HrClientError ? error.message : '';
+      if (code === 'bluetooth-off' || code === 'permission' || code === 'unavailable' || code === 'no-hr') {
+        setHeartPhase({ phase: 'blocked', reason: code });
         return;
       }
-      setMeterPhase({
+      setHeartPhase({
         phase: 'blocked',
         reason: 'unavailable',
         detail: error instanceof Error ? error.message : undefined,
       });
     },
-    [setMeterPhase],
+    [setHeartPhase],
   );
 
-  const handleSample = useCallback((reading: PowerReading) => {
+  const handleSample = useCallback((bpm: number) => {
     if (!mountedRef.current) return;
     const current = phaseRef.current.phase;
     if (current !== 'connected' && current !== 'connecting') return;
-    setSample((prev) => ({
-      watts: reading.watts ?? prev?.watts ?? null,
-      speedKph: reading.speedKph ?? prev?.speedKph ?? null,
-      updatedAt: Date.now(),
-    }));
+    setSample({ bpm, updatedAt: Date.now() });
     setNow(Date.now());
   }, []);
 
@@ -108,17 +101,17 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     if (phaseRef.current.phase !== 'connected' && phaseRef.current.phase !== 'connecting') return;
     setSample(null);
     const saved = savedRef.current;
-    const now = Date.now();
-    if (!saved || now - lostRetryAtRef.current < 15000) {
-      setMeterPhase({ phase: 'idle' });
+    const stamp = Date.now();
+    if (!saved || stamp - lostRetryAtRef.current < 15000) {
+      setHeartPhase({ phase: 'idle' });
       return;
     }
-    lostRetryAtRef.current = now;
+    lostRetryAtRef.current = stamp;
     void connectDeviceRef.current(saved.id, saved.name, true);
-  }, [setMeterPhase]);
+  }, [setHeartPhase]);
 
   const ensureClient = useCallback(async () => {
-    if (!clientRef.current) clientRef.current = await createBleClient();
+    if (!clientRef.current) clientRef.current = await createHrClient();
     return clientRef.current;
   }, []);
 
@@ -128,7 +121,7 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
       scanGen.current += 1;
       clearScanTimer();
       clientRef.current?.stopScan();
-      setMeterPhase({ phase: 'connecting', name });
+      setHeartPhase({ phase: 'connecting', name });
       try {
         await clientRef.current?.disconnect();
         if (op !== opRef.current) return;
@@ -141,13 +134,13 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
         const saved = { id, name: linked || name };
         savedRef.current = saved;
         userHeldRef.current = false;
-        await savePowerMeter(saved);
-        bleLog('saved', saved.id);
+        await saveHeartRate(saved);
+        bleLog('hr-saved', saved.id);
         if (op !== opRef.current) return;
-        setMeterPhase({ phase: 'connected', name: saved.name });
+        setHeartPhase({ phase: 'connected', name: saved.name });
       } catch (error) {
         if (op !== opRef.current) return;
-        const code = error instanceof BleClientError ? error.message : '';
+        const code = error instanceof HrClientError ? error.message : '';
         if (
           known &&
           code === 'not-found' &&
@@ -156,19 +149,19 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
           !userHeldRef.current
         ) {
           fallbackLockRef.current = true;
-          bleLog('reconnect-failed', id);
+          bleLog('hr-reconnect-failed', id);
           await beginScanRef.current(true);
           return;
         }
         if (known && code === 'not-found') {
-          bleLog('reconnect-failed', id);
-          setMeterPhase({ phase: 'idle' });
+          bleLog('hr-reconnect-failed', id);
+          setHeartPhase({ phase: 'idle' });
           return;
         }
         applyFailure(error);
       }
     },
-    [applyFailure, ensureClient, handleLost, handleSample, setMeterPhase],
+    [applyFailure, ensureClient, handleLost, handleSample, setHeartPhase],
   );
 
   const beginScan = useCallback(
@@ -176,16 +169,16 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
       const gate = bleGate();
       if (gate) {
         setDevices([]);
-        setMeterPhase({ phase: 'blocked', reason: gate });
+        setHeartPhase({ phase: 'blocked', reason: gate });
         return;
       }
       const gen = ++scanGen.current;
       if (mountedRef.current) setDevices([]);
-      setMeterPhase({ phase: 'scanning' });
+      setHeartPhase({ phase: 'scanning' });
       try {
         const client = await ensureClient();
         if (gen !== scanGen.current) return;
-        const found = new Map<string, FoundDevice>();
+        const found = new Map<string, FoundHeartRate>();
         await client.scan((device) => {
           if (gen !== scanGen.current || !mountedRef.current) return;
           found.set(device.id, device);
@@ -203,28 +196,28 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
           if (gen !== scanGen.current) return;
           client.stopScan();
           if (phaseRef.current.phase !== 'scanning') return;
-          setMeterPhase(found.size ? { phase: 'list' } : { phase: 'blocked', reason: 'no-devices' });
+          setHeartPhase(found.size ? { phase: 'list' } : { phase: 'blocked', reason: 'no-devices' });
         }, SCAN_MS);
       } catch (error) {
         if (gen !== scanGen.current) return;
         applyFailure(error);
       }
     },
-    [applyFailure, ensureClient, setMeterPhase],
+    [applyFailure, ensureClient, setHeartPhase],
   );
 
   connectDeviceRef.current = connectDevice;
   beginScanRef.current = beginScan;
 
   useEffect(() => {
-    const pending = loadSavedPowerMeter();
+    const pending = loadSavedHeartRate();
     loadedRef.current = pending;
     let cancelled = false;
     void (async () => {
       const saved = await pending;
       if (cancelled || !mountedRef.current) return;
       savedRef.current = saved;
-      bleLog('saved', saved?.id ?? 'none');
+      bleLog('hr-saved', saved?.id ?? 'none');
       if (!saved || bleGate() || userHeldRef.current) return;
       if (phaseRef.current.phase !== 'idle') return;
       await connectDeviceRef.current(saved.id, saved.name, true);
@@ -265,7 +258,7 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     })();
   }, []);
 
-  const pick = useCallback((device: FoundDevice) => {
+  const pick = useCallback((device: FoundHeartRate) => {
     userHeldRef.current = false;
     scanOnFailRef.current = false;
     void connectDeviceRef.current(device.id, device.name, false);
@@ -280,8 +273,8 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     await clientRef.current?.disconnect();
     setSample(null);
     setDevices([]);
-    setMeterPhase({ phase: 'idle' });
-  }, [setMeterPhase]);
+    setHeartPhase({ phase: 'idle' });
+  }, [setHeartPhase]);
 
   const forget = useCallback(async () => {
     opRef.current += 1;
@@ -291,11 +284,11 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     clearScanTimer();
     clientRef.current?.stopScan();
     await clientRef.current?.disconnect();
-    await clearSavedPowerMeter();
+    await clearSavedHeartRate();
     setSample(null);
     setDevices([]);
-    setMeterPhase({ phase: 'idle' });
-  }, [setMeterPhase]);
+    setHeartPhase({ phase: 'idle' });
+  }, [setHeartPhase]);
 
   const releaseHold = useCallback(() => {
     userHeldRef.current = false;
@@ -304,7 +297,7 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
   const prepare = useCallback(() => {
     const gate = bleGate();
     if (gate) {
-      setMeterPhase({ phase: 'blocked', reason: gate });
+      setHeartPhase({ phase: 'blocked', reason: gate });
       return;
     }
     scanOnFailRef.current = true;
@@ -321,7 +314,7 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
       if (!saved) return;
       await connectDeviceRef.current(saved.id, saved.name, true);
     })();
-  }, [setMeterPhase]);
+  }, [setHeartPhase]);
 
   const dismiss = useCallback(() => {
     scanGen.current += 1;
@@ -329,13 +322,13 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     clientRef.current?.stopScan();
     setDevices([]);
     if (phaseRef.current.phase === 'connected') return;
-    setMeterPhase({ phase: 'idle' });
-  }, [setMeterPhase]);
+    setHeartPhase({ phase: 'idle' });
+  }, [setHeartPhase]);
 
   const live = useMemo(() => {
-    if (phase.phase !== 'connected' || !sample || sample.watts == null) return null;
+    if (phase.phase !== 'connected' || !sample) return null;
     if (now - sample.updatedAt > FRESH_MS) return null;
-    return { watts: sample.watts, speedKph: sample.speedKph };
+    return { bpm: sample.bpm };
   }, [phase.phase, sample, now]);
 
   const connectionState = connectionStateFor(phase);
@@ -359,11 +352,11 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
     [phase, connectionState, devices, live, connect, pick, disconnect, forget, prepare, releaseHold, dismiss, gateCopy],
   );
 
-  return <PowerMeterContext.Provider value={value}>{children}</PowerMeterContext.Provider>;
+  return <HeartRateContext.Provider value={value}>{children}</HeartRateContext.Provider>;
 }
 
-export function usePowerMeter(): PowerMeterContextValue {
-  const ctx = useContext(PowerMeterContext);
-  if (!ctx) throw new Error('usePowerMeter must be used inside PowerMeterProvider');
+export function useHeartRate(): HeartRateContextValue {
+  const ctx = useContext(HeartRateContext);
+  if (!ctx) throw new Error('useHeartRate must be used inside HeartRateProvider');
   return ctx;
 }

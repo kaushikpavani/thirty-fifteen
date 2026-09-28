@@ -94,6 +94,25 @@ export function parseCyclingPower(bytes: Uint8Array | null | undefined): PowerRe
   return { watts, speedKph: null };
 }
 
+/**
+ * Heart Rate Measurement (0x2A37).
+ * Flags are byte 0. Bit 0 selects uint8 (byte 1) or uint16 LE (bytes 1–2).
+ * When sensor contact is supported and not detected, there is no live beat.
+ * 0 and out-of-range values are ignored so a quiet watch cannot look like a reading.
+ */
+export function parseHeartRate(bytes: Uint8Array | null | undefined): number | null {
+  if (!bytes || bytes.length < 2 || bytes[0] == null || bytes[1] == null) return null;
+  const flags = bytes[0];
+  const contactSupported = (flags & 0x04) !== 0;
+  const contactDetected = (flags & 0x02) !== 0;
+  if (contactSupported && !contactDetected) return null;
+  const wide = (flags & 0x01) !== 0;
+  if (wide && (bytes.length < 3 || bytes[2] == null)) return null;
+  const bpm = wide ? readU16(bytes, 1) : bytes[1];
+  if (!Number.isFinite(bpm) || bpm < 1 || bpm > 250) return null;
+  return bpm;
+}
+
 export function bytesToHex(bytes: Uint8Array): string {
   let out = '';
   for (let i = 0; i < bytes.length; i++) {

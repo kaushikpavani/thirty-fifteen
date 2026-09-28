@@ -69,7 +69,7 @@ test('connection state covers the radio phases', () => {
   assert.equal(connectionStateLabel('connected'), 'Connected');
 });
 
-test('radio state maps to an honest gate', () => {
+test('radio state maps to the right block', () => {
   assert.equal(radioBlock('PoweredOn'), null);
   assert.equal(radioBlock('PoweredOff'), 'bluetooth-off');
   assert.equal(radioBlock('Unauthorized'), 'permission');
@@ -88,19 +88,31 @@ test('hints tell the rider to pedal and never invent watts', () => {
   assert.equal(deviceLabel({ id: 'AA:BB:CC:DD', name: null }), 'Power meter CCDD');
 });
 
-test('start is not gated and the running glass stays countdown-only', () => {
+test('start is not gated on power or heart rate', () => {
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
   const home = fs.readFileSync(path.join(root, 'screens/HomeScreen.tsx'), 'utf8');
   const settings = fs.readFileSync(path.join(root, 'screens/SettingsScreen.tsx'), 'utf8');
   const active = fs.readFileSync(path.join(root, 'screens/ActiveScreen.tsx'), 'utf8');
-  assert.doesNotMatch(home, /usePowerMeter|PowerMeterPanel/);
+  const power = fs.readFileSync(path.join(root, 'app/power.tsx'), 'utf8');
+  assert.match(home, /Power meter/);
+  assert.match(home, /Heart rate/);
+  assert.match(home, /testID="start"/);
+  assert.match(home, /Why 30\/15/);
+  assert.doesNotMatch(home, />FTP<|edit-ftp|disabled=\{/);
   assert.match(settings, /Power meter/);
-  assert.match(settings, /PowerMeterPanel variant="settings"/);
-  const finishedAt = active.indexOf("state.status === 'finished'");
-  const runningAt = active.indexOf('const segmentProgress');
-  assert.ok(finishedAt > 0 && runningAt > finishedAt);
-  assert.match(active.slice(finishedAt, runningAt), /PowerMeterPanel variant="finish"/);
-  assert.doesNotMatch(active.slice(runningAt), /PowerMeterPanel|live watts|finish-live-watts/);
+  assert.match(settings, /Heart rate/);
+  assert.match(settings, /Workout Sets/);
+  assert.match(power, /PowerMeterPanel variant="settings"/);
+  assert.match(active, /testID="live-watts"/);
+  assert.match(active, /testID="live-bpm"/);
+  assert.match(active, /testID=\{running \? 'pause' : 'resume'\}/);
+  assert.match(active, /FINISH_TITLE/);
+  const craft = fs.readFileSync(path.join(root, 'workout/craft.ts'), 'utf8');
+  assert.match(craft, /You did it\./);
+  assert.match(craft, /Great focus\. Strong work\./);
+  assert.doesNotMatch(active, /testID="shorten"|testID="skip"|testID="restart"/);
+  assert.doesNotMatch(`${home}\n${settings}\n${active}`, /honest/i);
+  assert.equal(connectionStateFor({ phase: 'blocked', reason: 'no-hr' }), 'disconnected');
 });
 
 test('saved peripheral id survives a round trip and rejects junk', () => {

@@ -28,7 +28,7 @@ Owner lock. These four lines govern the product. Supabase and BioAge stay in thi
 | How it fits a real ride | Offline-first. Start with no account. An account is optional, later |
 | What it refuses | Generic interval timers, streak guilt, shame, nagging, fake watts, login walls, medical promises, monetization |
 
-Default session the copy may describe, because it is the real plan: warm-up, **3 × 13** of **30s HARD / 15s EASY**, easy spinning between sets, cool-down. HARD defaults to about **120% of FTP**. EASY defaults to about **half**. Both are editable. A fresh install starts at 125 W and does not ask for a sign-in before the first interval.
+Default session the copy may describe, because it is the real plan: warm-up, **2 × 13** of **30s HARD / 15s EASY**, easy spinning between sets, cool-down. HARD defaults to about **120% of FTP**. EASY defaults to about **half**. Both are editable. A fresh install starts at 120 W and does not ask for a sign-in before the first interval.
 
 ---
 

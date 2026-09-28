@@ -1,72 +1,80 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Atmosphere } from '../components/Atmosphere';
-import { DigitClock, FadeLabel } from '../components/MotionText';
-import { PrimaryButton } from '../components/PrimaryButton';
-import { Screen } from '../components/Screen';
-import { SegmentRail } from '../components/SegmentRail';
-import { PowerMeterPanel } from '../components/PowerMeterPanel';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DoneSummary } from '../components/DoneSummary';
 import { useHistory } from '../state/HistoryContext';
+import { useHeartRate } from '../state/HeartRateContext';
+import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
-import { bedRate, roundWon, varietySalt } from '../audio/spirit';
-import { useAppActive } from '../hooks/useAppActive';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { pauseResumeDrivers, pauseResumeSlots } from '../motion/animatedDriver';
-import { colors, phaseColor, phaseLabel } from '../theme/colors';
-import { finishBloom, finishTitle } from '../workout/craft';
-import { phasePulse } from '../workout/heat';
+import { colors, phaseLabel } from '../theme/colors';
+import type { PhaseKind, RideSummary, Segment } from '../types';
 import { formatClock } from '../workout/builder';
+import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
+import { summarizeRide, type RideSample } from '../logic/rideSummary';
 
 const nativeMotion = Platform.OS !== 'web';
 const pauseDrivers = pauseResumeDrivers(nativeMotion);
+
+function fieldColors(kind: PhaseKind): [string, string] {
+  switch (kind) {
+    case 'hard':
+    case 'accel':
+      return ['#FF2D1A', '#B00008'];
+    case 'easy':
+      return ['#0E3C4C', '#071820'];
+    case 'warmup':
+      return ['#C56A28', '#3A1C10'];
+    case 'cooldown':
+      return ['#1A4E90', '#071018'];
+    default:
+      return ['#2C2C30', '#0C0C0E'];
+  }
+}
+
+function badge(kind: PhaseKind, segment: Segment | null, sets: number): string {
+  if (kind === 'warmup' || kind === 'accel') return 'WARM-UP';
+  if (kind === 'cooldown') return 'COOL-DOWN';
+  const label = phaseLabel(kind);
+  if (segment?.setNumber) return `${label} · Set ${segment.setNumber} of ${sets}`;
+  return label;
+}
 
 export function ActiveScreen() {
   const engine = useWorkout();
   const history = useHistory();
   const { settings } = useSettings();
-  const { width } = useWindowDimensions();
+  const meter = usePowerMeter();
+  const heart = useHeartRate();
   const reduceMotion = useReduceMotion();
-  const foreground = useAppActive();
-  const rideMotion = reduceMotion || !foreground;
+  const insets = useSafeAreaInsets();
   const savedRef = useRef<number | null>(null);
-  const [armed, setArmed] = useState<'end' | 'restart' | null>(null);
-  const [won, setWon] = useState(0);
-  const prevKind = useRef<string | null>(null);
+  const samplesRef = useRef<RideSample[]>([]);
+  const summaryRef = useRef<RideSummary | null>(null);
+  const elapsedRef = useRef(0);
+  const kindRef = useRef<PhaseKind>('warmup');
+  const wattsRef = useRef<number | null>(null);
+  const bpmRef = useRef<number | null>(null);
+  const [endArmed, setEndArmed] = useState(false);
 
   const { state } = engine;
   const seg = state.segment;
   const kind = seg?.kind ?? 'warmup';
-  const salt = varietySalt(state.startedAt);
-  const hardOrdinal = hardOrdinalAt(state.workout.segments, state.segmentIndex);
-  const accent = phaseColor(kind, hardOrdinal, salt);
   const duration = seg?.durationMs ?? 1;
   const remaining = state.remainingInSegmentMs;
   const short = duration <= 90_000;
   const clock = short ? String(Math.max(0, Math.ceil(remaining / 1000))) : formatClock(remaining);
-  const heroSize = Math.min(196, Math.round(width * 0.46));
-  const fontSize = clock.length > 3 ? Math.round(heroSize * 0.62) : heroSize;
   const paused = state.status === 'paused';
-  const cool = kind === 'easy' || kind === 'set_rest' || kind === 'cooldown';
-  const pulse = phasePulse({
-    kind,
-    music: settings.musicEnabled,
-    paused,
-    reduceMotion: rideMotion,
-    rate: bedRate(kind, salt),
-  });
-
-  useEffect(() => {
-    if (state.status === 'idle') {
-      prevKind.current = null;
-      setWon(0);
-      return;
-    }
-    const previous = prevKind.current;
-    prevKind.current = kind;
-    if (roundWon(previous, kind)) setWon((value) => value + 1);
-  }, [kind, seg?.id, state.status]);
+  const watts = meter.live?.watts ?? null;
+  const bpm = heart.live?.bpm ?? null;
+  elapsedRef.current = state.elapsedMs;
+  kindRef.current = kind;
+  wattsRef.current = watts;
+  bpmRef.current = bpm;
 
   useEffect(() => {
     if (!engine.armedRef.current) router.replace('/home');
@@ -77,22 +85,58 @@ export function ActiveScreen() {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    if (state.status === 'idle') {
+      samplesRef.current = [];
+      summaryRef.current = null;
+    }
+  }, [state.status, state.startedAt]);
+
+  useEffect(() => {
+    if (state.status !== 'running') return;
+    const take = () => {
+      samplesRef.current.push({
+        atMs: elapsedRef.current,
+        kind: kindRef.current,
+        watts: wattsRef.current,
+        bpm: bpmRef.current,
+      });
+      if (samplesRef.current.length > 4000) samplesRef.current.shift();
+    };
+    take();
+    const id = setInterval(take, 1000);
+    return () => clearInterval(id);
+  }, [state.status, state.startedAt]);
+
+  const buildSummary = (completed: boolean, elapsedMs: number): RideSummary =>
+    summarizeRide({
+      segments: state.workout.segments,
+      elapsedMs,
+      plannedSets: settings.sets,
+      completed,
+      samples: samplesRef.current,
+    });
+
   const record = (completed: boolean) => {
     const startedAt = state.startedAt;
     if (!startedAt || savedRef.current === startedAt) return;
     if (!completed && state.elapsedMs < 5000) return;
     savedRef.current = startedAt;
     const total = state.workout.totalMs || 1;
+    const elapsed = completed ? total : state.elapsedMs;
+    const summary = buildSummary(completed, elapsed);
+    summaryRef.current = summary;
     void history.addSession({
       startedAt: new Date(startedAt).toISOString(),
       endedAt: new Date().toISOString(),
-      durationMs: completed ? total : state.elapsedMs,
+      durationMs: elapsed,
       plannedDurationMs: total,
       ftpWatts: settings.ftpWatts,
       hardWatts: state.workout.hardWatts,
       easyWatts: state.workout.easyWatts,
       completed,
       completionPct: completed ? 100 : Math.min(99, Math.round((state.elapsedMs / total) * 100)),
+      summary,
     });
   };
 
@@ -112,250 +156,97 @@ export function ActiveScreen() {
     leave();
   };
 
-  const actions = useRef({
-    pause: engine.pause,
-    resume: engine.resume,
-    finish: finishStop,
-    restart: engine.restartSegment,
-    shorten: engine.shortenSegment,
-    skip: engine.skipSegment,
-  });
-  actions.current.pause = engine.pause;
-  actions.current.resume = engine.resume;
-  actions.current.finish = finishStop;
-  actions.current.restart = engine.restartSegment;
-  actions.current.shorten = engine.shortenSegment;
-  actions.current.skip = engine.skipSegment;
   const onPausePress = useCallback(() => {
-    setArmed(null);
-    actions.current.pause();
-  }, []);
+    setEndArmed(false);
+    engine.pause();
+  }, [engine]);
   const onResumePress = useCallback(() => {
-    setArmed(null);
-    actions.current.resume();
-  }, []);
-  const onStopPress = useCallback(() => actions.current.finish(), []);
-  const onConfirmRestart = useCallback(() => {
-    setArmed(null);
-    actions.current.restart();
-  }, []);
-  const onShortenPress = useCallback(() => {
-    setArmed(null);
-    actions.current.shorten();
-  }, []);
-  const onSkipPress = useCallback(() => {
-    setArmed(null);
-    actions.current.skip();
-  }, []);
+    setEndArmed(false);
+    engine.resume();
+  }, [engine]);
 
   if (state.status === 'idle') {
     return <View style={styles.idle} />;
   }
 
   if (state.status === 'finished') {
-    const bloom = finishBloom(varietySalt(state.startedAt));
+    const summary = summaryRef.current ?? buildSummary(true, state.workout.totalMs);
     return (
-      <Screen bottom>
-        <Atmosphere
-          color={bloom.warm ? colors.go : colors.hard}
-          heat="hot"
-          punch={1}
-          bloomMs={bloom.ms}
-          pulses={bloom.pulses}
-          still
-          reduceMotion={reduceMotion}
-        />
-        <View style={styles.done}>
-          <FinishTitle title={finishTitle(varietySalt(state.startedAt))} reduceMotion={reduceMotion} />
-          <Text style={styles.doneMeta}>{formatClock(state.workout.totalMs)}</Text>
-          <PrimaryButton label="Done" onPress={leave} testID="done" />
-          <PowerMeterPanel variant="finish" />
-        </View>
-      </Screen>
+      <View style={styles.root}>
+        <LinearGradient colors={['#241433', '#6A3E68', '#D4899A']} style={StyleSheet.absoluteFill} />
+        <ScrollView
+          contentContainerStyle={[styles.done, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 18 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <FinishTitle title={FINISH_TITLE} reduceMotion={reduceMotion} />
+          <Text style={styles.doneSub}>{FINISH_SUBTITLE}</Text>
+          <DoneSummary summary={summary} onDone={leave} />
+        </ScrollView>
+      </View>
     );
   }
 
   const segmentProgress = duration > 0 ? 1 - remaining / duration : 0;
+  const [top, bottom] = fieldColors(kind);
+  const clockSize = clock.length > 3 ? 68 : 92;
 
   return (
-    <Screen bottom>
-      <Atmosphere
-        color={accent}
-        paused={paused}
-        heat={cool ? 'cool' : 'hot'}
-        reduceMotion={rideMotion}
-        pulse={pulse.pulse}
-        beatMs={pulse.beatMs}
-        road
-      />
-      <SegmentRail
-        progress={segmentProgress}
-        color={accent}
-        paused={paused}
-        flash={won}
-        reduceMotion={rideMotion}
-      />
-      <View style={styles.body}>
-        <FadeLabel value={phaseLabel(kind)} style={styles.phase} testID="phase" />
-        <DigitClock
-          value={clock}
-          color={colors.white}
-          fontSize={fontSize}
-          dim={paused}
-          phase={kind}
-          reduceMotion={rideMotion}
-          testID="countdown"
-        />
-        {paused ? <FadeLabel value="Paused" style={styles.caption} /> : null}
+    <View style={styles.root}>
+      <LinearGradient colors={[top, bottom]} style={StyleSheet.absoluteFill} />
+      <View style={[styles.ride, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={styles.hero}>
+          <View style={styles.wattsRow}>
+            <Text style={styles.watts} testID="live-watts" accessibilityLabel={watts == null ? 'No watts' : `${watts} watts`}>
+              {watts == null ? '—' : String(watts)}
+            </Text>
+            <Text style={styles.wattsUnit}>w</Text>
+          </View>
+          {bpm == null ? null : (
+            <Text style={styles.bpm} testID="live-bpm" accessibilityLabel={`${bpm} beats per minute`}>
+              {bpm} bpm
+            </Text>
+          )}
+          <View style={styles.badge}>
+            <Text style={styles.badgeText} testID="phase">
+              {badge(kind, seg, settings.sets)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.clockBlock}>
+          <View style={styles.clockRow}>
+            <Text style={styles.timeLabel}>TIME</Text>
+            <Text style={[styles.clock, { fontSize: clockSize }]} testID="countdown">
+              {clock}
+            </Text>
+          </View>
+          <Text style={styles.countLabel}>{short ? 'COUNTDOWN' : 'REMAINING'}</Text>
+        </View>
+
+        <View style={styles.footer}>
+          <PauseResume running={state.status === 'running'} onPause={onPausePress} onResume={onResumePress} />
+          {paused ? (
+            endArmed ? (
+              <View style={styles.endRow}>
+                <Pressable onPress={() => setEndArmed(false)} testID="end-cancel" hitSlop={8}>
+                  <Text style={styles.endCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={finishStop} testID="end-confirm" hitSlop={8}>
+                  <Text style={styles.endConfirm}>End session</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={() => setEndArmed(true)} testID="end" hitSlop={8} style={styles.endHit}>
+                <Text style={styles.end}>End</Text>
+              </Pressable>
+            )
+          ) : null}
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${Math.max(0, Math.min(100, Math.round(segmentProgress * 100)))}%` }]} />
+          </View>
+        </View>
       </View>
-      <WorkoutControls
-        running={state.status === 'running'}
-        armed={armed}
-        onPause={onPausePress}
-        onResume={onResumePress}
-        onArm={(which) => setArmed(which)}
-        onCancel={() => setArmed(null)}
-        onConfirmEnd={onStopPress}
-        onConfirmRestart={onConfirmRestart}
-        onShorten={onShortenPress}
-        onSkip={onSkipPress}
-      />
-    </Screen>
-  );
-}
-
-const WorkoutControls = React.memo(function WorkoutControls({
-  running,
-  armed,
-  onPause,
-  onResume,
-  onArm,
-  onCancel,
-  onConfirmEnd,
-  onConfirmRestart,
-  onShorten,
-  onSkip,
-}: {
-  running: boolean;
-  armed: 'end' | 'restart' | null;
-  onPause: () => void;
-  onResume: () => void;
-  onArm: (which: 'end' | 'restart') => void;
-  onCancel: () => void;
-  onConfirmEnd: () => void;
-  onConfirmRestart: () => void;
-  onShorten: () => void;
-  onSkip: () => void;
-}) {
-  const open = useRef(new Animated.Value(running ? 0 : 1)).current;
-
-  useEffect(() => {
-    Animated.timing(open, {
-      toValue: running ? 0 : 1,
-      duration: running ? 160 : 240,
-      useNativeDriver: nativeMotion,
-    }).start();
-  }, [open, running]);
-
-  return (
-    <View style={styles.footer}>
-      <PauseResume running={running} onPause={onPause} onResume={onResume} />
-      {running ? null : (
-        <Animated.View
-          style={[
-            styles.stack,
-            {
-              opacity: open,
-              transform: [
-                {
-                  translateY: open.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }),
-                },
-              ],
-            },
-          ]}
-        >
-          <TransportChip label="Shorten" hint="End this segment and continue" onPress={onShorten} testID="shorten" />
-          <TransportChip label="Skip" hint="Skip ahead to the next interval" onPress={onSkip} testID="skip" />
-          {armed === 'restart' ? (
-            <ConfirmRow
-              cancelID="restart-cancel"
-              confirmID="restart-confirm"
-              confirm="Restart segment"
-              onCancel={onCancel}
-              onConfirm={onConfirmRestart}
-            />
-          ) : (
-            <TransportChip
-              label="Restart"
-              hint="Restart this segment"
-              onPress={() => onArm('restart')}
-              testID="restart"
-            />
-          )}
-          {armed === 'end' ? (
-            <ConfirmRow
-              cancelID="end-cancel"
-              confirmID="end-confirm"
-              confirm="End session"
-              onCancel={onCancel}
-              onConfirm={onConfirmEnd}
-            />
-          ) : (
-            <TransportChip label="End" hint="End the session" onPress={() => onArm('end')} testID="end" />
-          )}
-        </Animated.View>
-      )}
     </View>
-  );
-});
-
-function ConfirmRow({
-  cancelID,
-  confirmID,
-  confirm,
-  onCancel,
-  onConfirm,
-}: {
-  cancelID: string;
-  confirmID: string;
-  confirm: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <View style={styles.confirmRow}>
-      <Pressable onPress={onCancel} testID={cancelID} hitSlop={8}>
-        <Text style={styles.endCancel}>Cancel</Text>
-      </Pressable>
-      <Pressable style={styles.chip} onPress={onConfirm} testID={confirmID} hitSlop={8}>
-        <Text style={styles.chipText}>{confirm}</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function TransportChip({
-  label,
-  hint,
-  onPress,
-  testID,
-}: {
-  label: string;
-  hint: string;
-  onPress: () => void;
-  testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={hint}
-      onPress={onPress}
-      hitSlop={8}
-      testID={testID}
-      style={({ pressed }) => [styles.transportChip, pressed && styles.transportChipPressed]}
-    >
-      <Text style={styles.transportText}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -411,7 +302,7 @@ function PauseResume({
     () =>
       fill.interpolate({
         inputRange: [0, 1],
-        outputRange: ['rgba(255,255,255,0)', colors.go],
+        outputRange: ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.28)'],
       }),
     [fill],
   );
@@ -419,7 +310,7 @@ function PauseResume({
     () =>
       fill.interpolate({
         inputRange: [0, 1],
-        outputRange: [colors.border, 'rgba(255,255,255,0)'],
+        outputRange: ['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.45)'],
       }),
     [fill],
   );
@@ -427,12 +318,10 @@ function PauseResume({
     () =>
       fill.interpolate({
         inputRange: [0, 1],
-        outputRange: [colors.text, colors.black],
+        outputRange: [colors.white, colors.white],
       }),
     [fill],
   );
-  // Color stays on the shell and the label. Opacity is its own node, so the
-  // native fade cannot promote `fill` and break the next JS color timing.
   const motion = pauseResumeSlots({ backgroundColor, borderColor, textColor, textOpacity });
 
   return (
@@ -445,7 +334,7 @@ function PauseResume({
         style={styles.pauseHit}
       >
         <Animated.View pointerEvents="none" style={motion.fade}>
-          <Animated.Text style={[styles.pauseLabel, motion.label]}>{word}</Animated.Text>
+          <Animated.Text style={[styles.pauseLabel, motion.label]}>{word === 'Pause' ? '❚❚  Pause' : word}</Animated.Text>
         </Animated.View>
       </Pressable>
     </Animated.View>
@@ -469,18 +358,74 @@ function FinishTitle({ title, reduceMotion }: { title: string; reduceMotion: boo
   );
 }
 
-function hardOrdinalAt(segments: { kind: string }[], index: number): number {
-  let count = 0;
-  const end = Math.min(Math.max(0, index), segments.length);
-  for (let i = 0; i < end; i++) if (segments[i]?.kind === 'hard') count += 1;
-  return count;
-}
-
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000' },
+  idle: { flex: 1, backgroundColor: colors.bg },
+  ride: { flex: 1, paddingHorizontal: 22 },
+  hero: { alignItems: 'center', marginTop: 18 },
+  wattsRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center' },
+  watts: {
+    color: colors.white,
+    fontSize: 96,
+    lineHeight: 100,
+    fontWeight: '700',
+    letterSpacing: -3,
+    fontVariant: ['tabular-nums'],
+  },
+  wattsUnit: {
+    color: colors.white,
+    fontSize: 36,
+    fontWeight: '600',
+    marginTop: 18,
+    marginLeft: 2,
+  },
+  bpm: {
+    color: colors.white,
+    fontSize: 22,
+    fontWeight: '600',
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  badge: {
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  badgeText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  clockBlock: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  clockRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 },
+  timeLabel: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  clock: {
+    color: colors.white,
+    fontWeight: '700',
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'],
+  },
+  countLabel: {
+    marginTop: 6,
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 3,
+  },
+  footer: { gap: 12, paddingBottom: 6 },
   pauseShell: {
     alignSelf: 'stretch',
     minHeight: 56,
-    borderRadius: 16,
+    borderRadius: 28,
     borderWidth: 1,
     overflow: 'hidden',
   },
@@ -491,89 +436,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pauseLabel: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
-  body: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+  endHit: { alignItems: 'center', paddingVertical: 4 },
+  end: { color: 'rgba(255,255,255,0.85)', fontSize: 16, fontWeight: '600' },
+  endRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
+  endCancel: { color: 'rgba(255,255,255,0.75)', fontSize: 16 },
+  endConfirm: { color: colors.white, fontSize: 16, fontWeight: '700' },
+  track: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    overflow: 'hidden',
   },
-  phase: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 4,
-    marginBottom: 12,
-  },
-  caption: {
-    color: colors.textMuted,
-    fontSize: 15,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-    gap: 10,
-  },
-  stack: {
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  confirmRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  transportChip: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  transportChipPressed: { opacity: 0.55 },
-  transportText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  endCancel: { color: colors.textMuted, fontSize: 14, paddingVertical: 6 },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: colors.hard,
-  },
-  chipText: { color: colors.hard, fontSize: 15, fontWeight: '600' },
-  done: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-    gap: 12,
-  },
+  fill: { height: 3, backgroundColor: colors.white },
+  done: { flex: 1, paddingHorizontal: 20, gap: 8 },
   doneTitle: {
-    color: colors.text,
-    fontSize: 64,
-    fontWeight: '200',
-    letterSpacing: -1.5,
+    color: colors.white,
+    fontSize: 40,
+    fontWeight: '700',
+    letterSpacing: -0.8,
   },
-  doneMeta: {
-    color: colors.textMuted,
-    fontSize: 16,
-    marginBottom: 18,
-  },
-  idle: { flex: 1, backgroundColor: colors.bg },
+  doneSub: { color: 'rgba(255,255,255,0.82)', fontSize: 17, fontWeight: '500', marginBottom: 8 },
 });

@@ -3,7 +3,8 @@ import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice } from './cloud';
-import { workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
+import { cloudExtensionMissing, workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
+import { parseStoredSummary } from '../logic/rideSummary';
 import { loadDeletionState } from './deletionStore';
 import { createId } from './id';
 import { shouldUploadSession } from './historyGate';
@@ -44,7 +45,13 @@ export async function loadHistory(): Promise<WorkoutRecord[]> {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isRecord);
+    return parsed.flatMap((item) => {
+      if (!isRecord(item)) return [];
+      const summary = parseStoredSummary((item as { summary?: unknown }).summary);
+      const { summary: _raw, ...rest } = item as WorkoutRecord & { summary?: unknown };
+      void _raw;
+      return [summary ? { ...rest, summary } : rest];
+    });
   } catch {
     return [];
   }
@@ -90,7 +97,9 @@ function rowToRecord(row: Record<string, unknown>): WorkoutRecord | null {
     completed: row.completed,
     completionPct: row.completion_pct,
   };
-  return isRecord(record) ? record : null;
+  if (!isRecord(record)) return null;
+  const summary = parseStoredSummary(row.summary);
+  return summary ? { ...record, summary } : record;
 }
 
 function cloudNote(message: string): string {
@@ -142,13 +151,24 @@ async function pullAndMergeUnsafe(local: WorkoutRecord[]): Promise<CloudResult> 
   if (!user) return { sessions: local, note: null };
   const userId = user.id;
 
-  const { data, error } = await supabase
+  const columns =
+    'id, started_at, ended_at, duration_ms, planned_duration_ms, ftp_watts, hard_watts, easy_watts, completed, completion_pct';
+  const first = await supabase
     .from('workout_sessions')
-    .select(
-      'id, started_at, ended_at, duration_ms, planned_duration_ms, ftp_watts, hard_watts, easy_watts, completed, completion_pct',
-    )
+    .select(`${columns}, summary`)
     .order('ended_at', { ascending: false })
     .limit(200);
+  let data = first.data as Record<string, unknown>[] | null;
+  let error = first.error;
+  if (error && cloudExtensionMissing(error.message) && /summary/i.test(error.message)) {
+    const again = await supabase
+      .from('workout_sessions')
+      .select(columns)
+      .order('ended_at', { ascending: false })
+      .limit(200);
+    data = again.data as Record<string, unknown>[] | null;
+    error = again.error;
+  }
 
   if (error) {
     const note = /workout_sessions|schema cache|relation/i.test(error.message)

@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { PowerMeterPanel } from '../components/PowerMeterPanel';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
+import { sensorStatus } from '../components/SensorChip';
 import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
+import { useHeartRate } from '../state/HeartRateContext';
 import { usePowerMeter } from '../state/PowerMeterContext';
 import { syncProfile } from '../storage/cloud';
 import { eraseThisDevice, requestAccountDelete, clearQueuedOutboxes } from '../storage/deletion';
@@ -21,44 +22,66 @@ import { colors } from '../theme/colors';
 import type { WorkoutSettings } from '../types';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults';
 
-function NumField({
+function Group({ children }: { children: React.ReactNode }) {
+  return <View style={styles.group}>{children}</View>;
+}
+
+function Hairline() {
+  return <View style={styles.hairline} />;
+}
+
+function ChevronRow({
   label,
   value,
-  onChange,
-  suffix,
-  min = 0,
-  max = 9999,
-  step = 1,
+  onPress,
+  testID,
 }: {
   label: string;
+  value?: string;
+  onPress: () => void;
+  testID?: string;
+}) {
+  return (
+    <Pressable onPress={onPress} testID={testID} style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.rowTrail}>
+        {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+        <Text style={styles.chevron}>›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function Stepper({
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+}: {
   value: number;
-  onChange: (n: number) => void;
-  suffix?: string;
-  min?: number;
-  max?: number;
+  onChange: (next: number) => void;
+  min: number;
+  max: number;
   step?: number;
 }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldRow}>
-        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}>
-          <Text style={styles.stepText}>−</Text>
-        </Pressable>
-        <TextInput
-          style={styles.fieldInput}
-          keyboardType="decimal-pad"
-          value={String(value)}
-          onChangeText={(raw) => {
-            const n = parseFloat(raw.replace(/[^0-9.]/g, ''));
-            if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
-          }}
-        />
-        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}>
-          <Text style={styles.stepText}>+</Text>
-        </Pressable>
-        {suffix ? <Text style={styles.suffix}>{suffix}</Text> : null}
-      </View>
+    <View style={styles.stepper}>
+      <Pressable
+        accessibilityLabel="Decrease"
+        onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
+        style={styles.stepHit}
+      >
+        <Text style={styles.stepGlyph}>−</Text>
+      </Pressable>
+      <View style={styles.stepSplit} />
+      <Pressable
+        accessibilityLabel="Increase"
+        onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
+        style={styles.stepHit}
+      >
+        <Text style={styles.stepGlyph}>+</Text>
+      </Pressable>
     </View>
   );
 }
@@ -75,13 +98,13 @@ function Toggle({
   testID?: string;
 }) {
   return (
-    <View style={styles.toggleRow}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: colors.bgSoft, true: colors.textDim }}
-        thumbColor={value ? colors.white : colors.textMuted}
+        trackColor={{ false: '#3A3A3C', true: '#30D158' }}
+        thumbColor={colors.white}
         testID={testID}
       />
     </View>
@@ -92,30 +115,40 @@ export function SettingsScreen() {
   const { settings, update } = useSettings();
   const history = useHistory();
   const meter = usePowerMeter();
+  const heart = useHeartRate();
   const auth = useAuth();
-  const [draft, setDraft] = useState(settings);
   const [dataNote, setDataNote] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
-  const watts = useMemo(
-    () => derivedWatts(draft.ftpWatts, draft.hardPct, draft.easyPct),
-    [draft.ftpWatts, draft.hardPct, draft.easyPct],
-  );
+  const [editor, setEditor] = useState<'ftp' | 'hard' | 'easy' | null>(null);
+  const [draftValue, setDraftValue] = useState(settings.ftpWatts);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
-  const patch = <K extends keyof WorkoutSettings>(key: K, value: WorkoutSettings[K]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+  const patch = (partial: Partial<WorkoutSettings>) => {
+    const prev = settingsRef.current;
+    const next = { ...prev, ...partial };
+    settingsRef.current = next;
+    void update(next);
+    if (auth.user && next.ftpWatts !== prev.ftpWatts) void syncProfile(auth.user);
   };
 
-  const save = async () => {
-    Keyboard.dismiss();
-    await update(draft);
-    if (auth.user) void syncProfile(auth.user);
-    router.back();
+  const openEditor = (which: 'ftp' | 'hard' | 'easy') => {
+    setDraftValue(which === 'ftp' ? settings.ftpWatts : which === 'hard' ? settings.hardPct : settings.easyPct);
+    setEditor(which);
+  };
+
+  const saveEditor = () => {
+    if (!editor) return;
+    const next: Partial<WorkoutSettings> = {};
+    if (editor === 'ftp') next.ftpWatts = Math.round(draftValue);
+    if (editor === 'hard') next.hardPct = Math.round(draftValue);
+    if (editor === 'easy') next.easyPct = Math.round(draftValue);
+    patch(next);
+    setEditor(null);
   };
 
   const resetSettings = async () => {
-    const next = { ...DEFAULT_SETTINGS };
-    setDraft(next);
-    await update(next);
+    await update({ ...DEFAULT_SETTINGS });
     setDataNote(settingsResetNote());
   };
 
@@ -146,11 +179,10 @@ export function SettingsScreen() {
     setActing(true);
     try {
       await meter.forget();
+      await heart.forget();
       const historyCloud = await history.clearSessions();
       const deviceCloud = await eraseThisDevice();
-      const next = { ...DEFAULT_SETTINGS };
-      setDraft(next);
-      await update(next);
+      await update({ ...DEFAULT_SETTINGS });
       await auth.setLocalName('');
       setDataNote(`${historyDeleteNote(historyCloud)} ${deviceEraseNote(deviceCloud)}`);
     } finally {
@@ -184,6 +216,17 @@ export function SettingsScreen() {
     );
   };
 
+  const editorMeta =
+    editor === 'ftp'
+      ? { label: 'FTP', suffix: 'W', min: 50, max: 600, step: 5 }
+      : editor === 'hard'
+        ? { label: 'Hard', suffix: '%', min: 100, max: 200, step: 5 }
+        : { label: 'Easy', suffix: '%', min: 20, max: 80, step: 5 };
+  const previewFtp = editor === 'ftp' ? Math.round(draftValue) : settings.ftpWatts;
+  const previewHard = editor === 'hard' ? Math.round(draftValue) : settings.hardPct;
+  const previewEasy = editor === 'easy' ? Math.round(draftValue) : settings.easyPct;
+  const preview = derivedWatts(previewFtp, previewHard, previewEasy);
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -192,208 +235,359 @@ export function SettingsScreen() {
         </Pressable>
         <Text style={styles.title}>Settings</Text>
       </View>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-      >
-        <Text style={styles.section}>Power</Text>
-        <NumField
-          label="FTP"
-          value={draft.ftpWatts}
-          onChange={(n) => patch('ftpWatts', Math.round(n))}
-          suffix="W"
-          min={50}
-          max={600}
-          step={5}
-        />
-        <Text style={styles.derived}>
-          Hard {draft.hardPct}% → {watts.hard} W · Easy {draft.easyPct}% → {watts.easy} W
-        </Text>
-        <NumField label="Hard % of FTP" value={draft.hardPct} onChange={(n) => patch('hardPct', Math.round(n))} suffix="%" min={100} max={200} step={5} />
-        <NumField label="Easy % of FTP" value={draft.easyPct} onChange={(n) => patch('easyPct', Math.round(n))} suffix="%" min={20} max={80} step={5} />
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <Group>
+          <ChevronRow
+            label="Power meter"
+            value={sensorStatus(meter.connectionState, meter.live != null)}
+            onPress={() => router.push('/power')}
+            testID="open-power"
+          />
+        </Group>
+        <Group>
+          <ChevronRow
+            label="Heart rate"
+            value={sensorStatus(heart.connectionState, heart.live != null)}
+            onPress={() => router.push('/heart')}
+            testID="open-heart"
+          />
+        </Group>
+        <Group>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Workout Sets</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.sets}</Text>
+              <Stepper
+                value={settings.sets}
+                min={1}
+                max={6}
+                onChange={(sets) => patch({ sets: Math.round(sets) })}
+              />
+            </View>
+          </View>
+        </Group>
+        <Group>
+          <Text style={styles.groupLabel}>Targets</Text>
+          <Hairline />
+          <ChevronRow label="FTP" value={`${settings.ftpWatts} W`} onPress={() => openEditor('ftp')} testID="edit-ftp" />
+          <Hairline />
+          <ChevronRow label="Hard" value={`${settings.hardPct} %`} onPress={() => openEditor('hard')} testID="edit-hard" />
+          <Hairline />
+          <ChevronRow label="Easy" value={`${settings.easyPct} %`} onPress={() => openEditor('easy')} testID="edit-easy" />
+        </Group>
 
-        <Text style={styles.section}>Power meter</Text>
-        <PowerMeterPanel variant="settings" />
+        <Text style={styles.section}>Session</Text>
+        <Group>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Warm-up</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.warmupMin} min</Text>
+              <Stepper
+                value={settings.warmupMin}
+                min={5}
+                max={30}
+                onChange={(warmupMin) => patch({ warmupMin: Math.round(warmupMin) })}
+              />
+            </View>
+          </View>
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Reps</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.reps}</Text>
+              <Stepper
+                value={settings.reps}
+                min={4}
+                max={20}
+                onChange={(reps) => patch({ reps: Math.round(reps) })}
+              />
+            </View>
+          </View>
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Work</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.workSec}s</Text>
+              <Stepper
+                value={settings.workSec}
+                min={15}
+                max={60}
+                step={5}
+                onChange={(workSec) => patch({ workSec: Math.round(workSec) })}
+              />
+            </View>
+          </View>
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Recover</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.recoverSec}s</Text>
+              <Stepper
+                value={settings.recoverSec}
+                min={10}
+                max={30}
+                step={5}
+                onChange={(recoverSec) => patch({ recoverSec: Math.round(recoverSec) })}
+              />
+            </View>
+          </View>
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Between sets</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.betweenSetRestMin} min</Text>
+              <Stepper
+                value={settings.betweenSetRestMin}
+                min={1}
+                max={10}
+                onChange={(betweenSetRestMin) => patch({ betweenSetRestMin: Math.round(betweenSetRestMin) })}
+              />
+            </View>
+          </View>
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Cool-down</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.cooldownMin} min</Text>
+              <Stepper
+                value={settings.cooldownMin}
+                min={3}
+                max={20}
+                onChange={(cooldownMin) => patch({ cooldownMin: Math.round(cooldownMin) })}
+              />
+            </View>
+          </View>
+        </Group>
 
-        <Text style={styles.section}>Structure</Text>
-        <NumField label="Warm-up" value={draft.warmupMin} onChange={(n) => patch('warmupMin', Math.round(n))} suffix="min" min={5} max={30} />
-        <NumField label="Sets" value={draft.sets} onChange={(n) => patch('sets', Math.round(n))} min={1} max={6} />
-        <NumField label="Reps per set" value={draft.reps} onChange={(n) => patch('reps', Math.round(n))} min={4} max={20} />
-        <NumField label="Work" value={draft.workSec} onChange={(n) => patch('workSec', Math.round(n))} suffix="sec" min={15} max={60} step={5} />
-        <NumField label="Recover" value={draft.recoverSec} onChange={(n) => patch('recoverSec', Math.round(n))} suffix="sec" min={10} max={30} step={5} />
-        <NumField label="Between-set rest" value={draft.betweenSetRestMin} onChange={(n) => patch('betweenSetRestMin', Math.round(n))} suffix="min" min={1} max={10} />
-        <NumField label="Cool-down" value={draft.cooldownMin} onChange={(n) => patch('cooldownMin', Math.round(n))} suffix="min" min={3} max={20} />
+        <Text style={styles.section}>Ride</Text>
+        <Group>
+          <Toggle
+            label="Music"
+            value={settings.musicEnabled}
+            onChange={(musicEnabled) => patch({ musicEnabled })}
+            testID="music-toggle"
+          />
+          <Hairline />
+          <Toggle
+            label="Spoken cues"
+            value={settings.speechEnabled}
+            onChange={(speechEnabled) => patch({ speechEnabled })}
+          />
+          <Hairline />
+          <Toggle
+            label="Haptics"
+            value={settings.hapticsEnabled}
+            onChange={(hapticsEnabled) => patch({ hapticsEnabled })}
+          />
+          <Hairline />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Voice rate</Text>
+            <View style={styles.rowTrail}>
+              <Text style={styles.setsValue}>{settings.voiceRate.toFixed(2)}</Text>
+              <Stepper
+                value={settings.voiceRate}
+                min={0.7}
+                max={1.4}
+                step={0.05}
+                onChange={(voiceRate) => patch({ voiceRate: +voiceRate.toFixed(2) })}
+              />
+            </View>
+          </View>
+        </Group>
 
-        <Text style={styles.section}>Audio</Text>
-        <Toggle label="Music" value={draft.musicEnabled} onChange={(v) => patch('musicEnabled', v)} testID="music-toggle" />
-        <Toggle label="Spoken cues" value={draft.speechEnabled} onChange={(v) => patch('speechEnabled', v)} />
-        <NumField label="Voice rate" value={draft.voiceRate} onChange={(n) => patch('voiceRate', n)} min={0.7} max={1.4} step={0.05} />
-        <Toggle label="Haptics" value={draft.hapticsEnabled} onChange={(v) => patch('hapticsEnabled', v)} />
-
-        <Text style={styles.section}>The session</Text>
-        <Pressable onPress={() => router.push('/about')} testID="open-about">
-          <Text style={styles.accountName}>Why 30/15</Text>
-          <Text style={styles.accountMeta}>Hard is about 120% of FTP. Easy is about half.</Text>
-        </Pressable>
-
-        <Text style={styles.section}>History</Text>
-        <Pressable onPress={() => router.push('/history')} testID="open-history">
-          <Text style={styles.accountName}>Past sessions</Text>
-        </Pressable>
-
-        <Text style={styles.section}>Feedback</Text>
-        <Pressable onPress={() => router.push('/feedback')} testID="settings-feedback">
-          <Text style={styles.accountName}>Leave a note</Text>
-          <Text style={styles.accountMeta}>Optional. Praise, complaints, or the feature you want.</Text>
-        </Pressable>
+        <Text style={styles.section}>Library</Text>
+        <Group>
+          <ChevronRow label="Why 30/15" onPress={() => router.push('/about')} testID="open-about" />
+          <Hairline />
+          <ChevronRow label="Past sessions" onPress={() => router.push('/history')} testID="open-history" />
+          <Hairline />
+          <ChevronRow label="Leave a note" onPress={() => router.push('/feedback')} testID="settings-feedback" />
+        </Group>
 
         <Text style={styles.section}>Account</Text>
-        {auth.user ? (
+        <Group>
           <View style={styles.block}>
-            <Text style={styles.accountName}>{auth.user.name ?? 'Signed in'}</Text>
-            <Text style={styles.accountMeta}>
-              {auth.user.provider}
-              {auth.user.email ? ` · ${auth.user.email}` : ''}
-            </Text>
-            <Text style={styles.accountMeta}>Sessions on this phone also sync while you are signed in.</Text>
-            <PrimaryButton variant="hairline" label="Sign out" onPress={() => void auth.signOut()} testID="sign-out" />
+            {auth.user ? (
+              <>
+                <Text style={styles.accountName}>{auth.user.name ?? 'Signed in'}</Text>
+                <Text style={styles.accountMeta}>
+                  {auth.user.provider}
+                  {auth.user.email ? ` · ${auth.user.email}` : ''}
+                </Text>
+                <Text style={styles.accountMeta}>Sessions on this phone also sync while you are signed in.</Text>
+                <PrimaryButton variant="hairline" label="Sign out" onPress={() => void auth.signOut()} testID="sign-out" />
+              </>
+            ) : (
+              <>
+                <Text style={styles.accountMeta}>Optional. Start never asks you to sign in.</Text>
+                <PrimaryButton
+                  variant="hairline"
+                  label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
+                  onPress={() => void auth.signIn('google')}
+                  disabled={auth.busy != null}
+                  testID="sign-in-google"
+                />
+                <PrimaryButton
+                  variant="hairline"
+                  label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
+                  onPress={() => void auth.signIn('facebook')}
+                  disabled={auth.busy != null}
+                  testID="sign-in-facebook"
+                />
+                {auth.needsSetup ? (
+                  <Text style={styles.accountMeta}>Cloud is not set up on this install. Sessions stay on this phone.</Text>
+                ) : null}
+              </>
+            )}
+            {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
           </View>
-        ) : (
-          <View style={styles.block}>
-            <Text style={styles.accountMeta}>Optional. Start never asks you to sign in.</Text>
-            <PrimaryButton
-              variant="hairline"
-              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
-              onPress={() => void auth.signIn('google')}
-              disabled={auth.busy != null}
-              testID="sign-in-google"
-            />
-            <PrimaryButton
-              variant="hairline"
-              label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
-              onPress={() => void auth.signIn('facebook')}
-              disabled={auth.busy != null}
-              testID="sign-in-facebook"
-            />
-            {auth.needsSetup ? (
-              <Text style={styles.accountMeta}>Cloud is not set up on this install. Sessions stay on this phone.</Text>
-            ) : null}
-          </View>
-        )}
-        {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
+        </Group>
 
         <Text style={styles.section}>Your data</Text>
-        <View style={styles.block}>
-          <Text style={styles.accountMeta}>
-            Sessions, FTP, and notes live on this phone. You can delete them here. An account is optional and copies finished sessions when you are online. This coach is free.
-          </Text>
-          <PrimaryButton
-            variant="hairline"
-            label="Delete workout history"
-            onPress={() => void deleteHistory()}
-            disabled={acting}
-            testID="delete-history"
-          />
-          <PrimaryButton
-            variant="hairline"
-            label="Clear queued notes and analytics"
-            onPress={() => void clearQueues()}
-            disabled={acting}
-            testID="clear-outbox"
-          />
-          <PrimaryButton
-            variant="hairline"
-            label="Erase data on this phone"
-            onPress={() => void erasePhone()}
-            disabled={acting}
-            testID="erase-device"
-          />
-          {auth.user ? (
+        <Group>
+          <View style={styles.block}>
+            <Text style={styles.accountMeta}>
+              Sessions, FTP, and notes live on this phone. You can delete them here. An account is optional and copies finished sessions when you are online. This coach is free.
+            </Text>
             <PrimaryButton
-              variant="danger"
-              label="Delete account and cloud data"
-              onPress={deleteAccount}
+              variant="hairline"
+              label="Delete workout history"
+              onPress={() => void deleteHistory()}
               disabled={acting}
-              testID="delete-account"
+              testID="delete-history"
             />
-          ) : null}
-          {dataNote ? <Text style={styles.accountMeta}>{dataNote}</Text> : null}
-        </View>
-
-        <PrimaryButton label="Save" onPress={() => void save()} testID="save-settings" />
-        <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => void resetSettings()} testID="reset-settings" />
+            <PrimaryButton
+              variant="hairline"
+              label="Clear queued notes and analytics"
+              onPress={() => void clearQueues()}
+              disabled={acting}
+              testID="clear-outbox"
+            />
+            <PrimaryButton
+              variant="hairline"
+              label="Erase data on this phone"
+              onPress={() => void erasePhone()}
+              disabled={acting}
+              testID="erase-device"
+            />
+            {auth.user ? (
+              <PrimaryButton
+                variant="danger"
+                label="Delete account and cloud data"
+                onPress={deleteAccount}
+                disabled={acting}
+                testID="delete-account"
+              />
+            ) : null}
+            {dataNote ? <Text style={styles.accountMeta}>{dataNote}</Text> : null}
+            <PrimaryButton variant="quiet" label="Reset defaults" onPress={() => void resetSettings()} testID="reset-settings" />
+          </View>
+        </Group>
       </ScrollView>
+
+      <Modal visible={editor != null} transparent animationType="slide" onRequestClose={() => setEditor(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setEditor(null)} />
+        <View style={styles.sheet}>
+          <Text style={styles.sheetTitle}>{editorMeta.label}</Text>
+          <Text style={styles.sheetValue}>
+            {Math.round(draftValue)} {editorMeta.suffix}
+          </Text>
+          {editor === 'ftp' || editor === 'hard' || editor === 'easy' ? (
+            <Text style={styles.sheetMeta}>
+              Hard {preview.hard} W · Easy {preview.easy} W
+            </Text>
+          ) : null}
+          <View style={styles.sheetStepper}>
+            <Stepper
+              value={draftValue}
+              min={editorMeta.min}
+              max={editorMeta.max}
+              step={editorMeta.step}
+              onChange={setDraftValue}
+            />
+          </View>
+          <PrimaryButton label="Done" onPress={saveEditor} testID="save-target" />
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 28, paddingTop: 8, gap: 18 },
-  back: { color: colors.textMuted, fontSize: 16 },
+  header: { paddingHorizontal: 20, paddingTop: 8, gap: 8 },
+  back: { color: '#0A84FF', fontSize: 17 },
   title: {
-    color: colors.text,
-    fontSize: 40,
-    fontWeight: '200',
-    letterSpacing: -0.8,
+    color: colors.white,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: -0.6,
   },
-  scroll: { paddingHorizontal: 28, paddingBottom: 48, gap: 12 },
-  block: { gap: 10 },
+  scroll: { paddingHorizontal: 16, paddingBottom: 48, gap: 14, paddingTop: 18 },
   section: {
-    marginTop: 18,
-    color: colors.textDim,
-    letterSpacing: 1.6,
-    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 12,
+    color: colors.textMuted,
+    fontSize: 13,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  accountName: { color: colors.text, fontSize: 20, fontWeight: '400' },
-  accountMeta: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
-  nameInput: {
-    color: colors.text,
-    fontSize: 17,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+  group: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  error: { color: colors.danger, fontSize: 14 },
-  device: {
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+  groupLabel: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  deviceName: { color: colors.text, fontSize: 16 },
-  derived: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
-  field: {
+  row: {
+    minHeight: 48,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  fieldLabel: { color: colors.textMuted, fontSize: 14 },
-  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fieldInput: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '400',
-    textAlign: 'center',
-    paddingVertical: 4,
-    fontVariant: ['tabular-nums'],
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepText: { color: colors.text, fontSize: 24 },
-  suffix: { color: colors.textDim, width: 36 },
-  toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    gap: 12,
   },
+  rowLabel: { color: colors.white, fontSize: 17, flexShrink: 1 },
+  rowTrail: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowValue: { color: '#D1D1D6', fontSize: 17, fontVariant: ['tabular-nums'] },
+  setsValue: { color: colors.white, fontSize: 17, fontVariant: ['tabular-nums'], minWidth: 28, textAlign: 'right' },
+  chevron: { color: '#0A84FF', fontSize: 22, fontWeight: '500', marginTop: -2 },
+  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginLeft: 16 },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#2C2C2E',
+    overflow: 'hidden',
+  },
+  stepHit: { width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
+  stepSplit: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.18)' },
+  stepGlyph: { color: colors.white, fontSize: 20, fontWeight: '500' },
+  block: { padding: 16, gap: 10 },
+  accountName: { color: colors.text, fontSize: 17, fontWeight: '600' },
+  accountMeta: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  error: { color: colors.danger, fontSize: 14 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: {
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  sheetTitle: { color: colors.white, fontSize: 20, fontWeight: '700' },
+  sheetValue: { color: colors.white, fontSize: 40, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  sheetMeta: { color: colors.textMuted, fontSize: 15 },
+  sheetStepper: { alignItems: 'flex-start' },
 });

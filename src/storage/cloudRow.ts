@@ -1,4 +1,4 @@
-import type { WorkoutRecord } from '../types';
+import type { RideSummary, WorkoutRecord } from '../types';
 
 export type WorkoutSource = 'manual' | 'strava' | 'garmin' | 'ble';
 
@@ -18,9 +18,10 @@ export type WorkoutSessionWrite = {
   device_id: string | null;
   source: WorkoutSource;
   external_id: string | null;
+  summary: RideSummary | null;
 };
 
-export type LegacyWorkoutSessionWrite = Omit<WorkoutSessionWrite, 'device_id' | 'source' | 'external_id'>;
+export type LegacyWorkoutSessionWrite = Omit<WorkoutSessionWrite, 'device_id' | 'source' | 'external_id' | 'summary'>;
 
 export function workoutSessionWrite(
   record: WorkoutRecord,
@@ -42,7 +43,14 @@ export function workoutSessionWrite(
     device_id: deviceId,
     source: 'manual',
     external_id: null,
+    summary: record.summary ?? null,
   };
+}
+
+export function omitSessionSummary(row: WorkoutSessionWrite): Omit<WorkoutSessionWrite, 'summary'> {
+  const { summary, ...rest } = row;
+  void summary;
+  return rest;
 }
 
 export function legacyWorkoutSessionWrite(row: WorkoutSessionWrite): LegacyWorkoutSessionWrite {
@@ -64,9 +72,9 @@ export function legacyWorkoutSessionWrite(row: WorkoutSessionWrite): LegacyWorko
 /** PostgREST or Postgres complaining that the new session columns are not there yet. */
 export function cloudExtensionMissing(message: string): boolean {
   return (
-    (/schema cache/i.test(message) && /device_id|source|external_id/i.test(message)) ||
-    /could not find the '(device_id|source|external_id)' column/i.test(message) ||
-    /column "(device_id|source|external_id)" of relation "workout_sessions" does not exist/i.test(message)
+    (/schema cache/i.test(message) && /device_id|source|external_id|summary/i.test(message)) ||
+    /could not find the '(device_id|source|external_id|summary)' column/i.test(message) ||
+    /column "(device_id|source|external_id|summary)" of relation "workout_sessions" does not exist/i.test(message)
   );
 }
 
@@ -77,8 +85,12 @@ export function workoutDeviceForeignKey(message: string): boolean {
 export function workoutRowsForRetry(
   rows: WorkoutSessionWrite[],
   message: string,
-): Array<WorkoutSessionWrite | LegacyWorkoutSessionWrite> | null {
-  if (cloudExtensionMissing(message)) return rows.map(legacyWorkoutSessionWrite);
+): Array<WorkoutSessionWrite | LegacyWorkoutSessionWrite | Omit<WorkoutSessionWrite, 'summary'>> | null {
+  if (cloudExtensionMissing(message)) {
+    if (/device_id|source|external_id/i.test(message)) return rows.map(legacyWorkoutSessionWrite);
+    if (/summary/i.test(message)) return rows.map(omitSessionSummary);
+    return rows.map(legacyWorkoutSessionWrite);
+  }
   if (workoutDeviceForeignKey(message)) return rows.map((row) => ({ ...row, device_id: null }));
   return null;
 }
