@@ -5,6 +5,10 @@ Expo SDK 57 bike coach for **Rønnestad 30/15** micro-intervals. One number on t
 **App name:** 30/15  
 **Bundle ID / scheme:** `com.kaushikpavani.thirtyfifteen` / `thirtyfifteen`
 
+## UX design
+
+Markdown wireframes in [docs/ux/README.md](docs/ux/README.md) are the source of truth for UI work. PNGs are reference only.
+
 ## Offline first
 
 The phone is the source of truth. Airplane mode still runs a complete session.
