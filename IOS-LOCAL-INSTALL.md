@@ -34,7 +34,8 @@ App Store Connect and TestFlight are for Apple Developer Program members. A Pers
 - **Xcode Command Line Tools.** In Xcode: **Xcode → Settings → Locations**, then choose the latest entry in **Command Line Tools**.
 - The **iOS platform**. In Xcode: **Xcode → Settings → Components**, then under **Platform Support** choose **Get** on the iOS row. Expo’s [environment setup](https://docs.expo.dev/get-started/set-up-your-environment/) uses this screen.
 - **Node.js 22.13 or newer** and npm. This repo uses npm (`package-lock.json`). Check with `node -v`.
-- A free Apple ID. Sign that same Apple ID into Xcode so it shows as a Personal Team, and create an Apple Development certificate. Step 4 does both.
+- **CocoaPods through Bundler**, from the root `Gemfile`. Do not install the Homebrew `cocoapods` formula. Step 3 sets up Homebrew Ruby 3.3, Bundler, and `bundle exec pod`.
+- A free Apple ID. Sign that same Apple ID into Xcode so it shows as a Personal Team, and create an Apple Development certificate. Step 5 does both.
 - A USB cable for the first install. A later install can use the phone if it already appears in the device list without the cable.
 - The iPhone unlocked. On the first connection, tap **Trust** and enter the passcode.
 - **Developer Mode** (iOS 16 and later). The row appears after the phone has been paired with the Mac. See the steps below.
@@ -56,7 +57,46 @@ npm install
 
 Use `npx expo`, not `npm expo`. If install reports `Cannot find module 'expo/config-plugins'`, delete `node_modules` and run `npm install` again. Do not run `npm audit fix --force`. It can leave the Expo SDK 57 set.
 
-3. **expo-dev-client is optional, and this repo does not depend on it yet.** `package.json` does not list `expo-dev-client`. You do not need it for Bluetooth or for background audio. Skip the install unless you want the development-client launcher.
+3. Install CocoaPods through Bundler. Do not install the Homebrew `cocoapods` formula. That `pod` on Ruby 3.x fails inside `use_expo_modules!` with `undefined method 'exists?' for class File`. The root `Gemfile` pins CocoaPods `~> 1.16` and `xcodeproj` `>= 1.27.0`. `Gemfile.lock` records the exact gems.
+
+Remove Homebrew CocoaPods if it is installed, then install Homebrew Ruby 3.3:
+
+```bash
+brew uninstall cocoapods
+brew install ruby@3.3
+```
+
+If uninstall says the formula is not installed, continue.
+
+Homebrew does not put this Ruby on the default `PATH`. Add Ruby 3.3 and its gem binaries to `~/.zshrc`, then open a new terminal:
+
+```bash
+export PATH="/opt/homebrew/opt/ruby@3.3/bin:/opt/homebrew/lib/ruby/gems/3.3.0/bin:$PATH"
+```
+
+On Apple Silicon the gem bin is `/opt/homebrew/lib/ruby/gems/3.3.0/bin`. If `brew install` printed a different gem directory, use that directory.
+
+From the repo root, confirm the shell and install the gems:
+
+```bash
+ruby -v
+which ruby
+gem install bundler
+bundle install
+```
+
+`ruby -v` should report 3.3.x, and `which ruby` should be `/opt/homebrew/opt/ruby@3.3/bin/ruby`. `bundle install` reads `Gemfile` and `Gemfile.lock`.
+
+Every pod install runs from `ios/` through Bundler:
+
+```bash
+cd ios
+bundle exec pod install
+```
+
+`ios/` appears after the first `npx expo prebuild` or `npx expo run:ios`. With `bundle` on `PATH` and `bundle exec pod --version` succeeding, Expo’s pod install runs `bundle exec pod`. If the CLI still invokes a Homebrew `pod`, uninstall that formula and run the command above yourself.
+
+4. **expo-dev-client is optional, and this repo does not depend on it yet.** `package.json` does not list `expo-dev-client`. You do not need it for Bluetooth or for background audio. Skip the install unless you want the development-client launcher.
 
    A development client is for day-to-day edits: the native app stays installed, and JavaScript reloads from Metro on the Mac. It still needs Metro. It is not a ride with the laptop closed.
 
@@ -66,7 +106,7 @@ npx expo install expo-dev-client
 
    The `development` profile in `eas.json` sets `developmentClient: true` for EAS. That cloud iPhone build needs a paid Apple Developer account. This file is the local path, and the commands below work without adding the package.
 
-4. Sign the Apple ID into Xcode, confirm the **Personal Team**, and create an **Apple Development** certificate. Adding the account shows the team. It does not put a certificate in the login keychain. Expo reads that keychain with `security find-identity` before it compiles. With no development identity, a device build stops here:
+5. Sign the Apple ID into Xcode, confirm the **Personal Team**, and create an **Apple Development** certificate. Adding the account shows the team. It does not put a certificate in the login keychain. Expo reads that keychain with `security find-identity` before it compiles. With no development identity, a device build stops here:
 
    ```
    Your computer requires some additional setup before you can build onto physical iOS devices.
@@ -117,10 +157,19 @@ From the repo root, with the phone plugged in, unlocked, and trusted:
 cd thirty-fifteen
 git pull origin main
 npm install
+bundle install
 npx expo run:ios --device
 ```
 
 `npx expo run:ios` can run only on a Mac with Xcode. If `ios/` is missing, the command generates it (prebuild), then compiles, installs, and starts Metro. `ios/` and `android/` are generated and gitignored. Do not commit them, and do not edit them by hand.
+
+Pods install through Bundler. From `ios/`:
+
+```bash
+bundle exec pod install
+```
+
+Use that command every time pods are installed. Do not run `pod install` without `bundle exec`. `npx expo run:ios` and `npx expo prebuild` call `bundle exec pod` when step 3 is done (`bundle` on `PATH`, and `bundle exec pod --version` works). If pod install fails, run the command above in `ios/`, then run the device command again.
 
 1. When the CLI lists devices, pick the iPhone. Do not pick a simulator.
 2. The first successful run registers the device on your Personal Team and installs **30/15**.
@@ -131,7 +180,7 @@ npx expo run:ios --device
    - Set **Team** to your **Personal Team**.
    - Leave the bundle id at `com.kaushikpavani.thirtyfifteen` unless Xcode says that id cannot be registered. If it does, change `ios.bundleIdentifier` in `app.json` to a unique id, then regenerate with `npx expo prebuild -p ios --clean` and run the device command again. Reuse one bundle id. A Personal Team can only register 10 App IDs in 7 days.
 
-   Those team steps are for `Signing for … requires a development team`. `No code signing certificates are available to use` means the login keychain has no Apple Development certificate. Create one in step 4, then run the device command again.
+   Those team steps are for `Signing for … requires a development team`. `No code signing certificates are available to use` means the login keychain has no Apple Development certificate. Create one in step 5, then run the device command again.
 
 4. If the phone says the developer is not trusted, go to **Settings → General → VPN & Device Management**. On older iOS the row may be named **Device Management**. Select the certificate for your Apple ID and tap **Trust**.
 5. Open **30/15** from the home screen.
@@ -216,6 +265,7 @@ Pressing **Run** again in Xcode is the same fix. The new profile lasts about ano
 | No **Developer Mode** row | Plug in, unlock, tap **Trust**, and open **Xcode → Open Developer Tool → Device Hub**. Then look again under **Settings → Privacy & Security**. Confirm the alert after the restart. |
 | `Signing for … requires a development team` | **Xcode → Settings → Accounts** must show the Apple ID as a **Personal Team**. In the app target, **Signing & Capabilities**, turn on **Automatically manage signing** and choose that team. Then run `npx expo run:ios --device` again. |
 | `No code signing certificates are available to use` | The login keychain has no Apple Development identity. Expo prints that line after “Your computer requires some additional setup before you can build onto physical iOS devices” and links [expo.fyi/setup-xcode-signing](https://expo.fyi/setup-xcode-signing). **Xcode → Settings → Accounts**, select the Apple ID, confirm **Personal Team**, then **Manage Certificates…** → **+** → **Apple Development**. `security find-identity -v -p codesigning` should list `Apple Development:`. If it still reports `0 valid identities found`, create a blank iOS App (**File → New → Project…** → **iOS → App**), set **Team** to **Personal Team**, and press **Run** once on the physical iPhone. Then, from this repo, run `npx expo run:ios --device --configuration Release`. |
+| `undefined method 'exists?' for class File` during pod install, often inside `use_expo_modules!` | Homebrew’s `pod` is running on Ruby 3.x, which removed `File.exists?`. Use step 3: `brew uninstall cocoapods`, put `/opt/homebrew/opt/ruby@3.3/bin` and the Ruby 3.3 gem bin on `PATH`, run `gem install bundler` and `bundle install` at the repo root, then `bundle exec pod install` in `ios/`. A Podfile monkeypatch that defines `File.exists?` is a last resort only. |
 | Bundle id is not available, or cannot be registered | Keep `com.kaushikpavani.thirtyfifteen` unless that id is already taken by another team. If you must change it, edit `ios.bundleIdentifier` in `app.json`, run `npx expo prebuild -p ios --clean`, and install again. Do not invent a new id for every attempt. The Personal Team cap is 10 App IDs in 7 days. |
 | Phone never appears in the device list | Use a data-capable cable. Unlock the phone. Tap **Trust**. Try another port. Open Device Hub and confirm the phone is paired. Wireless shows up only after that first USB pair, and only when the phone is already listed. |
 | Red screen: could not connect to the development server | This is a **Debug** install waiting for Metro, not an expired profile. From the repo, run `npx expo start`, or reinstall with `--configuration Release` so JavaScript is inside the app. |
@@ -239,5 +289,6 @@ Checked against the docs below while writing this.
 - [Expo: development builds](https://docs.expo.dev/develop/development-builds/introduction/) — local compile is the iPhone install without a paid Apple Developer account; EAS iOS device builds need one.
 - [Expo CLI](https://docs.expo.dev/more/expo-cli/) — `--device`, `--configuration Release` (JavaScript embedded; not signed for App Store submission), `xed ios`.
 - [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/) — Node.js 22.13.x, iOS 16.4+, Xcode 26.4+.
+- [CocoaPods: using a Gemfile](https://guides.cocoapods.org/using/a-gemfile.html) — `bundle install`, then `bundle exec pod`, so the locked CocoaPods is the one that runs.
 - [Apple: developer account overview](https://developer.apple.com/help/account/basics/about-your-developer-account/) — Personal Team, 7-day profiles, App ID and device caps, 3 apps per device, rebuild to renew.
 - [Apple: Enabling Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) — **Settings → Privacy & Security → Developer Mode**.
