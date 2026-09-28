@@ -39,7 +39,7 @@ Use **`npx expo`**, not `npm expo`. If install reports `Cannot find module 'expo
 1. Install **Expo Go**.
 2. Scan the QR code. Phone and computer should share a network.
 
-Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go has no Bluetooth stack. See [Power meter](#power-meter).
+Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go has no Bluetooth stack, and it does not apply this project's background audio config. See [Power meter](#power-meter). A home-screen install on a physical iPhone, with a free Apple ID, is a local compile on a Mac: [Install on an iPhone from a Mac](IOS-LOCAL-INSTALL.md).
 
 ---
 
@@ -202,7 +202,7 @@ npx eas-cli@latest build --profile development --platform ios
 npx expo start --dev-client
 ```
 
-The development profile is in [`eas.json`](eas.json).
+The development profile is in [`eas.json`](eas.json). That EAS iOS device build needs a paid Apple Developer account. A free Apple ID on a physical iPhone is the local Mac + Xcode path: [Install on an iPhone from a Mac](IOS-LOCAL-INSTALL.md).
 
 Install that build (not Expo Go). Open Settings → Power meter before Start. Pedal the crank, scan, and connect. Watts appear only after a real measurement packet. Disconnect drops the link and leaves the saved meter for the next visit. The countdown stays the only number on the clock. Planned watts stay on Home.
 
@@ -224,7 +224,7 @@ Leaving the app, or locking the screen, does not pause the ride. Pause still mea
 
 **Android** takes exclusive audio for a running ride and shows a media notification (segment label, no watts, no seek). Notification pause pauses the workout. Notification play resumes it. YouTube stays paused while the ride is running.
 
-`playsInSilentMode` keeps the ride audible with the iOS silent switch on, and with Android silent or vibrate. Expo Go does not apply this project's native background config. Use a development build. See [BACKGROUND.md](BACKGROUND.md).
+`playsInSilentMode` keeps the ride audible with the iOS silent switch on, and with Android silent or vibrate. Expo Go does not apply this project's native background config. Use a development build. See [BACKGROUND.md](BACKGROUND.md). On a free Apple ID that build is local: [Install on an iPhone from a Mac](IOS-LOCAL-INSTALL.md). The `eas build` commands in [Power meter](#power-meter) are the paid-account path.
 
 ### Manual test
 
