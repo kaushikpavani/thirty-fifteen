@@ -34,7 +34,7 @@ App Store Connect and TestFlight are for Apple Developer Program members. A Pers
 - **Xcode Command Line Tools.** In Xcode: **Xcode → Settings → Locations**, then choose the latest entry in **Command Line Tools**.
 - The **iOS platform**. In Xcode: **Xcode → Settings → Components**, then under **Platform Support** choose **Get** on the iOS row. Expo’s [environment setup](https://docs.expo.dev/get-started/set-up-your-environment/) uses this screen.
 - **Node.js 22.13 or newer** and npm. This repo uses npm (`package-lock.json`). Check with `node -v`.
-- A free Apple ID. Sign that same Apple ID into Xcode. It should show as a Personal Team.
+- A free Apple ID. Sign that same Apple ID into Xcode so it shows as a Personal Team, and create an Apple Development certificate. Step 4 does both.
 - A USB cable for the first install. A later install can use the phone if it already appears in the device list without the cable.
 - The iPhone unlocked. On the first connection, tap **Trust** and enter the passcode.
 - **Developer Mode** (iOS 16 and later). The row appears after the phone has been paired with the Mac. See the steps below.
@@ -54,7 +54,7 @@ cd thirty-fifteen
 npm install
 ```
 
-Use `npx expo`, not `npm expo`. If install reports `Cannot find module 'expo/config-plugins'`, delete `node_modules` and run `npm install` again. Do not run `npm audit fix`.
+Use `npx expo`, not `npm expo`. If install reports `Cannot find module 'expo/config-plugins'`, delete `node_modules` and run `npm install` again. Do not run `npm audit fix --force`. It can leave the Expo SDK 57 set.
 
 3. **expo-dev-client is optional, and this repo does not depend on it yet.** `package.json` does not list `expo-dev-client`. You do not need it for Bluetooth or for background audio. Skip the install unless you want the development-client launcher.
 
@@ -66,11 +66,36 @@ npx expo install expo-dev-client
 
    The `development` profile in `eas.json` sets `developmentClient: true` for EAS. That cloud iPhone build needs a paid Apple Developer account. This file is the local path, and the commands below work without adding the package.
 
-4. Sign the Apple ID into Xcode so the Personal Team exists:
+4. Sign the Apple ID into Xcode, confirm the **Personal Team**, and create an **Apple Development** certificate. Adding the account shows the team. It does not put a certificate in the login keychain. Expo reads that keychain with `security find-identity` before it compiles. With no development identity, a device build stops here:
 
-   **Xcode → Settings → Accounts**, and add the Apple ID.
+   ```
+   Your computer requires some additional setup before you can build onto physical iOS devices.
+   Learn more: https://expo.fyi/setup-xcode-signing
+   CommandError: No code signing certificates are available to use.
+   ```
 
-   After it signs in, the team list should show your name with **(Personal Team)** beside it. If the list is empty, the device install cannot sign.
+   Create the certificate:
+
+   - **Xcode → Settings → Accounts**, and add the Apple ID.
+   - Select that account. The team list should show your name with **(Personal Team)** beside it. An empty team list cannot sign a device install.
+   - Click **Manage Certificates…**, then **+**, then **Apple Development**.
+   - Optional check, in Terminal:
+
+   ```bash
+   security find-identity -v -p codesigning
+   ```
+
+   The list should include a line like `Apple Development: Your Name (TEAMID)`. `0 valid identities found` means the certificate is still missing. Expo matches an identity whose name contains `Apple Development:`. **Apple Distribution** is ignored by this check.
+
+   If the list is still empty, create a blank iOS app and run it once to the physical iPhone. That run makes Xcode write the Apple Development certificate and a provisioning profile:
+
+   - **File → New → Project…**, choose **iOS → App**, and save the project outside this repo.
+   - Set **Team** to your **Personal Team**. Keep the bundle id Xcode generated for the blank app, separate from `com.kaushikpavani.thirtyfifteen`.
+   - Plug in the iPhone, unlock it, choose it as the run destination, and press **Run** once. If the iPhone will not take the app yet, turn on Developer Mode (next section) and press **Run** again. Xcode writes the certificate when that Run signs the app.
+   - Run `security find-identity -v -p codesigning` again. It should list `Apple Development:`.
+   - Return to this repo and retry `npx expo run:ios --device`. Add `--configuration Release` when the install should carry its own JavaScript.
+
+   One blank app is enough. It uses one of the Personal Team’s 10 App ID slots for 7 days. [Expo’s signing note](https://expo.fyi/setup-xcode-signing) describes the same idea: sign in, then build once to a device so Xcode creates the development certificate. You do this once per Mac and Apple ID.
 
 ## Developer Mode on the iPhone
 
@@ -105,6 +130,9 @@ npx expo run:ios --device
    - Turn on **Automatically manage signing**.
    - Set **Team** to your **Personal Team**.
    - Leave the bundle id at `com.kaushikpavani.thirtyfifteen` unless Xcode says that id cannot be registered. If it does, change `ios.bundleIdentifier` in `app.json` to a unique id, then regenerate with `npx expo prebuild -p ios --clean` and run the device command again. Reuse one bundle id. A Personal Team can only register 10 App IDs in 7 days.
+
+   Those team steps are for `Signing for … requires a development team`. `No code signing certificates are available to use` means the login keychain has no Apple Development certificate. Create one in step 4, then run the device command again.
+
 4. If the phone says the developer is not trusted, go to **Settings → General → VPN & Device Management**. On older iOS the row may be named **Device Management**. Select the certificate for your Apple ID and tap **Trust**.
 5. Open **30/15** from the home screen.
 
@@ -187,6 +215,7 @@ Pressing **Run** again in Xcode is the same fix. The new profile lasts about ano
 | **Untrusted Developer**, or the icon will not open the first time | **Settings → General → VPN & Device Management** (older iOS: **Device Management**). Under **Developer App**, select the Apple ID and tap **Trust**. Developer Mode must also be on. |
 | No **Developer Mode** row | Plug in, unlock, tap **Trust**, and open **Xcode → Open Developer Tool → Device Hub**. Then look again under **Settings → Privacy & Security**. Confirm the alert after the restart. |
 | `Signing for … requires a development team` | **Xcode → Settings → Accounts** must show the Apple ID as a **Personal Team**. In the app target, **Signing & Capabilities**, turn on **Automatically manage signing** and choose that team. Then run `npx expo run:ios --device` again. |
+| `No code signing certificates are available to use` | The login keychain has no Apple Development identity. Expo prints that line after “Your computer requires some additional setup before you can build onto physical iOS devices” and links [expo.fyi/setup-xcode-signing](https://expo.fyi/setup-xcode-signing). **Xcode → Settings → Accounts**, select the Apple ID, confirm **Personal Team**, then **Manage Certificates…** → **+** → **Apple Development**. `security find-identity -v -p codesigning` should list `Apple Development:`. If it still reports `0 valid identities found`, create a blank iOS App (**File → New → Project…** → **iOS → App**), set **Team** to **Personal Team**, and press **Run** once on the physical iPhone. Then, from this repo, run `npx expo run:ios --device --configuration Release`. |
 | Bundle id is not available, or cannot be registered | Keep `com.kaushikpavani.thirtyfifteen` unless that id is already taken by another team. If you must change it, edit `ios.bundleIdentifier` in `app.json`, run `npx expo prebuild -p ios --clean`, and install again. Do not invent a new id for every attempt. The Personal Team cap is 10 App IDs in 7 days. |
 | Phone never appears in the device list | Use a data-capable cable. Unlock the phone. Tap **Trust**. Try another port. Open Device Hub and confirm the phone is paired. Wireless shows up only after that first USB pair, and only when the phone is already listed. |
 | Red screen: could not connect to the development server | This is a **Debug** install waiting for Metro, not an expired profile. From the repo, run `npx expo start`, or reinstall with `--configuration Release` so JavaScript is inside the app. |
@@ -206,6 +235,7 @@ Pressing **Run** again in Xcode is the same fix. The new profile lasts about ano
 Checked against the docs below while writing this.
 
 - [Expo: set up an iOS device with a local development build](https://docs.expo.dev/get-started/set-up-your-environment/) — Xcode from the Mac App Store, Command Line Tools, iOS platform, USB trust, Developer Mode, `npx expo run:ios --device`.
+- [Expo: setup Xcode code signing](https://expo.fyi/setup-xcode-signing) — the page Expo CLI links when no development certificate is in the keychain. Sign the Apple ID into Xcode, then build once to a device so Xcode creates the development certificate and provisioning profile.
 - [Expo: development builds](https://docs.expo.dev/develop/development-builds/introduction/) — local compile is the iPhone install without a paid Apple Developer account; EAS iOS device builds need one.
 - [Expo CLI](https://docs.expo.dev/more/expo-cli/) — `--device`, `--configuration Release` (JavaScript embedded; not signed for App Store submission), `xed ios`.
 - [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/) — Node.js 22.13.x, iOS 16.4+, Xcode 26.4+.
