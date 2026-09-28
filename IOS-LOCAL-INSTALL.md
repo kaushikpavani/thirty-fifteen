@@ -120,7 +120,7 @@ npm install
 npx expo run:ios --device
 ```
 
-`npx expo run:ios` can run only on a Mac with Xcode. If `ios/` is missing, the command generates it (prebuild), then compiles, installs, and starts Metro. `ios/` and `android/` are generated and gitignored. Do not commit them, and do not edit them by hand.
+`npx expo run:ios` can run only on a Mac with Xcode. If `ios/` is missing, the command generates it (prebuild), then compiles, installs, and starts Metro. `ios/` and `android/` are generated and gitignored. Do not commit them, and do not edit them by hand. When `pod install` fails with `undefined method 'exists?' for class File`, the Podfile patch under [Ruby File.exists? and pod install](#ruby-fileexists-and-pod-install) is a local edit on that generated file.
 
 1. When the CLI lists devices, pick the iPhone. Do not pick a simulator.
 2. The first successful run registers the device on your Personal Team and installs **30/15**.
@@ -216,6 +216,7 @@ Pressing **Run** again in Xcode is the same fix. The new profile lasts about ano
 | No **Developer Mode** row | Plug in, unlock, tap **Trust**, and open **Xcode → Open Developer Tool → Device Hub**. Then look again under **Settings → Privacy & Security**. Confirm the alert after the restart. |
 | `Signing for … requires a development team` | **Xcode → Settings → Accounts** must show the Apple ID as a **Personal Team**. In the app target, **Signing & Capabilities**, turn on **Automatically manage signing** and choose that team. Then run `npx expo run:ios --device` again. |
 | `No code signing certificates are available to use` | The login keychain has no Apple Development identity. Expo prints that line after “Your computer requires some additional setup before you can build onto physical iOS devices” and links [expo.fyi/setup-xcode-signing](https://expo.fyi/setup-xcode-signing). **Xcode → Settings → Accounts**, select the Apple ID, confirm **Personal Team**, then **Manage Certificates…** → **+** → **Apple Development**. `security find-identity -v -p codesigning` should list `Apple Development:`. If it still reports `0 valid identities found`, create a blank iOS App (**File → New → Project…** → **iOS → App**), set **Team** to **Personal Team**, and press **Run** once on the physical iPhone. Then, from this repo, run `npx expo run:ios --device --configuration Release`. |
+| `pod install` failed: `undefined method 'exists?' for class File` at `use_expo_modules!` | The Apple Development certificate can already be in the keychain. This stop is CocoaPods. Ruby 3.2 and newer removed `File.exists?`, and CocoaPods / Expo autolinking on SDK 57 still call it (often Homebrew CocoaPods on the Mac’s current Ruby). Paste `ruby -v`, `which ruby`, `which pod`, and `pod --version`, then follow **Ruby File.exists? and pod install** below. |
 | Bundle id is not available, or cannot be registered | Keep `com.kaushikpavani.thirtyfifteen` unless that id is already taken by another team. If you must change it, edit `ios.bundleIdentifier` in `app.json`, run `npx expo prebuild -p ios --clean`, and install again. Do not invent a new id for every attempt. The Personal Team cap is 10 App IDs in 7 days. |
 | Phone never appears in the device list | Use a data-capable cable. Unlock the phone. Tap **Trust**. Try another port. Open Device Hub and confirm the phone is paired. Wireless shows up only after that first USB pair, and only when the phone is already listed. |
 | Red screen: could not connect to the development server | This is a **Debug** install waiting for Metro, not an expired profile. From the repo, run `npx expo start`, or reinstall with `--configuration Release` so JavaScript is inside the app. |
@@ -223,6 +224,103 @@ Pressing **Run** again in Xcode is the same fix. The new profile lasts about ano
 | **The maximum number of apps for free development profiles has been reached** | A Personal Team can have 3 apps installed on one device. Delete an older app signed with that Apple ID, then install again. |
 | App ID or device limit from Apple | 10 App IDs and 3 devices, each window 7 days, per Apple’s account help. Reuse this bundle id and this phone. Wait for an old registration to expire rather than creating more ids. |
 | Build asks for an Apple Distribution certificate | That is App Store signing. A Personal Team does not have it. Stay on **Automatically manage signing** with the **Personal Team**, and install with `npx expo run:ios --device` or the Release device command. Do not Archive. |
+
+### Ruby File.exists? and pod install
+
+This shows up after signing works. Expo gets past the Apple Development certificate, generates `ios/` if it was missing, and then stops in CocoaPods:
+
+```
+Command `pod install` failed.
+└─ Cause: Invalid `Podfile` file: undefined method 'exists?' for class File.
+ #  from .../ios/Podfile:30
+ >    use_expo_modules!
+```
+
+Ruby 3.2 removed `File.exists?`. `File.exist?` is the method that remains. Expo SDK 57 / React Native 0.86 still reaches that old name from `use_expo_modules!` in the generated `ios/Podfile`. The usual setup is Homebrew’s CocoaPods formula running on a current Ruby.
+
+Paste these four lines with the error:
+
+```bash
+ruby -v
+which ruby
+which pod
+pod --version
+```
+
+A `ruby -v` of 3.2 or newer, and a `pod` that lives on the Homebrew path, matches this failure. Do not run `npm audit fix --force` while fixing it. That command can leave the Expo SDK 57 set.
+
+Path A is the fast patch on this generated Podfile. Path B installs Ruby 3.1 so `pod` keeps working after a clean prebuild.
+
+#### Path A: patch `ios/Podfile`
+
+Use this once `ios/` exists. A failed `npx expo run:ios` usually leaves the folder in place.
+
+Near the top of `ios/Podfile`, above the `target` line (and above `use_expo_modules!`), add:
+
+```ruby
+class File
+  def self.exists?(path)
+    exist?(path)
+  end
+end
+```
+
+From the repo root:
+
+```bash
+cd ios && pod install && cd ..
+npx expo run:ios --device --configuration Release
+```
+
+A Debug install uses the same `pod install`, then `npx expo run:ios --device`.
+
+`ios/` is generated. Keep the patch on this Mac, and do not commit `ios/`. `npx expo prebuild --clean` and `npx expo prebuild -p ios --clean` both write a new Podfile and drop the patch. Add the same lines again, or use path B.
+
+#### Path B: Ruby 3.1 and CocoaPods from that Ruby
+
+Ruby 3.1 still has `File.exists?`. Installing CocoaPods with that Ruby’s `gem` survives `npx expo prebuild -p ios --clean`.
+
+```bash
+brew install ruby@3.1
+```
+
+Put ruby@3.1 first on `PATH` in the current Terminal, and save the same line in `~/.zprofile` (or in `~/.zshrc` if that file is already where you set `PATH`). Open a new Terminal after saving it.
+
+Apple Silicon:
+
+```bash
+export PATH="/opt/homebrew/opt/ruby@3.1/bin:$PATH"
+```
+
+Intel:
+
+```bash
+export PATH="/usr/local/opt/ruby@3.1/bin:$PATH"
+```
+
+Install CocoaPods with this Ruby:
+
+```bash
+gem install cocoapods
+```
+
+Confirm the binaries before another build:
+
+```bash
+ruby -v
+which ruby
+which pod
+pod --version
+```
+
+`ruby -v` should report 3.1. `which ruby` should be `/opt/homebrew/opt/ruby@3.1/bin/ruby` on Apple Silicon, or `/usr/local/opt/ruby@3.1/bin/ruby` on Intel. `which pod` should be the gem you just installed under that Ruby. If it is still `/opt/homebrew/bin/pod` or `/usr/local/bin/pod`, the shell is still on Homebrew’s CocoaPods formula. Run `gem env`, prepend the `EXECUTABLE DIRECTORY` to `PATH` ahead of Homebrew’s `bin`, and run the four commands again.
+
+With `ios/` present, from the repo root:
+
+```bash
+cd ios && pod install && cd ..
+npx expo run:ios --device --configuration Release
+```
 
 ## What this does not do
 
@@ -241,3 +339,4 @@ Checked against the docs below while writing this.
 - [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/) — Node.js 22.13.x, iOS 16.4+, Xcode 26.4+.
 - [Apple: developer account overview](https://developer.apple.com/help/account/basics/about-your-developer-account/) — Personal Team, 7-day profiles, App ID and device caps, 3 apps per device, rebuild to renew.
 - [Apple: Enabling Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) — **Settings → Privacy & Security → Developer Mode**.
+- [Ruby 3.2.0](https://www.ruby-lang.org/en/news/2022/12/25/ruby-3-2-0-released/) — removed deprecated `File.exists?`. `File.exist?` remains. CocoaPods and Expo’s `use_expo_modules!` can still call the old name on Ruby 3.2 and newer.
