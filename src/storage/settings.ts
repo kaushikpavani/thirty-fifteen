@@ -4,6 +4,7 @@ import type { WorkoutSettings } from '../types';
 
 const KEY = '@thirtyfifteen/settings/v1';
 const ONBOARD_KEY = '@thirtyfifteen/ftp_onboarded/v1';
+const WELCOME_KEY = '@thirtyfifteen/welcome_seen/v1';
 
 export async function loadSettings(): Promise<WorkoutSettings> {
   try {
@@ -41,9 +42,25 @@ export async function markFtpOnboardingDone(): Promise<void> {
 }
 
 /** Remove saved settings and the FTP prompt flag. The next save writes defaults. */
+export async function hasSeenWelcome(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(WELCOME_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function markWelcomeSeen(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(WELCOME_KEY, '1');
+  } catch {
+    // ignore
+  }
+}
+
 export async function clearStoredSettings(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([KEY, ONBOARD_KEY]);
+    await AsyncStorage.multiRemove([KEY, ONBOARD_KEY, WELCOME_KEY]);
   } catch {
     // ignore
   }

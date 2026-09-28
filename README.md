@@ -48,23 +48,23 @@ Auth, history, and the workout run in Expo Go. **Live power does not.** Expo Go 
 | Block | Detail |
 |--------|--------|
 | Warm-up | 12 min progressive spin + **3× ~10s accelerations** near the end |
-| Main | **3 sets × 13 reps** of **30s HARD / 15s EASY** |
+| Main | **2 sets × 13 reps** of **30s HARD / 15s EASY** |
 | Between sets | **4 min** easy spinning |
 | Cool-down | **10 min** easy pedaling |
 
 ### Default power (editable)
 
-- **FTP = 125 W** (editable, never a gate)
-- **HARD** = 120% FTP → **150 W**
-- **EASY** = 50% FTP → **63 W**
+- **FTP = 120 W** (editable, never a gate)
+- **HARD** = 120% FTP → **144 W**
+- **EASY** = 50% FTP → **60 W**
 
-A saved FTP is left alone. A fresh install starts at 125 W. Open the app and press **Start**. There is no sign-in before the first hard interval.
+A saved FTP is left alone. A fresh install starts at 120 W and 2 sets. Open the app and press **Start**. There is no sign-in before the first hard interval.
 
 ---
 
 ## Start
 
-The first screen is home: FTP, the hard and easy targets, and **Start**. No account, no name, no streak. Settings holds the structure, music, spoken cues, past sessions, an optional note, and an optional account.
+The first launch is a welcome with the road and the bike. After that, home is the power and heart rate chips, **Start**, Why 30/15, and Settings. FTP and the hard and easy targets live in Settings, not on home. No account, no name, no streak. Start is never gated on a sensor.
 
 ## History
 
@@ -177,22 +177,17 @@ The four lines are recorded (a direct neural voice) and played with expo-audio, 
 
 ## During the ride
 
-While the clock is running, Pause is the only control. Pause opens the rest, top to bottom: Resume, Shorten, Skip, Restart, End.
+On warm-up, HARD, and EASY the live watts are the big number at the top. Heart rate sits under them when a watch is sending beats. The countdown is lower, with TIME beside it. While the clock is running, Pause is the only control. Pause becomes Resume. End is there only after you pause, and it asks once.
 
-- **Shorten** ends the current segment now and continues. One tap.
-- **Skip** leaves the block: warm-up goes to the first hard interval, a hard interval goes to its easy, an easy or set rest goes to the next hard, and cool-down finishes the session. One tap.
-- **Restart** rewinds the current segment after one confirm.
-- **End** asks once (`Cancel` or `End session`).
-
-Planned watts stay on Home. The countdown is the only hero during the ride.
+Watts and heart rate render only from a fresh sensor packet. A dash is an empty link, never a guessed number.
 
 ## Power meter
 
-Optional. Start is not gated on a meter, and the running countdown stays the only number on the glass.
+Optional. Start is not gated on a meter or a heart rate watch. Live watts are the top number on the ride when a meter is sending them. The countdown stays underneath.
 
-The primary path is the **Cycling Power Service** (`0x1818`) and **Cycling Power Measurement** (`0x2A63`). Flags are the first two bytes. Instantaneous watts are the next two, a little-endian signed 16-bit. SRAM and Quarq left cranks use this path. Wake the meter with a pedal stroke. **FTMS Indoor Bike Data** (`0x2AD2`, power and speed) is still accepted when a trainer has no cycling power service. Nothing is simulated. Planned watts stay on Home.
+The primary path is the **Cycling Power Service** (`0x1818`) and **Cycling Power Measurement** (`0x2A63`). Flags are the first two bytes. Instantaneous watts are the next two, a little-endian signed 16-bit. SRAM and Quarq left cranks use this path. Wake the meter with a pedal stroke. **FTMS Indoor Bike Data** (`0x2AD2`, power and speed) is still accepted when a trainer has no cycling power service. Nothing is simulated. Home shows a dash until a packet arrives.
 
-**Settings → Power meter**, before Start: scan, pick, live watts, disconnect. The same panel is on the finish screen. The last peripheral id stays on the phone. The next launch, and the next time Settings opens, tries that meter and falls back to a scan.
+Home and **Settings → Power meter**, before Start: scan, pick, live watts, disconnect. The last peripheral id stays on the phone. The next launch tries that meter and falls back to a scan. Heart rate uses the same remember-and-reconnect path.
 
 **Expo Go and the browser cannot open the radio.** Settings says so, with the same gate copy as a denied permission or a radio that is off. They do not invent watts. Finish hides the pair sheet there. A development build is required to connect a real meter:
 
@@ -204,7 +199,7 @@ npx expo start --dev-client
 
 The development profile is in [`eas.json`](eas.json). That EAS iOS device build needs a paid Apple Developer account. A free Apple ID on a physical iPhone is the local Mac + Xcode path: [Install on an iPhone from a Mac](IOS-LOCAL-INSTALL.md).
 
-Install that build (not Expo Go). Open Settings → Power meter before Start. Pedal the crank, scan, and connect. Watts appear only after a real measurement packet. Disconnect drops the link and leaves the saved meter for the next visit. The countdown stays the only number on the clock. Planned watts stay on Home.
+Install that build (not Expo Go). Open the power chip or Settings → Power meter before Start. Pedal the crank, scan, and connect. Watts appear only after a real measurement packet, large at the top of the ride. Disconnect drops the link and leaves the saved meter. The next launch tries that meter again. Heart rate is the standard service `0x180D` / `0x2A37` (Garmin Fenix Broadcast HR). It is remembered the same way. Start does not wait for either sensor.
 
 `react-native-ble-plx` is already a dependency. Its config plugin adds the iOS Bluetooth usage string and Android scan/connect permissions at prebuild (`neverForLocation`, since this is not a location scan).
 
@@ -243,7 +238,7 @@ The OS can still kill a background app. Battery use is higher while the session 
 
 ## Settings
 
-FTP, hard/easy %, an optional power meter, warm-up, sets, reps, work/recover, rest, cool-down, music, speech, voice rate, haptics. Stored in AsyncStorage. The finish screen's primary button says Done. The power meter is not required to start.
+Power meter, heart rate, workout sets (default 2 × 13), FTP (default 120 W), hard/easy targets, warm-up, reps, work/recover, rest, cool-down, music, speech, haptics. Stored in AsyncStorage. The finish screen's primary button says Done. Neither sensor is required to start. A finished ride's summary is saved on the phone first. If you are signed in, that row also syncs to this app's Supabase project. Done does not wait.
 
 ---
 
@@ -252,7 +247,7 @@ FTP, hard/easy %, an optional power meter, warm-up, sets, reps, work/recover, re
 - The timer is wall-clock time. While the app is in front, `expo-keep-awake` holds the screen on. In the background the bed (or a silent loop) holds the audio session. If the OS freezes or kills the process, the clock snaps forward on return and does not replay missed cues. See [BACKGROUND.md](BACKGROUND.md).
 - History, FTP, notes, and analytics stay on the phone. Cloud sync is a later best-effort flush. Start, the clock, cues, and the music bed do not wait for it.
 - Feedback reaches the dashboard only after the SQL has been run and the phone can reach it. Until then the note stays in the outbox.
-- A power meter is optional, in Settings before Start and again after Finish, and only in a development build. Expo Go and the browser show why the radio is unavailable. They never show invented watts, and Expo Go never shows a pair sheet on the finish screen.
+- A power meter and a heart rate broadcast are optional, from home or Settings before Start, and only in a development build. Expo Go and the browser show why the radio is unavailable. They never show invented watts or heart rate. The Done screen shows sensor stats only when those packets arrived.
 
 ---
 

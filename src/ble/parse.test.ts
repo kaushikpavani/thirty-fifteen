@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { bytesToHex, parseCyclingPower } from './parse.ts';
+import { bytesToHex, parseCyclingPower, parseHeartRate } from './parse.ts';
 
 function packet(watts: number, flags = 0, extra: number[] = []): Uint8Array {
   const signed = watts < 0 ? watts + 0x10000 : watts;
@@ -38,6 +38,18 @@ test('short and truncated packets do not throw', () => {
   assert.equal(parseCyclingPower(packet(200, 0x0020, [0x01, 0x00]))?.watts, 200);
   assert.doesNotThrow(() => parseCyclingPower(packet(175, 0xffff, [0x01])));
   assert.equal(parseCyclingPower(packet(175, 0xffff, [0x01]))?.watts, 175);
+});
+
+test('heart rate measurement reads uint8 and uint16 beats', () => {
+  assert.equal(parseHeartRate(Uint8Array.from([0x00, 72])), 72);
+  assert.equal(parseHeartRate(Uint8Array.from([0x01, 72, 0])), 72);
+  assert.equal(parseHeartRate(Uint8Array.from([0x06, 80])), 80);
+  assert.equal(parseHeartRate(Uint8Array.from([0x04, 80])), null);
+  assert.equal(parseHeartRate(Uint8Array.from([0x00, 0])), null);
+  assert.equal(parseHeartRate(Uint8Array.from([0x00, 251])), null);
+  assert.equal(parseHeartRate(Uint8Array.from([0x01, 72])), null);
+  assert.equal(parseHeartRate(null), null);
+  assert.equal(parseHeartRate(new Uint8Array([0x00])), null);
 });
 
 test('rx bytes format as hex without separators', () => {

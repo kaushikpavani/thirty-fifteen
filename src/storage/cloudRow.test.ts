@@ -8,6 +8,7 @@ import {
   feedbackDeviceProblem,
   insertAccepted,
   legacyWorkoutSessionWrite,
+  omitSessionSummary,
   trimOutbox,
   withoutSent,
   workoutRowsForRetry,
@@ -43,7 +44,12 @@ test('a phone session is manual and has no external id', () => {
   assert.equal(row.ftp_watts, 125);
   assert.equal(row.hard_watts, 150);
   assert.equal(row.easy_watts, 63);
+  assert.equal(row.summary, null);
   const legacy = legacyWorkoutSessionWrite(row);
+  assert.equal('summary' in legacy, false);
+  const stripped = omitSessionSummary({ ...row, summary: { setsDone: 2, setsPlanned: 2, durationMs: 1, hardMs: 1, easyMs: 1, avgWatts: 1, peakWatts: 1, avgHardWatts: 1, avgEasyWatts: 1, workKj: 1, sparkline: [1], avgBpm: null, maxBpm: null, avgHardBpm: null, avgEasyBpm: null } });
+  assert.equal('summary' in stripped, false);
+  assert.equal(stripped.device_id, 'device-1');
   assert.equal('device_id' in legacy, false);
   assert.equal('source' in legacy, false);
   assert.equal(legacy.id, 'ride-1');
@@ -66,6 +72,13 @@ test('older workout tables retry without the new columns', () => {
   assert.ok(fk);
   assert.equal('device_id' in fk[0] && fk[0].device_id, null);
   assert.equal('source' in fk[0] && fk[0].source, 'manual');
+  const summaryMissing = workoutRowsForRetry(
+    [row],
+    "Could not find the 'summary' column of 'workout_sessions' in the schema cache",
+  );
+  assert.ok(summaryMissing);
+  assert.equal('summary' in summaryMissing[0], false);
+  assert.equal('device_id' in summaryMissing[0] && summaryMissing[0].device_id, 'device-1');
   assert.equal(workoutRowsForRetry([row], 'Failed to fetch'), null);
   assert.equal(workoutRowsForRetry([row], ''), null);
 });

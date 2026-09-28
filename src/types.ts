@@ -51,6 +51,25 @@ export interface BuiltWorkout {
 
 export type TimerStatus = 'idle' | 'running' | 'paused' | 'finished';
 
+/** Aggregates saved with a finished ride. Sensor fields stay empty when nothing was connected. */
+export interface RideSummary {
+  setsDone: number;
+  setsPlanned: number;
+  durationMs: number;
+  hardMs: number;
+  easyMs: number;
+  avgWatts: number | null;
+  peakWatts: number | null;
+  avgHardWatts: number | null;
+  avgEasyWatts: number | null;
+  workKj: number | null;
+  sparkline: number[];
+  avgBpm: number | null;
+  maxBpm: number | null;
+  avgHardBpm: number | null;
+  avgEasyBpm: number | null;
+}
+
 export interface WorkoutRecord {
   id: string;
   startedAt: string;
@@ -62,6 +81,7 @@ export interface WorkoutRecord {
   easyWatts: number;
   completed: boolean;
   completionPct: number;
+  summary?: RideSummary;
 }
 
 export type NewWorkoutRecord = Omit<WorkoutRecord, 'id'>;

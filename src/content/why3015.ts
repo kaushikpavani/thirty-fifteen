@@ -6,7 +6,7 @@ export const WHY_HERO =
 export const WHY_BULLETS = [
   '30s hard / 15s easy is a researched cycling short-interval format (Rønnestad-style).',
   'Short recoveries help you pile up work near your aerobic ceiling — time near VO₂max matters for fitness.',
-  'HARD / EASY targets come from your FTP (default 125 W → ~150 / ~63 W); edit FTP anytime.',
+  'HARD / EASY targets come from your FTP (default 120 W → ~144 / ~60 W); edit FTP anytime.',
   'Offline coach: clock + cues; no account required to ride.',
   'Not a medical device — plain intervals for riders who want to get better.',
 ] as const;

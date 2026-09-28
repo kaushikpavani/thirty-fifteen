@@ -9,6 +9,7 @@ import {
   type PowerKind,
 } from './cps';
 import { bleLog } from './log';
+import { acquireBleManager, releaseBleManager } from './manager';
 import { base64ToBytes, bytesToHex, parseCyclingPower, parseIndoorBikeData, type PowerReading } from './parse';
 
 export type FoundDevice = {
@@ -106,10 +107,7 @@ export async function createBleClient(): Promise<{
   await ensureAndroidPermission();
   let manager: ManagerLike;
   try {
-    const ble = (await import('react-native-ble-plx')) as {
-      BleManager: new () => ManagerLike;
-    };
-    manager = new ble.BleManager();
+    manager = await acquireBleManager<ManagerLike>();
   } catch {
     throw new BleClientError('unavailable');
   }
@@ -119,6 +117,7 @@ export async function createBleClient(): Promise<{
   let stateSub: { remove: () => void } | null = null;
   let active: DeviceLike | null = null;
   let epoch = 0;
+  let released = false;
   let scanMode: 'filtered' | 'open' = 'filtered';
   const seen = new Map<string, DeviceLike>();
 
@@ -347,16 +346,14 @@ export async function createBleClient(): Promise<{
       await safeCancel(device);
     },
     destroy: () => {
+      if (released) return;
+      released = true;
       epoch += 1;
       clearMonitor();
       active = null;
       stateSub?.remove();
       stateSub = null;
-      try {
-        manager.destroy();
-      } catch {
-        // ignore
-      }
+      releaseBleManager();
     },
   };
 }

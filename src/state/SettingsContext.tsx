@@ -1,12 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { loadSettings, saveSettings } from '../storage/settings';
+import { hasSeenWelcome, loadSettings, markWelcomeSeen as persistWelcomeSeen, saveSettings } from '../storage/settings';
 import type { WorkoutSettings } from '../types';
 import { DEFAULT_SETTINGS } from '../workout/defaults';
 
 type SettingsContextValue = {
   ready: boolean;
   settings: WorkoutSettings;
+  welcomeSeen: boolean;
   update: (next: WorkoutSettings) => Promise<void>;
+  markWelcomeSeen: () => Promise<void>;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -14,13 +16,15 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
+  const [welcomeSeen, setWelcomeSeen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const loaded = await loadSettings();
+      const [loaded, seen] = await Promise.all([loadSettings(), hasSeenWelcome()]);
       if (cancelled) return;
       setSettings(loaded);
+      setWelcomeSeen(seen);
       setReady(true);
     })();
     return () => {
@@ -33,7 +37,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     await saveSettings(next);
   }, []);
 
-  const value = useMemo(() => ({ ready, settings, update }), [ready, settings, update]);
+  const markWelcomeSeen = useCallback(async () => {
+    setWelcomeSeen(true);
+    await persistWelcomeSeen();
+  }, []);
+
+  const value = useMemo(
+    () => ({ ready, settings, welcomeSeen, update, markWelcomeSeen }),
+    [ready, settings, welcomeSeen, update, markWelcomeSeen],
+  );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

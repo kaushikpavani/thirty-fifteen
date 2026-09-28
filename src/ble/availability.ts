@@ -9,7 +9,9 @@ export function bleGate(): BleGate | null {
   return null;
 }
 
-export function bleGateCopy(reason: BleGate | 'unavailable' | 'bluetooth-off' | 'permission' | 'no-devices' | 'no-power'): {
+export function bleGateCopy(
+  reason: BleGate | 'unavailable' | 'bluetooth-off' | 'permission' | 'no-devices' | 'no-power' | 'no-hr',
+): {
   title: string;
   body: string;
 } {
@@ -17,17 +19,17 @@ export function bleGateCopy(reason: BleGate | 'unavailable' | 'bluetooth-off' | 
     case 'web':
       return {
         title: 'Not in the browser',
-        body: 'A browser tab cannot read a power meter. Use the iOS app. Targets still work. Live watts are never invented.',
+        body: 'A browser tab cannot read a power meter or a heart rate broadcast. Use the iOS app. The ride still starts. Live watts and heart rate stay blank until a sensor sends them.',
       };
     case 'expo-go':
       return {
         title: 'Needs a development build',
-        body: 'Expo Go has no Bluetooth stack. Live watts need a dev build with react-native-ble-plx. Targets still work. We will not fake watts.',
+        body: 'Expo Go has no Bluetooth stack. Live watts and heart rate need a dev build. The ride still starts. Nothing is invented.',
       };
     case 'bluetooth-off':
       return {
         title: 'Bluetooth is off',
-        body: 'Turn the radio on, then scan again. Until a meter connects, you only get target watts.',
+        body: 'Turn the radio on, then scan again. The ride still starts without a sensor.',
       };
     case 'permission':
       return {
@@ -37,12 +39,17 @@ export function bleGateCopy(reason: BleGate | 'unavailable' | 'bluetooth-off' | 
     case 'no-devices':
       return {
         title: 'Nothing in range',
-        body: 'Pedal the crank to wake the meter, then scan again. Live watts stay off until a meter sends them.',
+        body: 'Wake the sensor, then scan again. Live numbers stay off until it sends them.',
       };
     case 'no-power':
       return {
         title: 'No power service',
         body: 'That device does not expose the cycling power service or FTMS. Live watts stay off.',
+      };
+    case 'no-hr':
+      return {
+        title: 'No heart rate service',
+        body: 'That device does not expose the heart rate service. Live heart rate stays off.',
       };
     default:
       return {

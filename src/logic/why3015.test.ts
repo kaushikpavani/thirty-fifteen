@@ -14,7 +14,7 @@ test('why sheet bullets stay accurate about the format, FTP, and limits', () => 
   assert.deepEqual(WHY_BULLETS, [
     '30s hard / 15s easy is a researched cycling short-interval format (Rønnestad-style).',
     'Short recoveries help you pile up work near your aerobic ceiling — time near VO₂max matters for fitness.',
-    'HARD / EASY targets come from your FTP (default 125 W → ~150 / ~63 W); edit FTP anytime.',
+    'HARD / EASY targets come from your FTP (default 120 W → ~144 / ~60 W); edit FTP anytime.',
     'Offline coach: clock + cues; no account required to ride.',
     'Not a medical device — plain intervals for riders who want to get better.',
   ]);
@@ -30,10 +30,10 @@ test('same clock, different work compares steady riding without a medical promis
 
 test('the default watts in the sheet are the real FTP targets', () => {
   const watts = derivedWatts(DEFAULT_SETTINGS.ftpWatts, DEFAULT_SETTINGS.hardPct, DEFAULT_SETTINGS.easyPct);
-  assert.equal(DEFAULT_SETTINGS.ftpWatts, 125);
-  assert.equal(watts.hard, 150);
-  assert.equal(watts.easy, 63);
-  assert.match(WHY_BULLETS[2], /125 W → ~150 \/ ~63 W/);
+  assert.equal(DEFAULT_SETTINGS.ftpWatts, 120);
+  assert.equal(watts.hard, 144);
+  assert.equal(watts.easy, 60);
+  assert.match(WHY_BULLETS[2], /120 W → ~144 \/ ~60 W/);
 });
 
 test('why copy does not sell miracles, streaks, or a paywall', () => {
