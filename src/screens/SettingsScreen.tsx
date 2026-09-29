@@ -195,6 +195,16 @@ export function SettingsScreen() {
           />
         </Group>
 
+        <SectionHeader>Fitness</SectionHeader>
+        <Group inset={58}>
+          <Row
+            label="VO₂max estimate"
+            leading={<IconTile name="target" bg={ink.glacier} fg="#000" />}
+            onPress={() => router.push('/fitness')}
+            testID="open-fitness"
+          />
+        </Group>
+
         <SectionHeader>Workout</SectionHeader>
         <Group>
           <Row

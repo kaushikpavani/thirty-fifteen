@@ -71,6 +71,7 @@ function RootNavigator() {
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="sound" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="credits" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="fitness" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="power" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="heart" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />

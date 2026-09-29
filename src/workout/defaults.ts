@@ -19,6 +19,10 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   musicEnabled: true,
   coachVoice: 'direct',
   spokenCount: true,
+  ageYears: null,
+  sex: null,
+  weightLb: null,
+  restingHr: null,
 };
 
 export const SCIENCE_BLURB =

@@ -29,6 +29,11 @@ export interface WorkoutSettings {
   coachVoice: CoachVoice;
   /** The coach counts "Three, two, one" into every HARD. */
   spokenCount: boolean;
+  /** Optional profile fields, entered once, used only for the VO2max estimate. */
+  ageYears?: number | null;
+  sex?: 'male' | 'female' | null;
+  weightLb?: number | null;
+  restingHr?: number | null;
 }
 
 export type CoachVoice = 'calm' | 'direct' | 'numbers' | 'off';
