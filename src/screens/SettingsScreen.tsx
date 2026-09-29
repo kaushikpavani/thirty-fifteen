@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
@@ -40,6 +40,27 @@ export function SettingsScreen() {
   const meter = usePowerMeter();
   const heart = useHeartRate();
   const auth = useAuth();
+  // A tap that can't do anything (no cloud project on this install, or the
+  // provider rejected it) must still tell the rider something happened —
+  // otherwise "Continue with Google" just looks broken. Fire once per
+  // transition, not on every render.
+  const sawNeedsSetup = useRef(false);
+  useEffect(() => {
+    if (auth.needsSetup && !sawNeedsSetup.current) {
+      Alert.alert(
+        'Sign-in unavailable',
+        'This install has no 30/15 cloud project connected, so Google and Facebook sign-in are off. Rides still save on this iPhone.',
+      );
+    }
+    sawNeedsSetup.current = auth.needsSetup;
+  }, [auth.needsSetup]);
+  const lastAlertedError = useRef<string | null>(null);
+  useEffect(() => {
+    if (auth.error && auth.error !== lastAlertedError.current) {
+      Alert.alert('Sign-in failed', auth.error);
+    }
+    lastAlertedError.current = auth.error;
+  }, [auth.error]);
   const [dataNote, setDataNote] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);

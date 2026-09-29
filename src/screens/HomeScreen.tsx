@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useAuth } from '../auth/AuthContext';
+import { AccountBadge } from '../components/kit/AccountBadge';
 import { Icon } from '../components/kit/Icon';
 import { Pill, tapHaptic } from '../components/kit/Pill';
 import { ProfileChart } from '../components/kit/ProfileChart';
@@ -84,6 +86,7 @@ function SensorTile({
 
 export function HomeScreen() {
   const { settings } = useSettings();
+  const auth = useAuth();
   const engine = useWorkout();
   const meter = usePowerMeter();
   const heart = useHeartRate();
@@ -122,16 +125,21 @@ export function HomeScreen() {
           <Text style={styles.wordmark} accessibilityRole="header" accessibilityLabel="30 15">
             30<Text style={{ color: ink.ember }}>/</Text>15
           </Text>
-          <Pressable
-            onPress={() => router.push('/settings')}
-            testID="open-settings"
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            hitSlop={6}
-            style={({ pressed }) => [styles.gear, pressed && styles.pressed]}
-          >
-            <Icon name="sliders" size={20} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            {auth.user ? (
+              <AccountBadge name={auth.user.name ?? auth.user.email ?? 'Signed in'} testID="home-account-badge" />
+            ) : null}
+            <Pressable
+              onPress={() => router.push('/settings')}
+              testID="open-settings"
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={6}
+              style={({ pressed }) => [styles.gear, pressed && styles.pressed]}
+            >
+              <Icon name="sliders" size={20} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.session}>
@@ -212,6 +220,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   wordmark: { color: ink.text, ...type.largeTitle, letterSpacing: -0.8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   gear: { width: 44, height: 44, borderRadius: 22, backgroundColor: ink.grouped, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.7 },
   session: { marginTop: 22, backgroundColor: ink.surface, borderRadius: radius.card, padding: 20, paddingBottom: 18, gap: 18 },
