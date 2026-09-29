@@ -30,6 +30,8 @@ export type DueLadder = {
   step: LadderStep;
   segmentId: string;
   approach: number;
+  /** What this ladder counts into — lets the T−3 rung swap in a heads-up line for an acceleration. */
+  nextKind: string | null;
   atMs: number;
 };
 
@@ -202,6 +204,7 @@ export function cuesDue(args: {
         step,
         segmentId: seg.id,
         approach,
+        nextKind,
         atMs: window.start,
       });
     }

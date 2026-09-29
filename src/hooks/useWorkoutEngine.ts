@@ -149,6 +149,15 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     }
     if (cue.type === 'ladder') {
       if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // An acceleration is a short, different kind of effort from the main
+      // HARD reps — a heads-up at T-3 ("quick hard, ten seconds") replaces
+      // the plain count so the rider knows what is about to happen, not just
+      // that something is. Two/one still count down normally underneath it.
+      if (cue.nextKind === 'accel' && cue.step === 'three' && s.speechEnabled && s.coachVoice !== 'off') {
+        speakCue({ key: `accel:${cue.segmentId}`, line: 'Quick hard. Ten seconds.', clip: 'quick10' }, s);
+        void playBeep(s, 'rung3', ladderDuckMs('three'), 0.35);
+        return;
+      }
       const spoken = s.spokenCount && s.speechEnabled && s.coachVoice !== 'off';
       if (spoken) {
         // The coach counts; the tick stays underneath, softer, so the beat is still felt.

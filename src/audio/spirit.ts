@@ -93,12 +93,15 @@ export function ladderDuckMs(step: LadderStep): number {
 }
 
 /**
- * Rising ticks on the segment that leads into a HARD or an EASY, so the rider
- * always hears "three, two, one" before either flip — the phone is often in a
- * pocket with no screen to watch. Only when that segment is long enough for a T−3.
+ * Rising ticks on the segment that leads into a HARD, an EASY, or a warm-up
+ * acceleration, so the rider always hears "three, two, one" before an effort
+ * starts — the phone is often in a pocket with no screen to watch. Only when
+ * that segment is long enough for a T−3.
  */
 export function ladderArmed(durationMs: number, nextKind: string | null | undefined): boolean {
-  return (nextKind === 'hard' || nextKind === 'easy') && durationMs > WARN_BEFORE_MS + CLOCK_HIT_MS;
+  return (
+    (nextKind === 'hard' || nextKind === 'easy' || nextKind === 'accel') && durationMs > WARN_BEFORE_MS + CLOCK_HIT_MS
+  );
 }
 
 export function ladderStep(

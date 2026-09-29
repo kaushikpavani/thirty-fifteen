@@ -24,6 +24,7 @@ export const VOICE_CLIPS = {
     left5: require('../../assets/voice/direct/left5.mp3'),
     left2: require('../../assets/voice/direct/left2.mp3'),
     left1: require('../../assets/voice/direct/left1.mp3'),
+    quick10: require('../../assets/voice/direct/quick10.mp3'),
     preview: require('../../assets/voice/direct/preview.mp3'),
   },
   calm: {
@@ -49,6 +50,7 @@ export const VOICE_CLIPS = {
     left5: require('../../assets/voice/calm/left5.mp3'),
     left2: require('../../assets/voice/calm/left2.mp3'),
     left1: require('../../assets/voice/calm/left1.mp3'),
+    quick10: require('../../assets/voice/calm/quick10.mp3'),
     preview: require('../../assets/voice/calm/preview.mp3'),
   },
   numbers: {
@@ -66,6 +68,7 @@ export const VOICE_CLIPS = {
     left5: require('../../assets/voice/numbers/left5.mp3'),
     left2: require('../../assets/voice/numbers/left2.mp3'),
     left1: require('../../assets/voice/numbers/left1.mp3'),
+    quick10: require('../../assets/voice/numbers/quick10.mp3'),
     preview: require('../../assets/voice/numbers/preview.mp3'),
     rep1: require('../../assets/voice/numbers/rep1.mp3'),
     rep2: require('../../assets/voice/numbers/rep2.mp3'),

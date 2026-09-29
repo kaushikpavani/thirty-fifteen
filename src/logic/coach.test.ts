@@ -45,6 +45,7 @@ import { FINISH_SUBTITLE, FINISH_TITLES, HOME_TIPS, finishBloom, finishSubtitle,
 import { normalizeFeedback } from '../feedback/message.ts';
 import { parseCyclingPower, parseIndoorBikeData } from '../ble/parse.ts';
 import { buildWorkout } from '../workout/builder.ts';
+import { cuesDue } from '../workout/cueCatchup.ts';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults.ts';
 import {
   restartTargetMs,
@@ -334,6 +335,28 @@ test('rising 3-2-1 into HARD and into EASY, inside the Rocky silence', () => {
   assert.equal(roundWon(null, 'set_rest'), false);
   assert.equal(ladderStep(built.segments[rest].durationMs - 2900, built.segments[rest].durationMs, 'hard'), 'three');
   assert.deepEqual(ladderKeys('easy-1'), ['ladder:easy-1:three', 'ladder:easy-1:two', 'ladder:easy-1:one']);
+});
+
+test('warm-up accelerations get a countdown too, tagged so the coach can swap in a heads-up line', () => {
+  const built = buildWorkout(DEFAULT_SETTINGS);
+  const firstAccel = built.segments.findIndex((segment) => segment.kind === 'accel');
+  assert.ok(firstAccel > 0);
+  const before = built.segments[firstAccel - 1];
+  assert.equal(before?.kind, 'warmup');
+  assert.ok(before);
+  assert.equal(ladderArmed(before.durationMs, 'accel'), true);
+  assert.equal(ladderStep(before.durationMs - 2900, before.durationMs, 'accel'), 'three');
+
+  const cues = cuesDue({
+    segments: built.segments,
+    fromMs: before.durationMs - 2950,
+    toMs: before.durationMs - 2850,
+    firedClock: new Set(),
+    firedRocky: new Set(['welcome']),
+  });
+  const ladder = cues.find((cue) => cue.type === 'ladder');
+  assert.equal(ladder?.type === 'ladder' && ladder.nextKind, 'accel');
+  assert.equal(ladder?.type === 'ladder' && ladder.step, 'three');
 });
 
 test('restart, shorten, and skip move the playhead without ending early', () => {

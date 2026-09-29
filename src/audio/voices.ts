@@ -28,6 +28,7 @@ export type Clip =
   | 'left5'
   | 'left2'
   | 'left1'
+  | 'quick10'
   | 'preview';
 
 export type RecordedVoice = Exclude<CoachVoice, 'off'>;
@@ -57,6 +58,7 @@ export const VOICE_LINES: Record<RecordedVoice, Partial<Record<Clip, string>>> =
     left5: 'Five minutes left!',
     left2: 'Two minutes left!',
     left1: 'One minute left!',
+    quick10: 'Quick hard! Ten seconds!',
     preview: 'Halfway! Looking strong!',
   },
   calm: {
@@ -82,6 +84,7 @@ export const VOICE_LINES: Record<RecordedVoice, Partial<Record<Clip, string>>> =
     left5: 'Five minutes left.',
     left2: 'Two minutes left.',
     left1: 'One minute left.',
+    quick10: 'Quick hard. Ten seconds.',
     preview: 'Halfway. Smooth and strong.',
   },
   /** Numbers only: rep counts on HARD, silence on EASY. */
@@ -100,6 +103,7 @@ export const VOICE_LINES: Record<RecordedVoice, Partial<Record<Clip, string>>> =
     left5: 'Five minutes.',
     left2: 'Two minutes.',
     left1: 'One minute.',
+    quick10: 'Ten second surge.',
     preview: 'Rep seven. Halfway.',
   },
 };
