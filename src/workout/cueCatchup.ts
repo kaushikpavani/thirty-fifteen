@@ -43,7 +43,27 @@ export type DueRocky = {
   atMs: number;
 };
 
-export type DueCue = DueChirp | DueWarn | DueLadder | DueRocky;
+export type DueRemaining = {
+  type: 'remaining';
+  key: string;
+  clip: string;
+  minutes: number;
+  atMs: number;
+};
+
+export type DueCue = DueChirp | DueWarn | DueLadder | DueRocky | DueRemaining;
+
+/**
+ * "X minutes left" thresholds, called out against total ride time remaining —
+ * not the current segment. A rider with the phone in a pocket has no other
+ * way to know how much of the ride is left.
+ */
+export const REMAINING_THRESHOLDS_MS: { minutes: number; ms: number }[] = [
+  { minutes: 10, ms: 600_000 },
+  { minutes: 5, ms: 300_000 },
+  { minutes: 2, ms: 120_000 },
+  { minutes: 1, ms: 60_000 },
+];
 
 /** Mark a cue played. False when that key is already in the set, so it cannot speak twice. */
 export function takeCue(firedClock: Set<string>, firedRocky: Set<string>, cue: DueCue): boolean {
@@ -220,11 +240,26 @@ export function cuesDue(args: {
     null,
   );
 
+  const total = acc;
+  const remainingHits: DueRemaining[] = [];
+  for (const threshold of REMAINING_THRESHOLDS_MS) {
+    if (total <= threshold.ms) continue; // ride is shorter than this call-out; skip it entirely
+    const key = `remaining:${threshold.minutes}`;
+    const window = { start: total - threshold.ms, end: total - threshold.ms + CLOCK_HIT_MS };
+    if (firedClock.has(key) || !keep(fromMs, toMs, window, maxGap)) continue;
+    remainingHits.push({ type: 'remaining', key, clip: `left${threshold.minutes}`, minutes: threshold.minutes, atMs: window.start });
+  }
+  const remaining = remainingHits.reduce<DueRemaining | null>(
+    (best, cue) => (best == null || cue.atMs >= best.atMs ? cue : best),
+    null,
+  );
+
   const due: DueCue[] = [];
   if (latestChirp) due.push(latestChirp);
   if (latestWarn) due.push(latestWarn);
   if (latestLadder) due.push(latestLadder);
   if (rocky) due.push(rocky);
+  if (remaining) due.push(remaining);
   due.sort((a, b) => a.atMs - b.atMs || a.key.localeCompare(b.key));
   return due;
 }

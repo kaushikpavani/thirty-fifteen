@@ -272,7 +272,7 @@ test('variety rotates by segment and session and never leaves the clock', () => 
   assert.equal(finish?.clip, 'finish0');
 });
 
-test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into EASY', () => {
+test('rising 3-2-1 into HARD and into EASY, inside the Rocky silence', () => {
   const built = buildWorkout(DEFAULT_SETTINGS);
   const firstHard = built.segments.findIndex((segment) => segment.kind === 'hard');
   const settle = built.segments[firstHard - 1];
@@ -288,7 +288,7 @@ test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into E
   assert.equal(ladderStep(settle.durationMs - 1900, settle.durationMs, 'hard'), 'two');
   assert.equal(ladderStep(settle.durationMs - 900, settle.durationMs, 'hard'), 'one');
   assert.equal(ladderStep(200, settle.durationMs, 'hard'), null);
-  assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'easy'), null);
+  assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'easy'), 'three');
   assert.equal(ladderStep(settle.durationMs - 2900, settle.durationMs, 'warmup'), null);
   assert.equal(ladderStep(100, 2_000, 'hard'), null);
   assert.equal(ladderDuckMs('three'), 3250);
@@ -311,7 +311,11 @@ test('rising 3-2-1 only into HARD, inside the Rocky silence, with no beep into E
 
   const hard = built.segments[firstHard];
   assert.ok(hard);
-  assert.equal(ladderStep(hard.durationMs - 2900, hard.durationMs, 'easy'), null);
+  // HARD ending into EASY now counts down too: the rider can't always see the
+  // screen, and the 3-2-1 plus the boundary beep is how they know the interval flipped.
+  assert.equal(ladderStep(hard.durationMs - 2900, hard.durationMs, 'easy'), 'three');
+  assert.equal(ladderStep(hard.durationMs - 1900, hard.durationMs, 'easy'), 'two');
+  assert.equal(ladderStep(hard.durationMs - 900, hard.durationMs, 'easy'), 'one');
   const easy = built.segments[firstHard + 1];
   assert.equal(easy?.kind, 'easy');
   assert.equal(ladderStep(easy.durationMs - 2900, easy.durationMs, 'hard'), 'three');

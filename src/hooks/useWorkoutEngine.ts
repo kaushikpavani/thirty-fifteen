@@ -137,6 +137,11 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       }
       return;
     }
+    if (cue.type === 'remaining') {
+      const word = cue.minutes === 1 ? 'One minute' : `${cue.minutes} minutes`;
+      speakCue({ key: cue.key, line: `${word} left.`, clip: cue.clip }, s);
+      return;
+    }
     if (cue.type === 'warn') {
       if (s.hapticsEnabled) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       void playBeep(s, 'warn', ladderDuckMs('three'));

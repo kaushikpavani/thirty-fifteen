@@ -229,3 +229,33 @@ test('session salt matches rockyCue and changes the hard line', () => {
   });
   assert.equal(spoken.find((cue) => cue.type === 'rocky')?.key, easyLive?.key);
 });
+
+test('"minutes left" call-outs fire once per threshold, against total ride time', () => {
+  // One 12-minute segment: crosses the 10, 5, 2 and 1 minute marks, never 15.
+  const long = [{ id: 'ride', kind: 'warmup', durationMs: 720_000 }];
+  const fired = new Set<string>();
+
+  const at10 = cuesDue({ segments: long, fromMs: 119_900, toMs: 120_100, firedClock: fired, firedRocky: new Set() });
+  const remainingAt10 = at10.find((cue) => cue.type === 'remaining');
+  assert.equal(remainingAt10?.type === 'remaining' && remainingAt10.minutes, 10);
+  assert.equal(remainingAt10?.type === 'remaining' && remainingAt10.clip, 'left10');
+  for (const cue of at10) fired.add(cue.key);
+
+  // Does not repeat inside the same threshold window once fired.
+  const stillAt10 = cuesDue({ segments: long, fromMs: 120_050, toMs: 120_090, firedClock: fired, firedRocky: new Set() });
+  assert.equal(stillAt10.some((cue) => cue.type === 'remaining'), false);
+
+  const at5 = cuesDue({ segments: long, fromMs: 419_900, toMs: 420_100, firedClock: fired, firedRocky: new Set() });
+  const remainingAt5 = at5.find((cue) => cue.type === 'remaining');
+  assert.equal(remainingAt5?.type === 'remaining' && remainingAt5.minutes, 5);
+  for (const cue of at5) fired.add(cue.key);
+
+  const at1 = cuesDue({ segments: long, fromMs: 659_900, toMs: 660_100, firedClock: fired, firedRocky: new Set() });
+  const remainingAt1 = at1.find((cue) => cue.type === 'remaining');
+  assert.equal(remainingAt1?.type === 'remaining' && remainingAt1.minutes, 1);
+
+  // A ride shorter than a threshold never announces it (no negative-window false fire near t=0).
+  const short = [{ id: 'ride', kind: 'warmup', durationMs: 90_000 }];
+  const fromStart = cuesDue({ segments: short, fromMs: 0, toMs: 200, firedClock: new Set(), firedRocky: new Set() });
+  assert.equal(fromStart.some((cue) => cue.type === 'remaining'), false);
+});
