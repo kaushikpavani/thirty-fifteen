@@ -76,6 +76,17 @@ export interface RideSummary {
   avgEasyBpm: number | null;
   /** Average watts for each HARD rep that had samples, in ride order. Empty without a meter. */
   repWatts?: number[];
+  /** Average heart rate for each HARD rep that had samples, in ride order. Empty without a strap. */
+  repBpm?: number[];
+  /** Hard-effort watts per heartbeat (avgHardWatts / avgHardBpm). Needs both a power meter and a strap. */
+  efficiencyFactor?: number | null;
+  /**
+   * How much watts-per-heartbeat fell from the first half of hard reps to the
+   * second half, as a percent of the first half. Positive means your heart
+   * worked harder for the same watts as the ride went on. Null without
+   * enough paired reps to split in half.
+   */
+  decouplingPct?: number | null;
 }
 
 export interface WorkoutRecord {

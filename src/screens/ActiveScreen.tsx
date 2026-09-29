@@ -109,7 +109,15 @@ export function ActiveScreen() {
 
   if (state.status === 'finished') {
     if (!summary) return <View style={styles.idle} />;
-    return <DoneSummary summary={summary} reps={settings.reps} hardTarget={state.workout.hardWatts} onDone={leave} />;
+    return (
+      <DoneSummary
+        summary={summary}
+        reps={settings.reps}
+        hardTarget={state.workout.hardWatts}
+        ftpWatts={settings.ftpWatts}
+        onDone={leave}
+      />
+    );
   }
 
   const top = insets.top + 14;

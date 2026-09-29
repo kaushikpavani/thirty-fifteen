@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader } from '../components/kit/Grouped';
 import { BIKE_TONES, RoadBike } from '../components/bike/RoadBike';
@@ -8,7 +9,7 @@ import { ink, type } from '../theme/tokens';
 import type { WorkoutRecord } from '../types';
 import { clockText } from '../logic/rideView';
 
-function dayTitle(iso: string): string {
+export function dayTitle(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
   const start = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
@@ -30,12 +31,12 @@ function groupSessions(sessions: WorkoutRecord[]) {
   return groups;
 }
 
-function title(session: WorkoutRecord): string {
+export function rideTitle(session: WorkoutRecord): string {
   if (!session.completed) return `${clockText(session.durationMs)} ridden`;
   return session.summary ? `${session.summary.setsDone} sets` : 'Full ride';
 }
 
-function detail(session: WorkoutRecord): string {
+export function rideDetail(session: WorkoutRecord): string {
   const s = session.summary;
   const parts = session.completed ? [clockText(session.durationMs)] : [];
   if (s?.avgHardWatts != null) parts.push(`${s.avgHardWatts} W hard`);
@@ -68,8 +69,10 @@ export function HistoryScreen() {
                 {group.items.map((session) => (
                   <Row
                     key={session.id}
-                    label={title(session)}
-                    detail={detail(session)}
+                    label={rideTitle(session)}
+                    detail={rideDetail(session)}
+                    onPress={() => router.push(`/history/${session.id}`)}
+                    testID={`history-ride-${session.id}`}
                     trailing={
                       <View style={[styles.badge, session.completed ? styles.badgeDone : null]}>
                         <Text style={[styles.badgeText, session.completed ? styles.badgeTextDone : null]}>

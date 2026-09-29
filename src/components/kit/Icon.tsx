@@ -18,7 +18,8 @@ export type IconName =
   | 'spinner'
   | 'speaker'
   | 'forward'
-  | 'skip';
+  | 'skip'
+  | 'mail';
 
 type Props = { name: IconName; size?: number; color?: string; strokeWidth?: number };
 
@@ -131,6 +132,13 @@ export function Icon({ name, size = 20, color = '#F5F5F2', strokeWidth = 2 }: Pr
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Path d="M4 6.2v11.6a.8.8 0 0 0 1.2.7l8.4-5.8a.8.8 0 0 0 0-1.4L5.2 5.5A.8.8 0 0 0 4 6.2z" fill={color} />
           <Rect x="16" y="5" width="3.2" height="14" rx="1.2" fill={color} />
+        </Svg>
+      );
+    case 'mail':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Rect x="3" y="5.5" width="18" height="13" rx="2.2" {...stroke} />
+          <Path d="M4 7l8 6 8-6" {...stroke} />
         </Svg>
       );
     case 'speaker':

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Animated, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
@@ -8,8 +8,12 @@ import { ink, radius, type } from '../theme/tokens';
 import type { RideSummary } from '../types';
 import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
 import { clockText } from '../logic/rideView';
+import { insightStats } from '../logic/rideSummary';
+import { emailRideSummary } from '../logic/rideEmail';
+import { useAuth } from '../auth/AuthContext';
 import { Icon } from './kit/Icon';
 import { Pill } from './kit/Pill';
+import { RepDualChart } from './kit/RepDualChart';
 import { BIKE_TONES, RoadBike, RoadStream } from './bike/RoadBike';
 
 const native = Platform.OS !== 'web';
@@ -49,7 +53,7 @@ function Bloom({ width }: { width: number }) {
   );
 }
 
-function RepChart({ reps, perSet, target }: { reps: number[]; perSet: number; target: number }) {
+export function RepChart({ reps, perSet, target }: { reps: number[]; perSet: number; target: number }) {
   const height = 96;
   const lo = Math.min(target, ...reps) * 0.7;
   const hi = Math.max(target, ...reps);
@@ -83,13 +87,16 @@ export function DoneSummary({
   summary,
   reps,
   hardTarget,
+  ftpWatts,
   onDone,
 }: {
   summary: RideSummary;
   reps: number;
   hardTarget: number;
+  ftpWatts: number;
   onDone: () => void;
 }) {
+  const auth = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduce = useReduceMotion();
@@ -104,7 +111,10 @@ export function DoneSummary({
   const complete = summary.setsDone >= summary.setsPlanned;
   const kicker = `${day} · ${summary.setsDone} × ${reps}${complete ? ' COMPLETE' : ''}`;
   const repWatts = summary.repWatts ?? [];
+  const repBpm = summary.repBpm ?? [];
+  const hasDual = repBpm.length >= 2 && repWatts.length >= 2;
   const stats = doneStats(summary);
+  const insights = insightStats(summary);
   const titleStyle = {
     opacity: rise,
     transform: [
@@ -131,13 +141,17 @@ export function DoneSummary({
         {repWatts.length > 0 ? (
           <View style={styles.card} testID="done-power">
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>Power, rep by rep</Text>
+              <Text style={styles.cardTitle}>{hasDual ? 'Power & heart rate, rep by rep' : 'Power, rep by rep'}</Text>
               <View style={styles.targetKey}>
                 <View style={styles.targetDash} />
                 <Text style={styles.cardMeta}>Target {hardTarget} W</Text>
               </View>
             </View>
-            <RepChart reps={repWatts} perSet={reps} target={hardTarget} />
+            {hasDual ? (
+              <RepDualChart watts={repWatts} bpm={repBpm} target={hardTarget} />
+            ) : (
+              <RepChart reps={repWatts} perSet={reps} target={hardTarget} />
+            )}
           </View>
         ) : null}
 
@@ -153,6 +167,24 @@ export function DoneSummary({
           ))}
         </View>
 
+        {insights.length > 0 ? (
+          <View style={styles.card} testID="done-insights">
+            <Text style={styles.cardTitle}>Efficiency & recovery</Text>
+            {insights.map((s) => (
+              <View key={s.label} style={styles.insightRow}>
+                <View style={styles.insightHead}>
+                  <Text style={styles.insightLabel}>{s.label}</Text>
+                  <Text style={styles.insightValue}>
+                    {s.value}
+                    <Text style={styles.cellUnit}> {s.unit}</Text>
+                  </Text>
+                </View>
+                <Text style={styles.insightExplain}>{s.explain}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.flex} />
         <View style={styles.bikeRow} pointerEvents="none">
           <RoadBike width={Math.min(240, width * 0.6)} tone={BIKE_TONES.ember} wheelPeriodMs={reduce ? null : 1100} />
@@ -162,6 +194,23 @@ export function DoneSummary({
           <Icon name="check" size={14} color={ink.signal} />
           <Text style={styles.savedText}>Saved on this iPhone</Text>
         </View>
+        {auth.user ? (
+          <Pressable
+            onPress={() =>
+              void emailRideSummary({
+                session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
+                summary,
+                user: auth.user!,
+              })
+            }
+            testID="done-email"
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.emailRow, pressed && styles.pressed]}
+          >
+            <Icon name="mail" size={14} color={ink.secondary} />
+            <Text style={styles.emailText}>Email this ride</Text>
+          </Pressable>
+        ) : null}
         <Pill label="Done" variant="light" onPress={onDone} testID="done" />
       </ScrollView>
     </View>
@@ -195,8 +244,16 @@ const styles = StyleSheet.create({
   cellLabel: { color: ink.secondary, ...type.caption },
   cellValue: { color: ink.text, fontSize: 26, fontWeight: '600', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   cellUnit: { color: ink.secondary, fontSize: 14, fontWeight: '500', letterSpacing: 0 },
+  insightRow: { marginTop: 12 },
+  insightHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  insightLabel: { color: ink.text, fontSize: 15, fontWeight: '600' },
+  insightValue: { color: ink.text, fontSize: 18, fontWeight: '600', ...type.tabular },
+  insightExplain: { color: ink.secondary, ...type.caption, marginTop: 4, lineHeight: 17 },
   flex: { flex: 1, minHeight: 12 },
   bikeRow: { alignItems: 'center', marginBottom: 18, gap: 2 },
   saved: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
   savedText: { color: ink.tertiary, ...type.caption },
+  emailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, marginBottom: 4 },
+  emailText: { color: ink.secondary, ...type.callout },
+  pressed: { opacity: 0.6 },
 });

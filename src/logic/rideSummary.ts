@@ -128,6 +128,58 @@ export function repWatts(segments: TimedSegment[], samples: RideSample[]): numbe
   return out;
 }
 
+/** Mean bpm inside each HARD segment's window. Mirrors repWatts. */
+export function repBpm(segments: TimedSegment[], samples: RideSample[]): number[] {
+  const out: number[] = [];
+  let cursor = 0;
+  for (const segment of segments) {
+    const start = cursor;
+    const end = cursor + Math.max(0, segment.durationMs);
+    cursor = end;
+    if (segment.kind !== 'hard') continue;
+    const inside: number[] = [];
+    for (const sample of samples) {
+      if (sample.atMs >= start && sample.atMs < end && finite(sample.bpm)) inside.push(sample.bpm);
+    }
+    const avg = mean(inside);
+    if (avg != null) out.push(avg);
+    if (out.length >= REP_WATTS_MAX) break;
+  }
+  return out;
+}
+
+/**
+ * Watts per heartbeat during hard efforts — TrainingPeaks calls this
+ * Efficiency Factor. Higher means more power for the same cardiac cost, the
+ * classic sign of a fitter aerobic engine. Null without both sensors.
+ */
+export function efficiencyFactor(avgHardWatts: number | null, avgHardBpm: number | null): number | null {
+  if (avgHardWatts == null || avgHardBpm == null || avgHardBpm <= 0) return null;
+  return Math.round((avgHardWatts / avgHardBpm) * 10) / 10;
+}
+
+/**
+ * Pw:Hr decoupling, adapted to intervals: split the hard reps in half and
+ * compare each half's efficiency factor. A big positive number means the
+ * heart worked harder for the same watts as the ride went on (fatigue, heat,
+ * under-fueling); under ~5% is the usual mark of a well-paced aerobic effort.
+ * Needs at least 4 reps with both watts and bpm to split meaningfully.
+ */
+export function decouplingPct(repW: number[], repB: number[]): number | null {
+  const n = Math.min(repW.length, repB.length);
+  if (n < 4) return null;
+  const half = Math.floor(n / 2);
+  const ef = (ws: number[], bs: number[]) => {
+    const w = mean(ws);
+    const b = mean(bs);
+    return w != null && b != null && b > 0 ? w / b : null;
+  };
+  const first = ef(repW.slice(0, half), repB.slice(0, half));
+  const second = ef(repW.slice(n - half), repB.slice(n - half));
+  if (first == null || second == null || first === 0) return null;
+  return Math.round(((first - second) / first) * 1000) / 10;
+}
+
 export function summarizeRide(input: {
   segments: TimedSegment[];
   elapsedMs: number;
@@ -144,6 +196,10 @@ export function summarizeRide(input: {
   const hardBpm = valuesFor(input.samples, 'hard', (sample) => sample.bpm);
   const easyBpm = valuesFor(input.samples, 'easy', (sample) => sample.bpm);
   const done = input.completed ? planned : setsFinished(input.segments, elapsed, planned);
+  const avgHardWatts = mean(hardWatts);
+  const avgHardBpm = mean(hardBpm);
+  const perRepWatts = repWatts(input.segments, input.samples);
+  const perRepBpm = repBpm(input.segments, input.samples);
   return {
     setsDone: done,
     setsPlanned: planned,
@@ -152,22 +208,64 @@ export function summarizeRide(input: {
     easyMs: timeInKind(input.segments, elapsed, 'easy'),
     avgWatts: mean(watts),
     peakWatts: peak(watts),
-    avgHardWatts: mean(hardWatts),
+    avgHardWatts,
     avgEasyWatts: mean(easyWatts),
     workKj: workKj(input.samples),
     sparkline: downsample(watts, SPARKLINE_MAX),
     avgBpm: mean(bpm),
     maxBpm: peak(bpm),
-    avgHardBpm: mean(hardBpm),
+    avgHardBpm,
     avgEasyBpm: mean(easyBpm),
-    repWatts: repWatts(input.segments, input.samples),
+    repWatts: perRepWatts,
+    repBpm: perRepBpm,
+    efficiencyFactor: efficiencyFactor(avgHardWatts, avgHardBpm),
+    decouplingPct: decouplingPct(perRepWatts, perRepBpm),
   };
+}
+
+export type InsightStat = { label: string; value: string; unit: string; explain: string };
+
+/**
+ * The metrics that need both a power meter and a heart-rate strap to mean
+ * anything. Kept separate from doneStats() (in DoneSummary) because these
+ * are the ones worth a plain-language footnote — nobody needs "average
+ * heart rate" explained to them.
+ */
+export function insightStats(summary: RideSummary): InsightStat[] {
+  const out: InsightStat[] = [];
+  if (summary.efficiencyFactor != null) {
+    out.push({
+      label: 'Efficiency factor',
+      value: summary.efficiencyFactor.toFixed(1),
+      unit: 'W/bpm',
+      explain:
+        'Your hard-effort watts divided by your hard-effort heart rate — how much power you produced per heartbeat. Higher is better, and it climbs over weeks of training even at the same FTP: the clearest sign your aerobic engine is getting fitter.',
+    });
+  }
+  if (summary.decouplingPct != null) {
+    const sign = summary.decouplingPct > 0 ? '+' : '';
+    out.push({
+      label: 'HR:Power drift',
+      value: `${sign}${summary.decouplingPct.toFixed(1)}`,
+      unit: '%',
+      explain:
+        "How much your watts-per-heartbeat fell from your first hard reps to your last. Under about 5% usually means you paced the ride well; a bigger number often means fatigue, heat, or under-fueling caught up with you before the finish.",
+    });
+  }
+  return out;
 }
 
 function nullableNumber(value: unknown): number | null | undefined {
   if (value == null) return null;
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   return Math.round(value);
+}
+
+/** Like nullableNumber, but keeps one decimal — efficiencyFactor and decouplingPct are not whole numbers. */
+function nullableDecimal(value: unknown): number | null | undefined {
+  if (value == null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.round(value * 10) / 10;
 }
 
 export function parseStoredSummary(raw: unknown): RideSummary | undefined {
@@ -215,6 +313,14 @@ export function parseStoredSummary(raw: unknown): RideSummary | undefined {
   const reps = Array.isArray(row.repWatts)
     ? row.repWatts.filter((point): point is number => typeof point === 'number' && Number.isFinite(point)).slice(0, REP_WATTS_MAX)
     : [];
+  // Added after the first shipped version — a ride saved before this existed
+  // just has no bpm-per-rep or derived-metric fields, which is fine: treat
+  // that as "none of this data", not as a reason to drop the whole summary.
+  const repsBpm = Array.isArray(row.repBpm)
+    ? row.repBpm.filter((point): point is number => typeof point === 'number' && Number.isFinite(point)).slice(0, REP_WATTS_MAX)
+    : [];
+  const ef = nullableDecimal(row.efficiencyFactor);
+  const decoupling = nullableDecimal(row.decouplingPct);
   return {
     setsDone,
     setsPlanned,
@@ -232,5 +338,8 @@ export function parseStoredSummary(raw: unknown): RideSummary | undefined {
     avgHardBpm,
     avgEasyBpm,
     repWatts: reps,
+    repBpm: repsBpm,
+    efficiencyFactor: ef ?? null,
+    decouplingPct: decoupling ?? null,
   };
 }
