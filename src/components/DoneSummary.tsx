@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
@@ -7,10 +7,15 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { ink, radius, type } from '../theme/tokens';
 import type { RideSummary } from '../types';
 import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
-import { clockText } from '../logic/rideView';
 import { insightStats } from '../logic/rideSummary';
+import { doneStats } from '../logic/rideStats';
 import { emailRideSummary } from '../logic/rideEmail';
+import { shareRidePdf } from '../logic/rideShare';
+import { shareSignInAlert } from '../logic/shareGate';
+import { currentVo2Section } from '../logic/vo2max';
 import { useAuth } from '../auth/AuthContext';
+import { useHistory } from '../state/HistoryContext';
+import { useSettings } from '../state/SettingsContext';
 import { Icon } from './kit/Icon';
 import { Pill } from './kit/Pill';
 import { RepDualChart } from './kit/RepDualChart';
@@ -19,19 +24,7 @@ import { BIKE_TONES, RoadBike, RoadStream } from './bike/RoadBike';
 const native = Platform.OS !== 'web';
 const WEEKDAY = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
-type Stat = { label: string; value: string; unit: string };
-
-export function doneStats(summary: RideSummary): Stat[] {
-  const out: Stat[] = [];
-  if (summary.avgHardWatts != null) out.push({ label: 'Hard avg', value: String(summary.avgHardWatts), unit: 'W' });
-  if (summary.avgEasyWatts != null) out.push({ label: 'Easy avg', value: String(summary.avgEasyWatts), unit: 'W' });
-  if (summary.workKj != null) out.push({ label: 'Work', value: String(summary.workKj), unit: 'kJ' });
-  if (summary.avgBpm != null) out.push({ label: 'Avg heart', value: String(summary.avgBpm), unit: 'bpm' });
-  if (summary.maxBpm != null) out.push({ label: 'Max heart', value: String(summary.maxBpm), unit: 'bpm' });
-  if (summary.avgHardWatts == null) out.push({ label: 'In HARD', value: clockText(summary.hardMs), unit: '' });
-  out.push({ label: 'Time', value: clockText(summary.durationMs), unit: '' });
-  return out;
-}
+export { doneStats };
 
 /** Two soft lights, ember and glacier, that bloom once behind the title. */
 function Bloom({ width }: { width: number }) {
@@ -97,6 +90,8 @@ export function DoneSummary({
   onDone: () => void;
 }) {
   const auth = useAuth();
+  const { settings } = useSettings();
+  const history = useHistory();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const reduce = useReduceMotion();
@@ -115,6 +110,28 @@ export function DoneSummary({
   const hasDual = repBpm.length >= 2 && repWatts.length >= 2;
   const stats = doneStats(summary);
   const insights = insightStats(summary);
+  const vo2 = currentVo2Section({
+    ftpWatts: settings.ftpWatts,
+    weightLb: settings.weightLb,
+    ageYears: settings.ageYears,
+    sex: settings.sex,
+    restingHr: settings.restingHr,
+    sessions: history.sessions,
+  });
+
+  const shareThisRide = () => {
+    if (!auth.user) {
+      const prompt = shareSignInAlert(auth);
+      Alert.alert(prompt.title, prompt.message, prompt.buttons);
+      return;
+    }
+    void shareRidePdf({
+      session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
+      summary,
+      vo2,
+    });
+  };
+
   const titleStyle = {
     opacity: rise,
     transform: [
@@ -194,6 +211,15 @@ export function DoneSummary({
           <Icon name="check" size={14} color={ink.signal} />
           <Text style={styles.savedText}>Saved on this iPhone</Text>
         </View>
+        <Pressable
+          onPress={shareThisRide}
+          testID="done-share"
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.emailRow, pressed && styles.pressed]}
+        >
+          <Icon name="share" size={14} color={ink.secondary} />
+          <Text style={styles.emailText}>Share this ride</Text>
+        </Pressable>
         {auth.user ? (
           <Pressable
             onPress={() =>
@@ -201,6 +227,7 @@ export function DoneSummary({
                 session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
                 summary,
                 user: auth.user!,
+                vo2,
               })
             }
             testID="done-email"

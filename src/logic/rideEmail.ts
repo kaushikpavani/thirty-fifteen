@@ -1,10 +1,14 @@
 import type { AuthUser, RideSummary } from '../types';
-import { doneStats } from '../components/DoneSummary';
+import { doneStats } from './rideStats';
 import { insightStats } from './rideSummary';
 import { clockText } from './rideView';
+import type { Vo2Category, Vo2Estimate } from './vo2max';
 
 /** The only fields the email actually needs — a saved WorkoutRecord satisfies this, but so does a ride that hasn't been persisted yet. */
 export type EmailableRide = { endedAt: string; ftpWatts: number; completed: boolean };
+
+/** The rider's fitness-profile VO2max estimate, if there's enough data for one. Not ride-specific — same value on every card until the profile or FTP changes. */
+export type Vo2Section = { estimate: Vo2Estimate; category: Vo2Category | null } | null;
 
 /**
  * One line of plain-language context for a stat that isn't self-explanatory.
@@ -43,7 +47,7 @@ export function rideEmailSubject(session: EmailableRide): string {
  * scripts — the widest possible compatibility across mail clients, and
  * nothing that depends on a server to render.
  */
-export function rideEmailHtml(session: EmailableRide, summary: RideSummary): string {
+export function rideEmailHtml(session: EmailableRide, summary: RideSummary, vo2: Vo2Section = null): string {
   const stats = doneStats(summary);
   const insights = insightStats(summary);
   const repWatts = summary.repWatts ?? [];
@@ -96,6 +100,17 @@ export function rideEmailHtml(session: EmailableRide, summary: RideSummary): str
       </table>`
     : '';
 
+  const vo2Block = vo2
+    ? `
+      <h3 style="color:#F5F5F2;font-size:15px;margin:24px 0 10px;">Fitness</h3>
+      <div style="background:rgba(92,200,230,0.1);border-radius:12px;padding:14px 16px;">
+        <div style="color:#F5F5F2;font-size:22px;font-weight:700;">${vo2.estimate.value.toFixed(1)} <span style="color:#9B9BA1;font-size:13px;font-weight:400;">ml/kg/min VO₂max${vo2.category ? ` · ${escapeHtml(vo2.category)}` : ''}</span></div>
+        <div style="color:#9B9BA1;font-size:12px;line-height:16px;margin-top:6px;">
+          Likely between ${vo2.estimate.low.toFixed(1)} and ${vo2.estimate.high.toFixed(1)} — a field estimate from your FTP and heart rate, not a lab measurement.
+        </div>
+      </div>`
+    : '';
+
   return `
   <div style="background:#000000;padding:24px 16px;font-family:-apple-system,Helvetica,Arial,sans-serif;">
     <div style="max-width:480px;margin:0 auto;">
@@ -114,6 +129,7 @@ export function rideEmailHtml(session: EmailableRide, summary: RideSummary): str
           : ''
       }
       ${repTable}
+      ${vo2Block}
       <div style="color:#5A5A5F;font-size:12px;margin-top:28px;">Sent from 30/15. Forever free — no account required to ride.</div>
     </div>
   </div>`;
@@ -124,14 +140,19 @@ export function rideEmailHtml(session: EmailableRide, summary: RideSummary): str
  * nothing leaves the phone until the rider hits send themselves, so this
  * needs no backend of ours and no third-party email service.
  */
-export async function emailRideSummary(input: { session: EmailableRide; summary: RideSummary; user: AuthUser }): Promise<void> {
+export async function emailRideSummary(input: {
+  session: EmailableRide;
+  summary: RideSummary;
+  user: AuthUser;
+  vo2?: Vo2Section;
+}): Promise<void> {
   const MailComposer = await import('expo-mail-composer');
   const available = await MailComposer.isAvailableAsync();
   if (!available) return;
   await MailComposer.composeAsync({
     recipients: input.user.email ? [input.user.email] : [],
     subject: rideEmailSubject(input.session),
-    body: rideEmailHtml(input.session, input.summary),
+    body: rideEmailHtml(input.session, input.summary, input.vo2 ?? null),
     isHtml: true,
   });
 }

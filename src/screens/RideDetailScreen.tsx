@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { doneStats, RepChart } from '../components/DoneSummary';
@@ -8,15 +8,20 @@ import { Footer, LargeTitle, NavBack } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
 import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
+import { useSettings } from '../state/SettingsContext';
 import { insightStats } from '../logic/rideSummary';
 import { dayTitle } from './HistoryScreen';
 import { ink, radius, type } from '../theme/tokens';
 import { emailRideSummary } from '../logic/rideEmail';
+import { shareRidePdf } from '../logic/rideShare';
+import { shareSignInAlert } from '../logic/shareGate';
+import { currentVo2Section } from '../logic/vo2max';
 
 export function RideDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const history = useHistory();
   const auth = useAuth();
+  const { settings } = useSettings();
   const session = history.sessions.find((item) => item.id === id);
 
   if (!session) {
@@ -38,6 +43,24 @@ export function RideDetailScreen() {
   const repWatts = summary?.repWatts ?? [];
   const repBpm = summary?.repBpm ?? [];
   const hasDual = repBpm.length >= 2 && repWatts.length >= 2;
+  const vo2 = currentVo2Section({
+    ftpWatts: settings.ftpWatts,
+    weightLb: settings.weightLb,
+    ageYears: settings.ageYears,
+    sex: settings.sex,
+    restingHr: settings.restingHr,
+    sessions: history.sessions,
+  });
+
+  const shareThisRide = () => {
+    if (!summary) return;
+    if (!auth.user) {
+      const prompt = shareSignInAlert(auth);
+      Alert.alert(prompt.title, prompt.message, prompt.buttons);
+      return;
+    }
+    void shareRidePdf({ session, summary, vo2 });
+  };
 
   return (
     <Screen>
@@ -101,14 +124,19 @@ export function RideDetailScreen() {
           </View>
         ) : null}
 
-        {summary && auth.user ? (
-          <Pill
-            label="Email this ride"
-            variant="quiet"
-            icon="mail"
-            onPress={() => void emailRideSummary({ session, summary, user: auth.user! })}
-            testID="ride-detail-email"
-          />
+        {summary ? (
+          <View style={styles.actions}>
+            <Pill label="Share this ride" variant="quiet" icon="share" onPress={shareThisRide} testID="ride-detail-share" />
+            {auth.user ? (
+              <Pill
+                label="Email this ride"
+                variant="quiet"
+                icon="mail"
+                onPress={() => void emailRideSummary({ session, summary, user: auth.user!, vo2 })}
+                testID="ride-detail-email"
+              />
+            ) : null}
+          </View>
         ) : null}
       </ScrollView>
     </Screen>
@@ -117,6 +145,7 @@ export function RideDetailScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48, gap: 0 },
+  actions: { gap: 10, marginTop: 4 },
   subtitle: { color: ink.secondary, ...type.callout, marginTop: 4, marginBottom: 8 },
   missing: { color: ink.secondary, ...type.body, marginTop: 24, textAlign: 'center' },
   card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },

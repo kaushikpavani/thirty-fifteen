@@ -8,7 +8,7 @@ import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { ink, type } from '../theme/tokens';
 import type { WorkoutSettings } from '../types';
-import { vo2MaxCategory, vo2MaxEstimate, type Sex } from '../logic/vo2max';
+import { observedMaxBpmFromHistory, vo2MaxCategory, vo2MaxEstimate, type Sex } from '../logic/vo2max';
 
 type Editor = 'age' | 'weight' | 'restingHr' | null;
 
@@ -25,14 +25,7 @@ export function FitnessScreen() {
   const [editor, setEditor] = useState<Editor>(null);
   const [draft, setDraft] = useState(0);
 
-  const observedMaxBpm = useMemo(() => {
-    let max = 0;
-    for (const session of history.sessions) {
-      const bpm = session.summary?.maxBpm;
-      if (bpm != null && bpm > max) max = bpm;
-    }
-    return max > 0 ? max : null;
-  }, [history.sessions]);
+  const observedMaxBpm = useMemo(() => observedMaxBpmFromHistory(history.sessions), [history.sessions]);
 
   const estimate = vo2MaxEstimate({
     ftpWatts: settings.ftpWatts,

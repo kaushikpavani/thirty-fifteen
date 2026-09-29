@@ -77,6 +77,16 @@ function withMargin(value: number, source: Vo2Source): Vo2Estimate {
   };
 }
 
+/** The highest heart rate ever recorded across saved rides, or null without any. */
+export function observedMaxBpmFromHistory(sessions: { summary?: { maxBpm?: number | null } | null }[]): number | null {
+  let max = 0;
+  for (const session of sessions) {
+    const bpm = session.summary?.maxBpm;
+    if (bpm != null && bpm > max) max = bpm;
+  }
+  return max > 0 ? max : null;
+}
+
 export type Vo2Inputs = {
   ftpWatts?: number | null;
   weightLb?: number | null;
@@ -107,6 +117,26 @@ export function vo2MaxEstimate(input: Vo2Inputs): Vo2Estimate | null {
   if (power != null) return withMargin(power, 'power');
   if (hr != null) return withMargin(hr, 'hr');
   return null;
+}
+
+/** Convenience wrapper: settings + ride history in, a ready-to-render section out. Shared by the Fitness screen, ride email, and ride share PDF so they never disagree with each other. */
+export function currentVo2Section(input: {
+  ftpWatts?: number | null;
+  weightLb?: number | null;
+  ageYears?: number | null;
+  sex?: Sex | null;
+  restingHr?: number | null;
+  sessions: { summary?: { maxBpm?: number | null } | null }[];
+}): { estimate: Vo2Estimate; category: Vo2Category | null } | null {
+  const estimate = vo2MaxEstimate({
+    ftpWatts: input.ftpWatts,
+    weightLb: input.weightLb,
+    ageYears: input.ageYears,
+    restingHr: input.restingHr,
+    observedMaxBpm: observedMaxBpmFromHistory(input.sessions),
+  });
+  if (!estimate) return null;
+  return { estimate, category: vo2MaxCategory(estimate.value, input.ageYears ?? null, input.sex ?? null) };
 }
 
 export type Sex = 'male' | 'female';
