@@ -338,11 +338,9 @@ export function SettingsScreen() {
           </Group>
         )}
         <Footer>
-          {auth.user
-            ? 'Rides save on this iPhone first, then sync while you are signed in.'
-            : auth.needsSetup
-              ? 'Cloud is not set up on this install. Rides stay on this iPhone.'
-              : 'Optional. Start never asks you to sign in. Every ride saves on this iPhone first.'}
+          {auth.needsSetup && !auth.user
+            ? 'Cloud is not set up on this install. Rides stay on this iPhone.'
+            : history.cloudNote}
         </Footer>
         {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
 

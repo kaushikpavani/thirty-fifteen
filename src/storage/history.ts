@@ -7,107 +7,77 @@ import { cloudExtensionMissing, workoutRowsForRetry, workoutSessionWrite, type W
 import { parseStoredSummary } from '../logic/rideSummary';
 import { loadDeletionState } from './deletionStore';
 import { createId } from './id';
-import { shouldUploadSession } from './historyGate';
-import { applyCloudMerge } from './merge';
 import { createQueue } from './queue';
+import { createRideStore, parseRecord, type StoreRead } from './rideStore';
+import { chunk, pendingBackup, planSync, toIso, type RemoteEntry } from './rideSync';
 
 export { mergeRecords } from './merge';
-
-/**
- * Workout history on this phone is the source of truth.
- * Pull and push run later, and a miss leaves this list on screen.
- */
-
-const KEY = '@thirtyfifteen/history/v1';
-
 export { createId };
 
-function isRecord(value: unknown): value is WorkoutRecord {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Partial<WorkoutRecord>;
-  return (
-    typeof record.id === 'string' &&
-    typeof record.startedAt === 'string' &&
-    typeof record.endedAt === 'string' &&
-    typeof record.durationMs === 'number' &&
-    typeof record.plannedDurationMs === 'number' &&
-    typeof record.ftpWatts === 'number' &&
-    typeof record.hardWatts === 'number' &&
-    typeof record.easyWatts === 'number' &&
-    typeof record.completed === 'boolean' &&
-    typeof record.completionPct === 'number'
-  );
-}
-
-export async function loadHistory(): Promise<WorkoutRecord[]> {
-  return (await readHistory()).sessions;
-}
-
 /**
- * Like loadHistory, but says whether the read actually worked. "No rides"
- * and "couldn't read the rides" look the same as an empty list; a caller
- * that might write the list back must not treat a failed read as empty, or
- * it overwrites real history with nothing.
+ * Rides on this phone are the source of truth, stored one key per ride
+ * (see rideStore). The cloud is a backup: sync only ever adds rides in
+ * either direction, and only the rider's own "Delete ride history"
+ * removes rides from the phone.
  */
-export async function readHistory(): Promise<{ ok: boolean; sessions: WorkoutRecord[] }> {
-  let raw: string | null;
-  try {
-    raw = await AsyncStorage.getItem(KEY);
-  } catch {
-    return { ok: false, sessions: [] };
-  }
-  if (!raw) return { ok: true, sessions: [] };
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return { ok: false, sessions: [] };
-    return { ok: true, sessions: parseRecords(parsed) };
-  } catch {
-    return { ok: false, sessions: [] };
-  }
+
+const store = createRideStore({
+  getAllKeys: () => AsyncStorage.getAllKeys(),
+  multiGet: (keys) => AsyncStorage.multiGet(keys),
+  getItem: (key) => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+  multiRemove: (keys) => AsyncStorage.multiRemove(keys),
+});
+
+const writes = createQueue();
+
+export function readRides(): Promise<StoreRead> {
+  return writes(() => store.read());
 }
 
-function parseRecords(parsed: unknown[]): WorkoutRecord[] {
-  return parsed.flatMap((item) => {
-    if (!isRecord(item)) return [];
-    const summary = parseStoredSummary((item as { summary?: unknown }).summary);
-    const { summary: _raw, ...rest } = item as WorkoutRecord & { summary?: unknown };
-    void _raw;
-    return [summary ? { ...rest, summary } : rest];
-  });
-}
-
-const historyWrites = createQueue();
-
-export async function saveHistory(sessions: WorkoutRecord[]): Promise<void> {
-  const payload = JSON.stringify(sessions.slice(0, 200));
-  await historyWrites(async () => {
+/** Add or update rides. Never removes any. Retries once so a transient storage error doesn't drop a ride. */
+export async function saveRides(rides: WorkoutRecord[]): Promise<boolean> {
+  if (rides.length === 0) return true;
+  return writes(async () => {
     try {
-      await AsyncStorage.setItem(KEY, payload);
+      await store.put(rides);
+      return true;
     } catch {
-      // The in-memory list is still what the screen shows.
+      try {
+        await store.put(rides);
+        return true;
+      } catch {
+        return false;
+      }
     }
   });
 }
 
-/** Drop every session stored on this phone. Does not talk to the cloud. */
+/** The rider asked to delete their history on this phone. Does not talk to the cloud. */
 export async function clearHistory(): Promise<void> {
-  await saveHistory([]);
+  await writes(() => store.removeAll());
 }
 
 export function withId(input: NewWorkoutRecord): WorkoutRecord {
   return { ...input, id: createId() };
 }
 
-type CloudResult = {
-  sessions: WorkoutRecord[];
-  note: string | null;
-};
+// ——— Cloud backup ———
+
+const COLUMNS =
+  'id, started_at, ended_at, duration_ms, planned_duration_ms, ftp_watts, hard_watts, easy_watts, completed, completion_pct';
+const PAGE = 1000;
+const UPLOAD_CHUNK = 20;
+const DOWNLOAD_CHUNK = 50;
 
 function rowToRecord(row: Record<string, unknown>): WorkoutRecord | null {
-  const record = {
+  const startedAt = toIso(row.started_at);
+  const endedAt = toIso(row.ended_at);
+  if (!startedAt || !endedAt) return null;
+  const record = parseRecord({
     id: row.id,
-    startedAt: row.started_at,
-    endedAt: row.ended_at,
+    startedAt,
+    endedAt,
     durationMs: row.duration_ms,
     plannedDurationMs: row.planned_duration_ms,
     ftpWatts: row.ftp_watts,
@@ -115,22 +85,34 @@ function rowToRecord(row: Record<string, unknown>): WorkoutRecord | null {
     easyWatts: row.easy_watts,
     completed: row.completed,
     completionPct: row.completion_pct,
-  };
-  if (!isRecord(record)) return null;
+  });
+  if (!record) return null;
   const summary = parseStoredSummary(row.summary);
   return summary ? { ...record, summary } : record;
 }
 
-function cloudNote(message: string): string {
-  if (/workout_sessions|schema cache|relation/i.test(message)) {
-    return 'Cloud table missing. Sessions stay on this phone.';
+type Supabase = NonNullable<ReturnType<typeof getSupabase>>;
+
+/** Every ride id this account has in the cloud, page by page. RLS limits it to the signed-in rider. */
+async function fetchRemoteIndex(supabase: Supabase): Promise<RemoteEntry[]> {
+  const out: RemoteEntry[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('workout_sessions')
+      .select('id, ended_at')
+      .order('ended_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { id: unknown; ended_at: unknown }[];
+    for (const row of rows) {
+      const endedAt = toIso(row.ended_at);
+      if (typeof row.id === 'string' && endedAt) out.push({ id: row.id, endedAt });
+    }
+    if (rows.length < PAGE) return out;
   }
-  return 'Couldn’t reach the cloud. Sessions are on this phone.';
 }
 
-async function upsertWorkoutRows(rows: WorkoutSessionWrite[]): Promise<string | null> {
-  const supabase = getSupabase();
-  if (!supabase || rows.length === 0) return null;
+async function upsertRows(supabase: Supabase, rows: WorkoutSessionWrite[]): Promise<string | null> {
   const first = await supabase.from('workout_sessions').upsert(rows, { onConflict: 'id' });
   if (!first.error) return null;
   const retry = workoutRowsForRetry(rows, first.error.message);
@@ -139,83 +121,100 @@ async function upsertWorkoutRows(rows: WorkoutSessionWrite[]): Promise<string | 
   return second.error ? second.error.message : null;
 }
 
-export async function pushSession(record: WorkoutRecord): Promise<string | null> {
-  try {
-    const supabase = getSupabase();
-    if (!supabase) return null;
-    const user = await loadCachedAuthUser();
-    const gate = await loadDeletionState();
-    if (!user || !shouldUploadSession(true, user.id, record.endedAt, gate.historyDeletedThrough)) return null;
-    const userId = user.id;
-    const deviceId = await ensureDevice();
-    const message = await upsertWorkoutRows([workoutSessionWrite(record, userId, deviceId)]);
-    return message ? cloudNote(message) : null;
-  } catch {
-    return 'Couldn’t reach the cloud. Sessions are on this phone.';
-  }
-}
-
-export async function pullAndMerge(local: WorkoutRecord[]): Promise<CloudResult> {
-  try {
-    return await pullAndMergeUnsafe(local);
-  } catch {
-    return { sessions: local, note: 'Couldn’t reach the cloud. Sessions are on this phone.' };
-  }
-}
-
-async function pullAndMergeUnsafe(local: WorkoutRecord[]): Promise<CloudResult> {
-  const supabase = getSupabase();
-  if (!supabase) return { sessions: local, note: null };
-  const user = await loadCachedAuthUser();
-  if (!user) return { sessions: local, note: null };
-  const userId = user.id;
-
-  const columns =
-    'id, started_at, ended_at, duration_ms, planned_duration_ms, ftp_watts, hard_watts, easy_watts, completed, completion_pct';
-  const first = await supabase
-    .from('workout_sessions')
-    .select(`${columns}, summary`)
-    .order('ended_at', { ascending: false })
-    .limit(200);
-  let data = first.data as Record<string, unknown>[] | null;
-  let error = first.error;
-  if (error && cloudExtensionMissing(error.message) && /summary/i.test(error.message)) {
-    const again = await supabase
-      .from('workout_sessions')
-      .select(columns)
-      .order('ended_at', { ascending: false })
-      .limit(200);
-    data = again.data as Record<string, unknown>[] | null;
-    error = again.error;
-  }
-
-  if (error) {
-    const note = /workout_sessions|schema cache|relation/i.test(error.message)
-      ? 'Cloud table missing. Sessions stay on this phone.'
-      : 'Couldn’t reach the cloud. Sessions are on this phone.';
-    return { sessions: local, note };
-  }
-
-  const remote = (data ?? [])
-    .map((row) => rowToRecord(row as Record<string, unknown>))
-    .filter((row): row is WorkoutRecord => row != null);
-  const gate = await loadDeletionState();
-  const merged = applyCloudMerge(local, remote, gate.historyDeletedThrough);
-  const remoteIds = new Set(
-    remote
-      .filter((item) => !gate.historyDeletedThrough || item.endedAt > gate.historyDeletedThrough)
-      .map((item) => item.id),
-  );
-  const missing = merged.filter((item) => !remoteIds.has(item.id));
-  if (missing.length) {
-    const deviceId = await ensureDevice();
-    const upsertError = await upsertWorkoutRows(missing.map((item) => workoutSessionWrite(item, userId, deviceId)));
-    if (upsertError) {
-      return {
-        sessions: merged,
-        note: 'Saved on this phone. Cloud sync did not finish.',
-      };
+/**
+ * Upload in small batches. If a batch is rejected, try its rides one at a
+ * time so a single bad ride can't keep the others from backing up.
+ */
+async function uploadRides(supabase: Supabase, rides: WorkoutRecord[], userId: string): Promise<Set<string>> {
+  const done = new Set<string>();
+  if (rides.length === 0) return done;
+  const deviceId = await ensureDevice();
+  for (const batch of chunk(rides, UPLOAD_CHUNK)) {
+    const rows = batch.map((ride) => workoutSessionWrite(ride, userId, deviceId));
+    if ((await upsertRows(supabase, rows)) == null) {
+      for (const ride of batch) done.add(ride.id);
+      continue;
+    }
+    for (const row of rows) {
+      if ((await upsertRows(supabase, [row])) == null) done.add(row.id);
     }
   }
-  return { sessions: merged, note: null };
+  return done;
+}
+
+async function downloadRides(supabase: Supabase, ids: string[]): Promise<WorkoutRecord[]> {
+  const out: WorkoutRecord[] = [];
+  for (const batch of chunk(ids, DOWNLOAD_CHUNK)) {
+    const first = await supabase.from('workout_sessions').select(`${COLUMNS}, summary`).in('id', batch);
+    let data = first.data as Record<string, unknown>[] | null;
+    let error = first.error;
+    if (error && cloudExtensionMissing(error.message) && /summary/i.test(error.message)) {
+      const again = await supabase.from('workout_sessions').select(COLUMNS).in('id', batch);
+      data = again.data as Record<string, unknown>[] | null;
+      error = again.error;
+    }
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) {
+      const ride = rowToRecord(row);
+      if (ride) out.push(ride);
+    }
+  }
+  return out;
+}
+
+export type SyncResult =
+  | { kind: 'signed-out' }
+  | {
+      kind: 'synced';
+      /** Rides that were only in the cloud, already saved to the phone. */
+      downloaded: WorkoutRecord[];
+      /** Phone rides still not in the cloud after this pass. */
+      pending: string[];
+      reason: 'offline' | 'error' | null;
+    };
+
+function offline(message: string): boolean {
+  return /network|fetch|timeout|offline|internet|connection/i.test(message);
+}
+
+/**
+ * One backup pass: upload every phone ride the cloud doesn't have, then
+ * download any cloud ride the phone doesn't have. Never removes a ride
+ * from the phone, and never throws.
+ */
+export async function syncRides(local: WorkoutRecord[]): Promise<SyncResult> {
+  const supabase = getSupabase();
+  if (!supabase) return { kind: 'signed-out' };
+  const user = await loadCachedAuthUser();
+  if (!user) return { kind: 'signed-out' };
+  const cutoff = (await loadDeletionState()).historyDeletedThrough;
+  const everything = { kind: 'synced' as const, downloaded: [] as WorkoutRecord[] };
+  let remote: RemoteEntry[];
+  try {
+    remote = await fetchRemoteIndex(supabase);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    return {
+      ...everything,
+      pending: pendingBackup(local, new Set(), cutoff).map((ride) => ride.id),
+      reason: offline(message) ? 'offline' : 'error',
+    };
+  }
+  const plan = planSync(local, remote, cutoff);
+  const cloudIds = new Set(remote.map((entry) => entry.id));
+  let reason: 'offline' | 'error' | null = null;
+  try {
+    for (const id of await uploadRides(supabase, plan.upload, user.id)) cloudIds.add(id);
+  } catch (err) {
+    reason = offline(err instanceof Error ? err.message : '') ? 'offline' : 'error';
+  }
+  let downloaded: WorkoutRecord[] = [];
+  try {
+    downloaded = await downloadRides(supabase, plan.download);
+    if (downloaded.length && !(await saveRides(downloaded))) downloaded = [];
+  } catch (err) {
+    reason = reason ?? (offline(err instanceof Error ? err.message : '') ? 'offline' : 'error');
+  }
+  const pending = pendingBackup(local, cloudIds, cutoff).map((ride) => ride.id);
+  return { kind: 'synced', downloaded, pending, reason: pending.length ? (reason ?? 'error') : null };
 }

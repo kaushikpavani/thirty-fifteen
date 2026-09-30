@@ -2,7 +2,7 @@ import type { WorkoutRecord } from '../types';
 
 /**
  * Phone and cloud copies of the same session id. The later `endedAt` wins.
- * The result is newest-first and capped, matching the on-device history list.
+ * Newest-first. Never capped: dropping the oldest ride is still losing a ride.
  */
 export function mergeRecords(local: WorkoutRecord[], remote: WorkoutRecord[]): WorkoutRecord[] {
   const map = new Map<string, WorkoutRecord>();
@@ -10,7 +10,7 @@ export function mergeRecords(local: WorkoutRecord[], remote: WorkoutRecord[]): W
     const prev = map.get(item.id);
     if (!prev || item.endedAt > prev.endedAt) map.set(item.id, item);
   }
-  return [...map.values()].sort((a, b) => (a.endedAt < b.endedAt ? 1 : -1)).slice(0, 200);
+  return [...map.values()].sort((a, b) => (a.endedAt < b.endedAt ? 1 : -1));
 }
 
 /** Sessions a history wipe already covered. Newer rides stay. */

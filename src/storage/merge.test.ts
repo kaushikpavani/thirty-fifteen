@@ -39,11 +39,11 @@ test('an older local copy loses to a newer remote copy of the same id', () => {
   assert.equal(merged[0]?.ftpWatts, 180);
 });
 
-test('merge caps at 200 sessions', () => {
+test('merge never drops rides, however many there are', () => {
   const local = Array.from({ length: 205 }, (_, index) =>
     ride(`id-${index}`, new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString()),
   );
-  assert.equal(mergeRecords(local, []).length, 200);
+  assert.equal(mergeRecords(local, []).length, 205);
 });
 
 test('an equal endedAt keeps the phone copy', () => {
