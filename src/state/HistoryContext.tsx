@@ -6,7 +6,7 @@ import { deleteWorkoutHistory } from '../storage/deletion';
 import type { CloudAttempt } from '../storage/deletionState';
 import { loadDeletionState } from '../storage/deletionStore';
 import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
-import { sessionsAfterWatermark } from '../storage/merge';
+import { safeMergedSessions, sessionsAfterWatermark } from '../storage/merge';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 
 type HistoryContextValue = {
@@ -49,7 +49,10 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       const gen = generation.current;
       const merged = await pullAndMerge(sessionsRef.current);
       if (cancelled || generation.current !== gen) return;
-      const visible = sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough);
+      const visible = safeMergedSessions(
+        local,
+        sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough),
+      );
       if (cancelled || generation.current !== gen) return;
       sessionsRef.current = visible;
       setSessions(visible);
@@ -66,9 +69,13 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
       const gen = generation.current;
-      void pullAndMerge(sessionsRef.current).then(async (merged) => {
+      const before = sessionsRef.current;
+      void pullAndMerge(before).then(async (merged) => {
         if (generation.current !== gen) return;
-        const visible = sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough);
+        const visible = safeMergedSessions(
+          before,
+          sessionsAfterWatermark(merged.sessions, (await loadDeletionState()).historyDeletedThrough),
+        );
         if (generation.current !== gen) return;
         sessionsRef.current = visible;
         setSessions(visible);

@@ -17,7 +17,6 @@ export function shareSignInAlert(auth: SignInActions): {
     buttons: [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Continue with Google', onPress: () => auth.signIn('google') },
-      { text: 'Continue with Facebook', onPress: () => auth.signIn('facebook') },
     ],
   };
 }

@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
@@ -47,6 +47,14 @@ function RootNavigator() {
     noteAppOpen();
     scheduleSync();
   }, [auth.ready]);
+  useEffect(() => {
+    if (!auth.justSignedIn) return;
+    auth.clearJustSignedIn();
+    const { ageYears, sex, weightLb, profilePromptSeen } = settings.settings;
+    if (!profilePromptSeen && ageYears == null && sex == null && weightLb == null) {
+      router.push('/profile-onboarding');
+    }
+  }, [auth, settings.settings]);
   if (!settings.ready || !auth.ready || !history.ready) {
     return (
       <View style={styles.boot}>
@@ -72,6 +80,7 @@ function RootNavigator() {
       <Stack.Screen name="sound" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="credits" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="fitness" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="profile-onboarding" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
       <Stack.Screen name="power" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="heart" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />

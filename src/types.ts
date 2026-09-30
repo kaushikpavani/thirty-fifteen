@@ -34,6 +34,8 @@ export interface WorkoutSettings {
   sex?: 'male' | 'female' | null;
   weightLb?: number | null;
   restingHr?: number | null;
+  /** True once the rider has seen the post-sign-in "tell us about you" prompt, whether they filled it in or skipped. */
+  profilePromptSeen?: boolean;
 }
 
 export type CoachVoice = 'calm' | 'direct' | 'numbers' | 'off';

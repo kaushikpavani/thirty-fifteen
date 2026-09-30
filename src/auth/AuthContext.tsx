@@ -22,6 +22,9 @@ type AuthContextValue = {
   needsSetup: boolean;
   error: string | null;
   busy: 'google' | 'facebook' | null;
+  /** True for one tick right after a genuine new sign-in (not a restored session). A screen can react once, then must call clearJustSignedIn(). */
+  justSignedIn: boolean;
+  clearJustSignedIn: () => void;
   signIn: (provider: 'google' | 'facebook') => Promise<void>;
   signOut: () => Promise<void>;
   /** Drop the local session after the cloud account is gone. Does not call the network. */
@@ -39,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'google' | 'facebook' | null>(null);
+  const [justSignedIn, setJustSignedIn] = useState(false);
   const configured = isSupabaseConfigured();
   const sawAuthEvent = useRef(false);
   const signedInSeen = useRef(new Set<string>());
@@ -82,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_IN' && next && !signedInSeen.current.has(next.id)) {
         signedInSeen.current.add(next.id);
         void track('sign_in', { provider: next.provider });
+        setJustSignedIn(true);
       }
     });
 
@@ -153,6 +158,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveLocalName(next);
   }, []);
 
+  const clearJustSignedIn = useCallback(() => setJustSignedIn(false), []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ready,
@@ -163,13 +170,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       needsSetup,
       error,
       busy,
+      justSignedIn,
+      clearJustSignedIn,
       signIn,
       signOut,
       signOutLocal,
       setLocalName,
       dismissSetup: () => setNeedsSetup(false),
     }),
-    [ready, configured, user, localName, needsSetup, error, busy, signIn, signOut, signOutLocal, setLocalName],
+    [
+      ready,
+      configured,
+      user,
+      localName,
+      needsSetup,
+      error,
+      busy,
+      justSignedIn,
+      clearJustSignedIn,
+      signIn,
+      signOut,
+      signOutLocal,
+      setLocalName,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

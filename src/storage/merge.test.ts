@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { WorkoutRecord } from '../types.ts';
-import { applyCloudMerge, mergeRecords } from './merge.ts';
+import { applyCloudMerge, mergeRecords, safeMergedSessions } from './merge.ts';
 
 function ride(id: string, endedAt: string, ftp = 125): WorkoutRecord {
   return {
@@ -72,4 +72,26 @@ test('a history watermark hides deleted rides and keeps a later one', () => {
     merged.map((row) => row.id),
     ['new'],
   );
+});
+
+test('safeMergedSessions keeps a sync result that only adds to what was showing', () => {
+  const before = [ride('a', '2026-09-26T09:00:00.000Z')];
+  const merged = [ride('a', '2026-09-26T09:00:00.000Z'), ride('b', '2026-09-26T10:00:00.000Z')];
+  assert.deepEqual(safeMergedSessions(before, merged), merged);
+});
+
+test('safeMergedSessions falls back to what was already on screen if a sync would shrink it', () => {
+  // A first-time sign-in merging a phone's own rides against an empty cloud
+  // account should never come back with fewer rides than were already
+  // showing — if it somehow does (a bad response, an edge case), keep the
+  // rider's own local rides rather than making them look deleted.
+  const before = [ride('a', '2026-09-26T09:00:00.000Z'), ride('b', '2026-09-26T10:00:00.000Z')];
+  const brokenSync: typeof before = [];
+  assert.deepEqual(safeMergedSessions(before, brokenSync), before);
+});
+
+test('safeMergedSessions treats an equal count as fine (ids may have legitimately changed which copy won)', () => {
+  const before = [ride('a', '2026-09-26T09:00:00.000Z', 100)];
+  const merged = [ride('a', '2026-09-26T09:00:00.000Z', 220)];
+  assert.deepEqual(safeMergedSessions(before, merged), merged);
 });

@@ -49,7 +49,7 @@ export function SettingsScreen() {
     if (auth.needsSetup && !sawNeedsSetup.current) {
       Alert.alert(
         'Sign-in unavailable',
-        'This install has no 30/15 cloud project connected, so Google and Facebook sign-in are off. Rides still save on this iPhone.',
+        'This install has no 30/15 cloud project connected, so Google sign-in is off. Rides still save on this iPhone.',
       );
     }
     sawNeedsSetup.current = auth.needsSetup;
@@ -310,14 +310,6 @@ export function SettingsScreen() {
               disabled={auth.busy != null}
               chevron={false}
               testID="sign-in-google"
-            />
-            <Row
-              label={auth.busy === 'facebook' ? 'Opening…' : 'Continue with Facebook'}
-              tint={ink.emberText}
-              onPress={() => void auth.signIn('facebook')}
-              disabled={auth.busy != null}
-              chevron={false}
-              testID="sign-in-facebook"
             />
           </Group>
         )}

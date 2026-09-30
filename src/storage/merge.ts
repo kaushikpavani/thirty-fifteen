@@ -33,3 +33,16 @@ export function applyCloudMerge(
     sessionsAfterWatermark(remote, deletedThrough),
   );
 }
+
+/**
+ * A cloud sync should only ever add to what's already on screen — merging in
+ * a rider's own local rides with whatever the cloud has is a strict union.
+ * If a sync's result somehow comes back with fewer sessions than were
+ * already showing (a bad response, a parsing edge case, anything not routed
+ * through an explicit "delete my history" watermark), that is a bug, not a
+ * real deletion — keep what was already on screen rather than let a sync
+ * silently erase it.
+ */
+export function safeMergedSessions(shownBefore: WorkoutRecord[], merged: WorkoutRecord[]): WorkoutRecord[] {
+  return merged.length >= shownBefore.length ? merged : shownBefore;
+}
