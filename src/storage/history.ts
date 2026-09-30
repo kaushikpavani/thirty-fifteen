@@ -40,21 +40,40 @@ function isRecord(value: unknown): value is WorkoutRecord {
 }
 
 export async function loadHistory(): Promise<WorkoutRecord[]> {
+  return (await readHistory()).sessions;
+}
+
+/**
+ * Like loadHistory, but says whether the read actually worked. "No rides"
+ * and "couldn't read the rides" look the same as an empty list; a caller
+ * that might write the list back must not treat a failed read as empty, or
+ * it overwrites real history with nothing.
+ */
+export async function readHistory(): Promise<{ ok: boolean; sessions: WorkoutRecord[] }> {
+  let raw: string | null;
   try {
-    const raw = await AsyncStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((item) => {
-      if (!isRecord(item)) return [];
-      const summary = parseStoredSummary((item as { summary?: unknown }).summary);
-      const { summary: _raw, ...rest } = item as WorkoutRecord & { summary?: unknown };
-      void _raw;
-      return [summary ? { ...rest, summary } : rest];
-    });
+    raw = await AsyncStorage.getItem(KEY);
   } catch {
-    return [];
+    return { ok: false, sessions: [] };
   }
+  if (!raw) return { ok: true, sessions: [] };
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return { ok: false, sessions: [] };
+    return { ok: true, sessions: parseRecords(parsed) };
+  } catch {
+    return { ok: false, sessions: [] };
+  }
+}
+
+function parseRecords(parsed: unknown[]): WorkoutRecord[] {
+  return parsed.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const summary = parseStoredSummary((item as { summary?: unknown }).summary);
+    const { summary: _raw, ...rest } = item as WorkoutRecord & { summary?: unknown };
+    void _raw;
+    return [summary ? { ...rest, summary } : rest];
+  });
 }
 
 const historyWrites = createQueue();

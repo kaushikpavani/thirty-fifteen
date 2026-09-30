@@ -113,11 +113,24 @@ export function SettingsScreen() {
     setDataNote(settingsResetNote());
   };
 
-  const deleteHistory = () =>
+  const runDeleteHistory = () =>
     guard(async () => {
       const cloud = await history.clearSessions();
       setDataNote(historyDeleteNote(cloud));
     });
+
+  // Destructive and permanent: always confirm, never act on a single tap.
+  const deleteHistory = () => {
+    const count = history.sessions.length;
+    Alert.alert(
+      'Delete ride history?',
+      `This permanently removes ${count === 1 ? 'your 1 ride' : `all ${count} rides`} from this iPhone${auth.user ? ' and your cloud account' : ''}. It cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete rides', style: 'destructive', onPress: () => void runDeleteHistory() },
+      ],
+    );
+  };
 
   const clearQueues = () =>
     guard(async () => {
@@ -125,7 +138,18 @@ export function SettingsScreen() {
       setDataNote(outboxClearNote());
     });
 
-  const erasePhone = () =>
+  const erasePhone = () => {
+    Alert.alert(
+      'Erase this iPhone?',
+      'This permanently removes every ride, your settings, and saved sensors from this iPhone. It cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Erase', style: 'destructive', onPress: () => void runErasePhone() },
+      ],
+    );
+  };
+
+  const runErasePhone = () =>
     guard(async () => {
       await meter.forget();
       await heart.forget();

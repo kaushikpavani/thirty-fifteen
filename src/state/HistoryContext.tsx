@@ -5,8 +5,8 @@ import { track } from '../storage/cloud';
 import { deleteWorkoutHistory } from '../storage/deletion';
 import type { CloudAttempt } from '../storage/deletionState';
 import { loadDeletionState } from '../storage/deletionStore';
-import { loadHistory, pullAndMerge, pushSession, saveHistory, withId } from '../storage/history';
-import { safeMergedSessions, sessionsAfterWatermark } from '../storage/merge';
+import { pullAndMerge, pushSession, readHistory, saveHistory, withId } from '../storage/history';
+import { mergeRecords, safeMergedSessions, sessionsAfterWatermark } from '../storage/merge';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 
 type HistoryContextValue = {
@@ -27,6 +27,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const [cloudNote, setCloudNote] = useState<string | null>(null);
   const sessionsRef = useRef<WorkoutRecord[]>([]);
   const generation = useRef(0);
+  /** The saved list couldn't be read this launch. Sync may show cloud rides, but must not overwrite the unread file. */
+  const readFailed = useRef(false);
   const userId = auth.user?.id ?? null;
 
   useEffect(() => {
@@ -37,7 +39,10 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     if (!auth.ready) return;
     let cancelled = false;
     void (async () => {
-      const local = sessionsAfterWatermark(await loadHistory(), (await loadDeletionState()).historyDeletedThrough);
+      let read = await readHistory();
+      if (!read.ok) read = await readHistory(); // one retry for a transient storage hiccup
+      readFailed.current = !read.ok;
+      const local = sessionsAfterWatermark(read.sessions, (await loadDeletionState()).historyDeletedThrough);
       if (cancelled) return;
       sessionsRef.current = local;
       setSessions(local);
@@ -57,7 +62,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
       sessionsRef.current = visible;
       setSessions(visible);
       setCloudNote(merged.note);
-      await saveHistory(visible);
+      if (!readFailed.current) await saveHistory(visible);
     })();
     return () => {
       cancelled = true;
@@ -80,7 +85,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         sessionsRef.current = visible;
         setSessions(visible);
         setCloudNote(merged.note);
-        await saveHistory(visible);
+        if (!readFailed.current) await saveHistory(visible);
       });
     });
     return () => sub.remove();
@@ -88,7 +93,17 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
 
   const addSession = useCallback(async (input: NewWorkoutRecord) => {
     const record = withId(input);
-    const next = [record, ...sessionsRef.current].slice(0, 200);
+    let base = sessionsRef.current;
+    if (readFailed.current) {
+      // The saved list was unreadable at launch. Try again before writing,
+      // so a new ride never replaces history that is still on disk.
+      const again = await readHistory();
+      if (again.ok) {
+        readFailed.current = false;
+        base = mergeRecords(again.sessions, base);
+      }
+    }
+    const next = [record, ...base].slice(0, 200);
     sessionsRef.current = next;
     setSessions(next);
     await saveHistory(next);
