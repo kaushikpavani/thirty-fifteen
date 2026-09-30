@@ -311,6 +311,7 @@ export function SettingsScreen() {
         <SectionHeader>Library</SectionHeader>
         <Group>
           <Row label="Past rides" onPress={() => router.push('/history')} testID="open-history" />
+          <Row label="Progress" onPress={() => router.push('/progress')} testID="open-progress" />
           <Row label="Leave a note" onPress={() => router.push('/feedback')} testID="settings-feedback" />
           <Row label="Credits" onPress={() => router.push('/credits')} testID="open-credits" />
         </Group>

@@ -76,6 +76,7 @@ function RootNavigator() {
       <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
       <Stack.Screen name="history" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="history/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="progress" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="sound" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="credits" options={{ animation: 'slide_from_right' }} />

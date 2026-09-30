@@ -197,6 +197,23 @@ export function HomeScreen() {
           </Pressable>
         ) : null}
 
+        {lastRide ? (
+          <Pressable
+            onPress={() => router.push('/progress')}
+            accessibilityRole="button"
+            testID="home-progress"
+            style={({ pressed }) => [styles.lastRide, pressed && styles.pressed]}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.lastTitle}>Progress</Text>
+              <Text style={styles.lastDetail} numberOfLines={1}>
+                {auth.user ? 'Trends, weekly load and personal records' : 'Sign in to see your trends'}
+              </Text>
+            </View>
+            <Icon name="chevron" size={14} color={ink.faint} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.spacer} />
 
         <Pill label="Start" onPress={() => void start()} testID="start" accessibilityHint="Starts the warm-up. Sensors are optional." />
