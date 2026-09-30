@@ -13,6 +13,11 @@
       "backgroundColor": "#070708"
     },
     "ios": {
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-ios-dark.png",
+        "tinted": "./assets/icon-ios-tinted.png"
+      },
       "supportsTablet": true,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
       "infoPlist": {
