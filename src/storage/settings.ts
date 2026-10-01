@@ -11,7 +11,12 @@ export async function loadSettings(): Promise<WorkoutSettings> {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw) as Partial<WorkoutSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    // Installs from before this flag: an FTP other than the default was set by the rider.
+    if (parsed.ftpSetByRider === undefined && typeof parsed.ftpWatts === 'number' && parsed.ftpWatts !== DEFAULT_SETTINGS.ftpWatts) {
+      merged.ftpSetByRider = true;
+    }
+    return merged;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

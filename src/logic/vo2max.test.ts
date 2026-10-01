@@ -7,6 +7,7 @@ import {
   vo2FromPower,
   vo2MaxCategory,
   vo2MaxEstimate,
+  currentVo2Section,
 } from './vo2max.ts';
 
 test('lbToKg converts pounds to kilograms', () => {
@@ -80,4 +81,31 @@ test('vo2MaxCategory matches the Cooper Institute bands at their edges', () => {
   assert.equal(vo2MaxCategory(40.1, 35, 'female'), 'Superior');
   // 60+ open-ended band
   assert.equal(vo2MaxCategory(50, 70, 'male'), 'Superior');
+});
+
+test('the default FTP is ignored until the rider sets one (the 40.0 bug)', () => {
+  // Age 46, 179 lb, resting 52, no rides, FTP still the 120 W default.
+  const profile = { ftpWatts: 120, weightLb: 179, ageYears: 46, sex: 'male' as const, restingHr: 52, sessions: [] };
+  const unset = currentVo2Section({ ...profile, ftpSetByRider: false })!;
+  assert.equal(unset.estimate.source, 'hr');
+  assert.equal(unset.estimate.parts.power, null);
+  assert.equal(unset.estimate.parts.hr?.maxFrom, 'age');
+  assert.ok(Math.abs(unset.estimate.value - 51.8) < 0.1, `got ${unset.estimate.value}`);
+  // The same profile with the placeholder counted would average 28.3 and 51.8 into ~40.
+  const counted = currentVo2Section({ ...profile, ftpSetByRider: true })!;
+  assert.ok(Math.abs(counted.estimate.value - 40.0) < 0.1);
+});
+
+test('when the two methods disagree, the range spans both and says so', () => {
+  const est = vo2MaxEstimate({ ftpWatts: 120, weightLb: 179, ageYears: 46, restingHr: 52 })!;
+  assert.equal(est.disagree, true);
+  assert.ok(est.low <= 28.3 && est.high >= 51.8, `range ${est.low}-${est.high}`);
+  const close = vo2MaxEstimate({ ftpWatts: 250, weightLb: 179, ageYears: 46, restingHr: 52 })!;
+  assert.equal(close.disagree, false);
+});
+
+test('a max heart rate from rides replaces the age prediction, and says where it came from', () => {
+  const est = vo2MaxEstimate({ ageYears: 46, restingHr: 52, observedMaxBpm: 184 })!;
+  assert.equal(est.parts.hr?.maxFrom, 'rides');
+  assert.equal(est.parts.hr?.maxHr, 184);
 });

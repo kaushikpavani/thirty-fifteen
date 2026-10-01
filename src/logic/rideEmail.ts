@@ -106,7 +106,7 @@ export function rideEmailHtml(session: EmailableRide, summary: RideSummary, vo2:
       <div style="background:rgba(92,200,230,0.1);border-radius:12px;padding:14px 16px;">
         <div style="color:#F5F5F2;font-size:22px;font-weight:700;">${vo2.estimate.value.toFixed(1)} <span style="color:#9B9BA1;font-size:13px;font-weight:400;">ml/kg/min VO₂max${vo2.category ? ` · ${escapeHtml(vo2.category)}` : ''}</span></div>
         <div style="color:#9B9BA1;font-size:12px;line-height:16px;margin-top:6px;">
-          Likely between ${vo2.estimate.low.toFixed(1)} and ${vo2.estimate.high.toFixed(1)} — a field estimate from your FTP and heart rate, not a lab measurement.
+          Likely between ${vo2.estimate.low.toFixed(1)} and ${vo2.estimate.high.toFixed(1)} — an estimate from your profile (FTP, weight, resting and max heart rate), not a lab measurement.
         </div>
       </div>`
     : '';

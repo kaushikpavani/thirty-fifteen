@@ -91,7 +91,10 @@ export function SettingsScreen() {
   const saveEditor = () => {
     if (!editor) return;
     const next: Partial<WorkoutSettings> = {};
-    if (editor === 'ftp') next.ftpWatts = Math.round(draftValue);
+    if (editor === 'ftp') {
+      next.ftpWatts = Math.round(draftValue);
+      next.ftpSetByRider = true;
+    }
     if (editor === 'hard') next.hardPct = Math.round(draftValue);
     if (editor === 'easy') next.easyPct = Math.round(draftValue);
     patch(next);

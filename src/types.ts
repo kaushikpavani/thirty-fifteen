@@ -34,6 +34,8 @@ export interface WorkoutSettings {
   sex?: 'male' | 'female' | null;
   weightLb?: number | null;
   restingHr?: number | null;
+  /** True once the rider has set FTP themselves. The default 120 W is a placeholder, not a measurement. */
+  ftpSetByRider?: boolean;
   /** True once the rider has seen the post-sign-in "tell us about you" prompt, whether they filled it in or skipped. */
   profilePromptSeen?: boolean;
 }

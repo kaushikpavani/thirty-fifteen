@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   sex: null,
   weightLb: null,
   restingHr: null,
+  ftpSetByRider: false,
   profilePromptSeen: false,
 };
 

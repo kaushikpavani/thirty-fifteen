@@ -45,6 +45,7 @@ export function RideDetailScreen() {
   const hasDual = repBpm.length >= 2 && repWatts.length >= 2;
   const vo2 = currentVo2Section({
     ftpWatts: settings.ftpWatts,
+    ftpSetByRider: settings.ftpSetByRider,
     weightLb: settings.weightLb,
     ageYears: settings.ageYears,
     sex: settings.sex,

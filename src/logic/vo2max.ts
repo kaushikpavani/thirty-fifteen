@@ -52,11 +52,20 @@ export function vo2FromHr(restingHr: number, maxHr: number): number | null {
 
 export type Vo2Source = 'power' | 'hr' | 'blended';
 
+/** What actually went into an estimate, so the screen can say so plainly. */
+export type Vo2Parts = {
+  power: { ftpWatts: number; weightLb: number; value: number } | null;
+  hr: { restingHr: number; maxHr: number; maxFrom: 'rides' | 'age'; value: number } | null;
+};
+
 export type Vo2Estimate = {
   value: number;
   low: number;
   high: number;
   source: Vo2Source;
+  parts: Vo2Parts;
+  /** The two methods are more than 20% apart, so the range spans both and the inputs need a look. */
+  disagree: boolean;
 };
 
 /** Half-width of the plausible range, as a fraction of the point estimate, per source. */
@@ -66,15 +75,22 @@ const MARGIN: Record<Vo2Source, number> = {
   blended: 0.07, // two independent methods agreeing narrows things a bit
 };
 
-function withMargin(value: number, source: Vo2Source): Vo2Estimate {
-  const rounded = Math.round(value * 10) / 10;
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+function withMargin(value: number, source: Vo2Source, parts: Vo2Parts): Vo2Estimate {
   const margin = value * MARGIN[source];
-  return {
-    value: rounded,
-    low: Math.round((value - margin) * 10) / 10,
-    high: Math.round((value + margin) * 10) / 10,
-    source,
-  };
+  let low = value - margin;
+  let high = value + margin;
+  let disagree = false;
+  if (parts.power && parts.hr) {
+    const a = parts.power.value;
+    const b = parts.hr.value;
+    disagree = Math.abs(a - b) / ((a + b) / 2) > 0.2;
+    // Never claim more certainty than the two methods share.
+    low = Math.min(low, a, b);
+    high = Math.max(high, a, b);
+  }
+  return { value: r1(value), low: r1(low), high: r1(high), source, parts, disagree };
 }
 
 /** The highest heart rate ever recorded across saved rides, or null without any. */
@@ -88,6 +104,7 @@ export function observedMaxBpmFromHistory(sessions: { summary?: { maxBpm?: numbe
 }
 
 export type Vo2Inputs = {
+  /** Only pass an FTP the rider actually set — the app default is a placeholder. */
   ftpWatts?: number | null;
   weightLb?: number | null;
   ageYears?: number | null;
@@ -102,26 +119,29 @@ export type Vo2Inputs = {
  * observed max or an age to estimate one from). Returns null otherwise.
  */
 export function vo2MaxEstimate(input: Vo2Inputs): Vo2Estimate | null {
-  const power =
+  const powerValue =
     input.ftpWatts != null && input.weightLb != null ? vo2FromPower(input.ftpWatts, input.weightLb) : null;
-
-  const maxHr =
-    input.observedMaxBpm != null && input.observedMaxBpm > 0
-      ? input.observedMaxBpm
-      : input.ageYears != null
-        ? estimateMaxHr(input.ageYears)
-        : null;
-  const hr = input.restingHr != null && maxHr != null ? vo2FromHr(input.restingHr, maxHr) : null;
-
-  if (power != null && hr != null) return withMargin((power + hr) / 2, 'blended');
-  if (power != null) return withMargin(power, 'power');
-  if (hr != null) return withMargin(hr, 'hr');
+  const fromRides = input.observedMaxBpm != null && input.observedMaxBpm > 0;
+  const maxHr = fromRides ? input.observedMaxBpm! : input.ageYears != null ? estimateMaxHr(input.ageYears) : null;
+  const hrValue = input.restingHr != null && maxHr != null ? vo2FromHr(input.restingHr, maxHr) : null;
+  const parts: Vo2Parts = {
+    power: powerValue != null ? { ftpWatts: input.ftpWatts!, weightLb: input.weightLb!, value: r1(powerValue) } : null,
+    hr:
+      hrValue != null
+        ? { restingHr: input.restingHr!, maxHr: maxHr!, maxFrom: fromRides ? 'rides' : 'age', value: r1(hrValue) }
+        : null,
+  };
+  if (powerValue != null && hrValue != null) return withMargin((powerValue + hrValue) / 2, 'blended', parts);
+  if (powerValue != null) return withMargin(powerValue, 'power', parts);
+  if (hrValue != null) return withMargin(hrValue, 'hr', parts);
   return null;
 }
 
 /** Convenience wrapper: settings + ride history in, a ready-to-render section out. Shared by the Fitness screen, ride email, and ride share PDF so they never disagree with each other. */
 export function currentVo2Section(input: {
   ftpWatts?: number | null;
+  /** False while FTP is still the app default; the power method is skipped then. */
+  ftpSetByRider?: boolean;
   weightLb?: number | null;
   ageYears?: number | null;
   sex?: Sex | null;
@@ -129,7 +149,7 @@ export function currentVo2Section(input: {
   sessions: { summary?: { maxBpm?: number | null } | null }[];
 }): { estimate: Vo2Estimate; category: Vo2Category | null } | null {
   const estimate = vo2MaxEstimate({
-    ftpWatts: input.ftpWatts,
+    ftpWatts: input.ftpSetByRider ? input.ftpWatts : null,
     weightLb: input.weightLb,
     ageYears: input.ageYears,
     restingHr: input.restingHr,

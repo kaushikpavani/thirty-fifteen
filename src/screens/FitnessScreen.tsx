@@ -28,7 +28,8 @@ export function FitnessScreen() {
   const observedMaxBpm = useMemo(() => observedMaxBpmFromHistory(history.sessions), [history.sessions]);
 
   const estimate = vo2MaxEstimate({
-    ftpWatts: settings.ftpWatts,
+    // The default FTP is a placeholder; only an FTP the rider set counts.
+    ftpWatts: settings.ftpSetByRider ? settings.ftpWatts : null,
     weightLb: settings.weightLb,
     ageYears: settings.ageYears,
     restingHr: settings.restingHr,
@@ -58,12 +59,11 @@ export function FitnessScreen() {
 
   const editorMeta = editor ? EDITOR_META[editor] : null;
 
-  const sourceLabel =
-    estimate?.source === 'blended'
-      ? 'power and heart rate'
-      : estimate?.source === 'power'
-        ? 'power only'
-        : 'heart rate only';
+  const parts = estimate?.parts;
+  const hints: string[] = [];
+  if (!settings.ftpSetByRider) hints.push('Set your FTP in Settings → Targets to add the power-based estimate.');
+  else if (settings.weightLb == null) hints.push('Add your weight to add the power-based estimate.');
+  if (parts?.hr?.maxFrom === 'age') hints.push('Ride once with a heart-rate strap and your real max heart rate replaces the age-based guess.');
 
   return (
     <Screen>
@@ -80,15 +80,41 @@ export function FitnessScreen() {
             </View>
             {category ? <Text style={styles.category}>{category} for your age and sex</Text> : null}
             <Text style={styles.range}>
-              Likely between {estimate.low.toFixed(1)} and {estimate.high.toFixed(1)} — estimated from your {sourceLabel}, not measured in a lab.
+              Likely between {estimate.low.toFixed(1)} and {estimate.high.toFixed(1)}. An estimate from the numbers below, not a lab test.
             </Text>
+            <View style={styles.parts} testID="vo2-parts">
+              <Text style={styles.partsTitle}>What this used</Text>
+              {parts?.power ? (
+                <Text style={styles.part}>
+                  Your FTP ({parts.power.ftpWatts} W) at {parts.power.weightLb} lb → {parts.power.value.toFixed(1)}
+                </Text>
+              ) : null}
+              {parts?.hr ? (
+                <Text style={styles.part}>
+                  Resting {parts.hr.restingHr} bpm and max {parts.hr.maxHr} bpm (
+                  {parts.hr.maxFrom === 'rides' ? 'highest on your rides' : `predicted from age ${settings.ageYears}`}) →{' '}
+                  {parts.hr.value.toFixed(1)}
+                </Text>
+              ) : null}
+              {estimate.source === 'blended' ? <Text style={styles.part}>Shown: the average of the two.</Text> : null}
+              {estimate.disagree ? (
+                <Text style={styles.warn}>
+                  These two disagree by a lot, so the range is wide. Check that your FTP is current; a measured max heart rate helps too.
+                </Text>
+              ) : null}
+              {hints.map((hint) => (
+                <Text key={hint} style={styles.hint}>
+                  {hint}
+                </Text>
+              ))}
+            </View>
           </View>
         ) : (
           <View style={styles.card}>
             <Text style={styles.category}>Not enough data yet</Text>
             <Text style={styles.range}>
-              Add your weight below (with your FTP already set in Targets), or your age and resting heart rate, and
-              we&apos;ll estimate a VO₂max.
+              Add your age and resting heart rate below, or set your FTP in Settings → Targets and add your weight,
+              and we&apos;ll estimate a VO₂max.
             </Text>
           </View>
         )}
@@ -144,9 +170,10 @@ export function FitnessScreen() {
 
         <SectionHeader>How this works</SectionHeader>
         <Footer>
-          We estimate VO₂max the same way most fitness watches do in spirit — from your FTP relative to your weight,
-          and from your heart rate relative to its resting and max values — but with our own published formulas, not
-          any proprietary algorithm. It&apos;s a trend to watch over weeks, not a clinical measurement.
+          Two published formulas: one from your FTP relative to your weight, one from your resting heart rate relative
+          to your max. Neither needs a ride, which is why a number appears as soon as your profile is filled in. Your
+          rides sharpen it: the highest heart rate a strap records replaces the age-based guess. Treat it as a trend to
+          watch over weeks, not a lab measurement.
         </Footer>
       </ScrollView>
 
@@ -183,6 +210,11 @@ const styles = StyleSheet.create({
   vo2Value: { color: ink.text, fontSize: 48, fontWeight: '600', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   vo2Unit: { color: ink.secondary, ...type.callout },
   category: { color: ink.glacier, ...type.headline, marginTop: 8 },
+  parts: { marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: ink.hairline, gap: 4 },
+  partsTitle: { color: ink.text, ...type.caption, fontWeight: '600' },
+  part: { color: ink.secondary, ...type.caption, ...type.tabular },
+  warn: { color: ink.danger, ...type.caption, marginTop: 4 },
+  hint: { color: ink.tertiary, ...type.caption, marginTop: 4 },
   range: { color: ink.secondary, ...type.caption, marginTop: 8, lineHeight: 17 },
   sexToggle: { flexDirection: 'row', gap: 6 },
   sexBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: ink.raised },

@@ -112,6 +112,7 @@ export function DoneSummary({
   const insights = insightStats(summary);
   const vo2 = currentVo2Section({
     ftpWatts: settings.ftpWatts,
+    ftpSetByRider: settings.ftpSetByRider,
     weightLb: settings.weightLb,
     ageYears: settings.ageYears,
     sex: settings.sex,
