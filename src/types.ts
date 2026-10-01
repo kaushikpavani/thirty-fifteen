@@ -36,6 +36,8 @@ export interface WorkoutSettings {
   restingHr?: number | null;
   /** True once the rider has set FTP themselves. The default 120 W is a placeholder, not a measurement. */
   ftpSetByRider?: boolean;
+  /** Newest ride id behind an FTP suggestion the rider waved off. A newer ride can suggest again. */
+  ftpSuggestionDismissed?: string | null;
   /** True once the rider has seen the post-sign-in "tell us about you" prompt, whether they filled it in or skipped. */
   profilePromptSeen?: boolean;
 }

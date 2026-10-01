@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   weightLb: null,
   restingHr: null,
   ftpSetByRider: false,
+  ftpSuggestionDismissed: null,
   profilePromptSeen: false,
 };
 

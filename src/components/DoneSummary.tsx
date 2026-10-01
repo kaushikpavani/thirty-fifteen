@@ -17,6 +17,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { Icon } from './kit/Icon';
+import { FtpCheckCard } from './FtpCheckCard';
 import { Pill } from './kit/Pill';
 import { RepDualChart } from './kit/RepDualChart';
 import { BIKE_TONES, RoadBike, RoadStream } from './bike/RoadBike';
@@ -202,6 +203,8 @@ export function DoneSummary({
             ))}
           </View>
         ) : null}
+
+        <FtpCheckCard testID="done-ftp-check" />
 
         <View style={styles.flex} />
         <View style={styles.bikeRow} pointerEvents="none">

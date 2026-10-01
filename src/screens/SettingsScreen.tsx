@@ -23,6 +23,7 @@ import { ink, type } from '../theme/tokens';
 import type { WorkoutSettings } from '../types';
 import { DEFAULT_SETTINGS, derivedWatts } from '../workout/defaults';
 import { voiceName } from '../audio/voices';
+import { useFtpCheck } from '../hooks/useFtpCheck';
 
 export function sensorValue(state: PowerConnectionState, name: string | null): string {
   if (state === 'connected') return name ?? 'Connected';
@@ -40,6 +41,7 @@ export function SettingsScreen() {
   const meter = usePowerMeter();
   const heart = useHeartRate();
   const auth = useAuth();
+  const ftpCheck = useFtpCheck();
   // A tap that can't do anything (no cloud project on this install, or the
   // provider rejected it) must still tell the rider something happened —
   // otherwise "Continue with Google" just looks broken. Fire once per
@@ -282,7 +284,46 @@ export function SettingsScreen() {
 
         <SectionHeader>Targets</SectionHeader>
         <Group>
-          <Row label="FTP" value={`${settings.ftpWatts} W`} onPress={() => openEditor('ftp')} testID="edit-ftp" />
+          <Row
+            label="FTP"
+            detail={settings.ftpSetByRider ? undefined : 'Placeholder, not set yet'}
+            value={`${settings.ftpWatts} W`}
+            onPress={() => openEditor('ftp')}
+            testID="edit-ftp"
+          />
+          {ftpCheck.suggestion ? (
+            <Row
+              label={`Suggested FTP: ${ftpCheck.suggestion.to} W`}
+              detail="From how your last rides went. Tap to review."
+              tint={ink.emberText}
+              onPress={() => {
+                const s = ftpCheck.suggestion!;
+                Alert.alert(`${s.direction === 'raise' ? 'Raise' : 'Lower'} FTP to ${s.to} W?`, s.reason, [
+                  { text: 'Not now', style: 'cancel', onPress: () => void ftpCheck.dismiss(s.latestRideId) },
+                  { text: `Use ${s.to} W`, onPress: () => void ftpCheck.accept(s.to, s.latestRideId) },
+                ]);
+              }}
+              testID="ftp-suggestion"
+            />
+          ) : ftpCheck.starting != null ? (
+            <Row
+              label={`Starting guess: ${ftpCheck.starting} W`}
+              detail="From your weight. Your rides fine-tune it."
+              tint={ink.emberText}
+              onPress={() => {
+                const w = ftpCheck.starting!;
+                Alert.alert(
+                  `Start with ${w} W?`,
+                  'A typical FTP for a recreational rider your weight. After a few rides with a power meter, 30/15 suggests raising or lowering it based on how you handle the targets.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: `Use ${w} W`, onPress: () => void ftpCheck.accept(w) },
+                  ],
+                );
+              }}
+              testID="ftp-starting"
+            />
+          ) : null}
           <Row
             label="Hard"
             leading={<View style={[styles.dot, { backgroundColor: ink.ember }]} />}
@@ -298,7 +339,13 @@ export function SettingsScreen() {
             testID="edit-easy"
           />
         </Group>
-        <Footer>Targets appear under your watts while you ride. Use a recent FTP test, or your best guess.</Footer>
+        <Footer>
+          {settings.ftpSetByRider
+            ? 'Targets appear under your watts while you ride. 30/15 suggests FTP changes as it learns from your rides.'
+            : settings.weightLb == null
+              ? "Don't know your FTP? Add your weight in Fitness for a starting guess, or just ride: after a few rides with a power meter, 30/15 suggests one."
+              : "Don't know your FTP? Use the starting guess, or just ride: after a few rides with a power meter, 30/15 suggests changes."}
+        </Footer>
 
         <SectionHeader>Sound</SectionHeader>
         <Group inset={58}>
