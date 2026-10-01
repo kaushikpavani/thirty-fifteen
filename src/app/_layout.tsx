@@ -85,6 +85,7 @@ function RootNavigator() {
       <Stack.Screen name="credits" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="fitness" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="profile-onboarding" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
+      <Stack.Screen name="sensors" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="power" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="heart" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />

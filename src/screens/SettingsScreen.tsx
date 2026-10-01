@@ -223,6 +223,7 @@ export function SettingsScreen() {
             onPress={() => router.push('/heart')}
             testID="open-heart"
           />
+          <Row label="What can I connect?" onPress={() => router.push('/sensors')} testID="open-sensor-guide" />
         </Group>
 
         <SectionHeader>Fitness</SectionHeader>

@@ -96,7 +96,9 @@ export function HomeScreen() {
   const workout = engine.state.workout;
   const minutes = Math.round(workout.totalMs / 60_000);
   const lastRide = useMemo(() => lastRideLine(history.sessions, settings.reps), [history.sessions, settings.reps]);
-  const anyConnected = meter.connectionState === 'connected' || heart.connectionState === 'connected';
+  const powerOn = meter.connectionState === 'connected';
+  const heartOn = heart.connectionState === 'connected';
+  const anyConnected = powerOn || heartOn;
 
   const start = async () => {
     await engine.start();
@@ -178,8 +180,25 @@ export function HomeScreen() {
             testID="home-hr"
           />
         </View>
-        {!anyConnected ? (
-          <Text style={styles.optional}>Sensors are optional. Start any time.</Text>
+        {!(powerOn && heartOn) ? (
+          <View style={styles.nudge} testID="home-sensor-nudge">
+            <Text style={styles.optional}>
+              {!anyConnected
+                ? 'Sensors are optional. Start any time. With a heart-rate monitor or power meter, 30/15 tracks your progress, learns your FTP, and sharpens your VO₂max estimate.'
+                : heartOn
+                  ? 'Add a power meter and 30/15 can track your hard-rep power and learn your FTP.'
+                  : 'Add a heart-rate monitor to measure efficiency and sharpen your VO₂max estimate.'}
+            </Text>
+            <Pressable
+              onPress={() => router.push('/sensors')}
+              accessibilityRole="link"
+              hitSlop={10}
+              testID="home-sensor-guide"
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={styles.nudgeLink}>What can I connect?</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {lastRide ? (
@@ -262,7 +281,9 @@ const styles = StyleSheet.create({
   tileName: { color: ink.secondary, ...type.caption },
   tileTitle: { color: ink.text, ...type.headline },
   tileAction: { color: ink.emberText, ...type.caption, fontWeight: '600' },
-  optional: { color: '#8E8E93', ...type.caption, textAlign: 'center', marginTop: 14, paddingHorizontal: 12 },
+  optional: { color: '#8E8E93', ...type.caption, textAlign: 'center', paddingHorizontal: 12 },
+  nudge: { alignItems: 'center', gap: 6, marginTop: 14 },
+  nudgeLink: { color: ink.emberText, ...type.caption, fontWeight: '600', paddingVertical: 4 },
   lastRide: {
     marginTop: 12,
     backgroundColor: ink.surface,
