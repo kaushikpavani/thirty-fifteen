@@ -25,6 +25,9 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   restingHr: null,
   ftpSetByRider: false,
   ftpSuggestionDismissed: null,
+  ftpAuto: true,
+  ftpBreakHandled: null,
+  ftpChange: null,
   profilePromptSeen: false,
 };
 

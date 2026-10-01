@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuth } from '../auth/AuthContext';
+import { FtpChangeNotice } from '../components/FtpChangeNotice';
 import { AccountBadge } from '../components/kit/AccountBadge';
 import { Icon } from '../components/kit/Icon';
 import { Pill, tapHaptic } from '../components/kit/Pill';
@@ -141,6 +142,8 @@ export function HomeScreen() {
             </Pressable>
           </View>
         </View>
+
+        <FtpChangeNotice testID="home-ftp-change" />
 
         <View style={styles.session}>
           <View style={styles.sessionTop}>

@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
-import { Footer, Group, IconTile, LargeTitle, NavBack, Row, SectionHeader, Stepper } from '../components/kit/Grouped';
+import { Footer, Group, IconTile, LargeTitle, NavBack, Row, SectionHeader, Stepper, Toggle } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
 import { useAuth } from '../auth/AuthContext';
 import type { PowerConnectionState } from '../ble/cps';
@@ -41,7 +41,8 @@ export function SettingsScreen() {
   const meter = usePowerMeter();
   const heart = useHeartRate();
   const auth = useAuth();
-  const ftpCheck = useFtpCheck();
+  const [openedAt] = useState(() => Date.now());
+  const ftpCheck = useFtpCheck(openedAt);
   // A tap that can't do anything (no cloud project on this install, or the
   // provider rejected it) must still tell the rider something happened —
   // otherwise "Continue with Google" just looks broken. Fire once per
@@ -291,7 +292,34 @@ export function SettingsScreen() {
             onPress={() => openEditor('ftp')}
             testID="edit-ftp"
           />
-          {ftpCheck.suggestion ? (
+          <Row
+            label="Adjust FTP automatically"
+            trailing={
+              <Toggle
+                value={ftpCheck.auto}
+                onChange={(on) => patch({ ftpAuto: on })}
+                label="Adjust FTP automatically"
+                testID="ftp-auto"
+              />
+            }
+            chevron={false}
+          />
+          {!ftpCheck.auto && ftpCheck.breakSuggestion ? (
+            <Row
+              label={`Suggested FTP: ${ftpCheck.breakSuggestion.to} W`}
+              detail="After time off. Tap to review."
+              tint={ink.emberText}
+              onPress={() => {
+                const b = ftpCheck.breakSuggestion!;
+                Alert.alert(`Ease FTP to ${b.to} W?`, b.reason, [
+                  { text: 'Not now', style: 'cancel', onPress: () => void ftpCheck.dismissBreak(b.rideId) },
+                  { text: `Use ${b.to} W`, onPress: () => void ftpCheck.acceptBreak(b) },
+                ]);
+              }}
+              testID="ftp-break"
+            />
+          ) : null}
+          {!ftpCheck.auto && ftpCheck.suggestion ? (
             <Row
               label={`Suggested FTP: ${ftpCheck.suggestion.to} W`}
               detail="From how your last rides went. Tap to review."
@@ -341,7 +369,9 @@ export function SettingsScreen() {
         </Group>
         <Footer>
           {settings.ftpSetByRider
-            ? 'Targets appear under your watts while you ride. 30/15 suggests FTP changes as it learns from your rides.'
+            ? ftpCheck.auto
+              ? 'FTP keeps up with you: after every ride and after time off, 30/15 adjusts it from how your recent rides went, and tells you with an Undo.'
+              : 'Targets appear under your watts while you ride. 30/15 suggests FTP changes from your recent rides and after time off.'
             : settings.weightLb == null
               ? "Don't know your FTP? Add your weight in Fitness for a starting guess, or just ride: after a few rides with a power meter, 30/15 suggests one."
               : "Don't know your FTP? Use the starting guess, or just ride: after a few rides with a power meter, 30/15 suggests changes."}

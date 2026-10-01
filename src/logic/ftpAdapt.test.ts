@@ -117,3 +117,15 @@ test('starting FTP is a typical recreational W/kg for the rider’s weight', () 
   assert.equal(startingFtp(140, 'female'), 120); // 63.5 kg × 1.9 = 120.7
   assert.equal(startingFtp(null, 'male'), null);
 });
+
+test('time off eases FTP in gentle steps, and short gaps change nothing', async () => {
+  const { breakAdjustment } = await import('./ftpAdapt.ts');
+  const last = '2026-09-01T18:00:00.000Z';
+  const at = (days: number) => Date.parse(last) + days * 86_400_000;
+  assert.equal(breakAdjustment(last, at(10), 200), null);
+  assert.equal(breakAdjustment(last, at(15), 200)!.to, 195); // 3%
+  assert.equal(breakAdjustment(last, at(30), 200)!.to, 190); // 6% → 188 → 190
+  assert.equal(breakAdjustment(last, at(60), 200)!.to, 180); // 10%
+  assert.match(breakAdjustment(last, at(30), 200)!.reason, /4 weeks since your last ride/);
+  assert.equal(breakAdjustment(null, at(30), 200), null);
+});

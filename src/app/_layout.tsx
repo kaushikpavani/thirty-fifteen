@@ -12,6 +12,7 @@ import { WorkoutProvider } from '../state/WorkoutContext';
 import { noteAppOpen } from '../storage/cloud';
 import { scheduleSync } from '../storage/sync';
 import { colors } from '../theme/colors';
+import { FtpAutoAdjuster } from '../components/FtpAutoAdjuster';
 
 export default function RootLayout() {
   return (
@@ -64,6 +65,8 @@ function RootNavigator() {
   }
 
   return (
+    <>
+    <FtpAutoAdjuster />
     <Stack
       screenOptions={{
         headerShown: false,
@@ -87,6 +90,7 @@ function RootNavigator() {
       <Stack.Screen name="feedback" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="auth-callback" options={{ animation: 'none' }} />
     </Stack>
+    </>
   );
 }
 

@@ -7,12 +7,13 @@ import { ink, radius, type } from '../theme/tokens';
 import { Pill } from './kit/Pill';
 
 /**
- * After a ride: "your rides say FTP should move — want to?" Shown only when
- * two of the last three rides agree, and only applied if the rider taps it.
+ * Manual mode, after a ride: "your rides say FTP should move — want to?"
+ * Shown when two of the last three rides agree; applied only on a tap.
+ * (In auto mode the change is already applied and FtpChangeNotice shows it.)
  */
 export function FtpCheckCard({ testID = 'ftp-check' }: { testID?: string }) {
   const { settings } = useSettings();
-  const { suggestion, accept, dismiss } = useFtpCheck();
+  const { suggestion, accept, dismiss, auto } = useFtpCheck();
   const [done, setDone] = useState<number | null>(null);
 
   if (done != null) {
@@ -26,7 +27,7 @@ export function FtpCheckCard({ testID = 'ftp-check' }: { testID?: string }) {
       </View>
     );
   }
-  if (!suggestion) return null;
+  if (!suggestion || auto) return null;
 
   const up = suggestion.direction === 'raise';
   return (

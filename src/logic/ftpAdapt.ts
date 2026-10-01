@@ -139,3 +139,27 @@ export function startingFtp(weightLb: number | null | undefined, sex: 'male' | '
   const wPerKg = sex === 'female' ? 1.9 : sex === 'male' ? 2.2 : 2.0;
   return round5(kg * wPerKg);
 }
+
+export type BreakAdjustment = { days: number; pct: number; from: number; to: number; reason: string };
+
+/**
+ * Fitness fades off the bike. Detraining studies put VO2max down roughly
+ * 3–6% after 2–4 weeks off for less-trained riders (more for very fit
+ * ones) and 6–20% after a month or more. The steps here sit at the gentle
+ * end; the first rides back will push FTP up again if it was too cautious.
+ */
+export function breakAdjustment(lastRideEndedAt: string | null, now: number, currentFtp: number): BreakAdjustment | null {
+  if (!lastRideEndedAt) return null;
+  const days = Math.floor((now - Date.parse(lastRideEndedAt)) / 86_400_000);
+  const pct = days >= 56 ? 10 : days >= 28 ? 6 : days >= 14 ? 3 : 0;
+  if (!pct) return null;
+  const to = Math.max(50, Math.min(currentFtp - 5, round5(currentFtp * (1 - pct / 100))));
+  const weeks = Math.floor(days / 7);
+  return {
+    days,
+    pct,
+    from: currentFtp,
+    to,
+    reason: `${weeks} weeks since your last ride. Fitness fades a little with time off, so targets ease about ${pct}%. Your next rides will push FTP back up as you rebuild.`,
+  };
+}

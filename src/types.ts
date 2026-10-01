@@ -38,6 +38,12 @@ export interface WorkoutSettings {
   ftpSetByRider?: boolean;
   /** Newest ride id behind an FTP suggestion the rider waved off. A newer ride can suggest again. */
   ftpSuggestionDismissed?: string | null;
+  /** Apply rides-based FTP changes without asking, with a notice and Undo. Default on. */
+  ftpAuto?: boolean;
+  /** Last ride id whose time-off adjustment was applied or waved off, so one break eases FTP once. */
+  ftpBreakHandled?: string | null;
+  /** The latest automatic FTP change, shown with Undo until the rider acknowledges it. */
+  ftpChange?: { from: number; to: number; reason: string; at: string } | null;
   /** True once the rider has seen the post-sign-in "tell us about you" prompt, whether they filled it in or skipped. */
   profilePromptSeen?: boolean;
 }
