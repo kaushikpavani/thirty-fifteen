@@ -15,9 +15,11 @@
  *   lab value (https://roadmancycling.com/blog/vo2max-cycling-what-your-number-means-guide).
  * - Uth–Sørensen–Overgaard–Pedersen non-exercise estimate,
  *   VO2max ≈ 15.3 × (HRmax / HRrest) — a simple, published HR-ratio formula.
- * - Cooper Institute normative VO2max table (age × sex bands), used only to
- *   label a value "fair/good/excellent" etc., not to compute it.
+ * - FRIEND registry percentiles (Mayo Clin Proc 2022; see data/vo2Norms),
+ *   used only to place a value among the rider's age and sex, not to compute it.
  */
+
+import { standing, type StandingLevel } from './vo2Standing';
 
 const LB_PER_KG = 0.45359237;
 
@@ -161,39 +163,11 @@ export function currentVo2Section(input: {
 
 export type Sex = 'male' | 'female';
 
-type Band = { minAge: number; maxAge: number; cuts: [number, number, number, number, number] };
+/** Where the value sits among the rider's sex and age decade, in plain words (FRIEND registry percentiles). */
+export type Vo2Category = StandingLevel;
 
-// Cooper Institute normative VO2max data (ml/kg/min), Physical Fitness
-// Specialist Certification Manual. cuts = the top of [very poor, poor, fair,
-// good, excellent]; anything above the 5th cut is "superior".
-const COOPER_FEMALE: Band[] = [
-  { minAge: 13, maxAge: 19, cuts: [24.9, 30.9, 34.9, 38.9, 41.9] },
-  { minAge: 20, maxAge: 29, cuts: [23.5, 28.9, 32.9, 36.9, 41.0] },
-  { minAge: 30, maxAge: 39, cuts: [22.7, 26.9, 31.4, 35.6, 40.0] },
-  { minAge: 40, maxAge: 49, cuts: [20.9, 24.4, 28.9, 32.8, 36.9] },
-  { minAge: 50, maxAge: 59, cuts: [20.1, 22.7, 26.9, 31.4, 35.7] },
-  { minAge: 60, maxAge: 999, cuts: [17.4, 20.1, 24.4, 30.2, 31.4] },
-];
-
-const COOPER_MALE: Band[] = [
-  { minAge: 13, maxAge: 19, cuts: [34.9, 38.3, 45.1, 50.9, 55.9] },
-  { minAge: 20, maxAge: 29, cuts: [32.9, 36.4, 42.4, 46.4, 52.4] },
-  { minAge: 30, maxAge: 39, cuts: [31.4, 35.4, 40.9, 44.9, 49.4] },
-  { minAge: 40, maxAge: 49, cuts: [30.1, 33.5, 38.9, 43.7, 48.0] },
-  { minAge: 50, maxAge: 59, cuts: [26.0, 30.9, 35.7, 40.9, 45.3] },
-  { minAge: 60, maxAge: 999, cuts: [20.4, 26.0, 32.2, 36.4, 44.2] },
-];
-
-export const VO2_CATEGORY_LABELS = ['Very poor', 'Poor', 'Fair', 'Good', 'Excellent', 'Superior'] as const;
-export type Vo2Category = (typeof VO2_CATEGORY_LABELS)[number];
-
-/** Looks up the Cooper Institute category for a value, age and sex. Null without an age or sex to place it against. */
+/** Null without an age or sex to place it against. */
 export function vo2MaxCategory(value: number, ageYears: number | null, sex: Sex | null): Vo2Category | null {
   if (ageYears == null || sex == null) return null;
-  const table = sex === 'male' ? COOPER_MALE : COOPER_FEMALE;
-  const band = table.find((b) => ageYears >= b.minAge && ageYears <= b.maxAge) ?? table[table.length - 1]!;
-  for (let i = 0; i < band.cuts.length; i++) {
-    if (value <= band.cuts[i]!) return VO2_CATEGORY_LABELS[i]!;
-  }
-  return VO2_CATEGORY_LABELS[5]!;
+  return standing(value, ageYears, sex).level;
 }

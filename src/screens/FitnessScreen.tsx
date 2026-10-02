@@ -3,12 +3,13 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Stepper } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
+import { Vo2Histogram } from '../components/kit/Vo2Histogram';
 import { useHeartRate } from '../state/HeartRateContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { ink, type } from '../theme/tokens';
 import type { WorkoutSettings } from '../types';
-import { observedMaxBpmFromHistory, vo2MaxCategory, vo2MaxEstimate, type Sex } from '../logic/vo2max';
+import { observedMaxBpmFromHistory, vo2MaxEstimate, type Sex } from '../logic/vo2max';
 
 type Editor = 'age' | 'weight' | 'restingHr' | null;
 
@@ -35,7 +36,6 @@ export function FitnessScreen() {
     restingHr: settings.restingHr,
     observedMaxBpm,
   });
-  const category = estimate ? vo2MaxCategory(estimate.value, settings.ageYears ?? null, settings.sex ?? null) : null;
 
   const openEditor = (which: Exclude<Editor, null>) => {
     const meta = EDITOR_META[which];
@@ -78,7 +78,6 @@ export function FitnessScreen() {
               <Text style={styles.vo2Value}>{estimate.value.toFixed(1)}</Text>
               <Text style={styles.vo2Unit}>ml/kg/min</Text>
             </View>
-            {category ? <Text style={styles.category}>{category} for your age and sex</Text> : null}
             <Text style={styles.range}>
               Likely between {estimate.low.toFixed(1)} and {estimate.high.toFixed(1)}. An estimate from the numbers below, not a lab test.
             </Text>
@@ -118,6 +117,24 @@ export function FitnessScreen() {
             </Text>
           </View>
         )}
+
+        {estimate && settings.ageYears != null && settings.sex ? (
+          <View style={styles.card} testID="vo2-standing">
+            <Vo2Histogram
+              value={estimate.value}
+              low={estimate.low}
+              high={estimate.high}
+              ageYears={settings.ageYears}
+              sex={settings.sex}
+              testID="vo2-histogram"
+            />
+          </View>
+        ) : estimate ? (
+          <View style={styles.card}>
+            <Text style={styles.category}>See where you stand</Text>
+            <Text style={styles.range}>Add your age and sex below to compare with people like you.</Text>
+          </View>
+        ) : null}
 
         <SectionHeader>About you</SectionHeader>
         <Group>
