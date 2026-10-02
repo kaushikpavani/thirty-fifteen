@@ -2,6 +2,8 @@ import type { RideSummary } from '../types';
 import { rideBadges, rideCardHtml } from './rideCard';
 import { rideEmailSubject, type EmailableRide, type Vo2Section } from './rideEmail';
 import { standing } from './vo2Standing';
+import { observedMaxBpmFromHistory } from './vo2max';
+import { zoneCopy, zoneResult } from './zone';
 
 export type ShareResult = 'shared' | 'unavailable' | 'cancelled';
 
@@ -24,7 +26,25 @@ export function rideCardInputFor(input: ShareRideInput) {
   const sets = Math.max(1, input.summary.setsDone);
   const inferred = reps > 0 && reps % sets === 0 ? reps / sets : null;
   const est = input.vo2?.estimate ?? null;
+  const zone = zoneResult({
+    summary: input.summary,
+    observedMaxBpm: observedMaxBpmFromHistory([...(input.sessions ?? [])]),
+    ageYears: input.ageYears ?? null,
+    hardTarget: input.session.hardWatts ?? null,
+  });
+  const copy = zone.kind === 'hr' ? zoneCopy(zone) : null;
   return {
+    zone:
+      zone.kind === 'hr' && copy
+        ? {
+            headline: copy.headline,
+            verdict: copy.verdict,
+            progress: copy.progress ?? 0,
+            goalLabel: copy.goalLabel ?? '',
+            caption: `Time at ${zone.thresholdBpm} bpm or higher, 90% of max heart rate.${zone.approx ? ' Estimated per rep.' : ''}`,
+            reached: zone.level === 'reached',
+          }
+        : null,
     endedAt: input.session.endedAt,
     ftpWatts: input.session.ftpWatts,
     completed: input.session.completed,

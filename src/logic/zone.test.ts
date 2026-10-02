@@ -92,3 +92,19 @@ test('heart-rate seconds are saved with the ride and survive storage', () => {
   assert.equal(parseStoredSummary(JSON.parse(JSON.stringify(base)))!.hrSecs, undefined);
   assert.equal(parseHrSecs({ from: 'x', secs: [] }), undefined);
 });
+
+test('the Progress trend and records use the same number as the after-ride card', async () => {
+  const { METRICS, metricPoints, personalRecords, zoneMinutes } = await import('./trends.ts');
+  const ride = (id: string, endedAt: string, summary: RideSummary) => ({
+    id, startedAt: endedAt, endedAt, durationMs: 1, plannedDurationMs: 1, ftpWatts: 200, hardWatts: 240, easyWatts: 100, completed: true, completionPct: 100, summary,
+  });
+  const a = ride('a', '2026-09-20T10:00:00Z', { ...base, maxBpm: 170, hrSecs: hrSeconds(beats([[140, 500], [160, 300]]))! });
+  const b = ride('b', '2026-09-27T10:00:00Z', { ...base, maxBpm: 170, hrSecs: hrSeconds(beats([[140, 500], [160, 420]]))! });
+  const noStrap = ride('c', '2026-09-28T10:00:00Z', { ...base, maxBpm: null, repBpm: [] });
+  const ctx = { observedMaxBpm: 170, ageYears: null };
+  assert.equal(zoneMinutes(a, ctx), 5);
+  assert.equal(zoneMinutes(noStrap, ctx), null);
+  assert.deepEqual(metricPoints([b, noStrap, a], METRICS.zone, ctx).map((p) => [p.rideId, p.value]), [['a', 5], ['b', 7]]);
+  const record = personalRecords([a, b, noStrap], ctx).find((r) => r.label === 'Most time near VO₂max')!;
+  assert.deepEqual([record.value, record.unit, record.rideId], ['7.0', 'min', 'b']);
+});

@@ -29,6 +29,8 @@ export type RideCardInput = {
   standing?: Standing | null;
   /** Achievements this ride earned, e.g. "Best hard-rep average yet". */
   badges?: string[];
+  /** Time near VO2max for this ride (see logic/zone). Drawn only when it came from heart rate. */
+  zone?: { headline: string; verdict: string; progress: number; goalLabel: string; caption: string; reached: boolean } | null;
 };
 
 const W = 600;
@@ -45,6 +47,7 @@ const C = {
   emberDeep: '#B8471F',
   glacier: '#5CC8E6',
   raised: '#2C2C2E',
+  signal: '#32D74B',
 };
 const FONT = `-apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
 
@@ -164,6 +167,32 @@ export function rideCardSvg(input: RideCardInput): { svg: string; width: number;
     y = by + 30 + 8;
   }
   y += 12;
+
+  // ——— Time near VO2max ———
+  if (input.zone) {
+    const z = input.zone;
+    const h = 146;
+    const tone = z.reached ? C.signal : C.secondary;
+    out.push(card(y, h));
+    out.push(
+      t(P, y + 36, 'TIME NEAR VO₂MAX', { size: 12, weight: 700, fill: C.tertiary, spacing: 1.4 }),
+      t(P, y + 84, esc(z.headline), { size: 44, weight: 800, spacing: -1.2 }),
+    );
+    const pw = Math.round(z.verdict.length * 7.2 + 28);
+    out.push(
+      `<rect x="${W - P - pw}" y="${y + 52}" width="${pw}" height="30" rx="15" fill="none" stroke="${tone}" stroke-width="1.5"/>`,
+      t(W - P - pw / 2, y + 72, esc(z.verdict), { size: 13, weight: 700, fill: tone, anchor: 'middle' }),
+    );
+    const trackW = W - 2 * P - 84;
+    const fillW = Math.max(8, Math.round(trackW * Math.min(1, Math.max(0, z.progress))));
+    out.push(
+      `<rect x="${P}" y="${y + 100}" width="${trackW}" height="8" rx="4" fill="${C.raised}"/>`,
+      `<rect x="${P}" y="${y + 100}" width="${fillW}" height="8" rx="4" fill="${z.reached ? C.signal : C.ember}"/>`,
+      t(W - P, y + 109, esc(z.goalLabel), { size: 12, fill: C.secondary, anchor: 'end' }),
+      t(P, y + 130, esc(z.caption), { size: 11, fill: C.tertiary }),
+    );
+    y += h + 12;
+  }
 
   // ——— Every hard rep ———
   const repW = s.repWatts ?? [];

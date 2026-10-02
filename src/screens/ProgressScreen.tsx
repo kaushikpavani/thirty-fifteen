@@ -23,9 +23,12 @@ import {
   type MetricId,
   type Period,
 } from '../logic/trends';
+import { observedMaxBpmFromHistory } from '../logic/vo2max';
+import { useSettings } from '../state/SettingsContext';
 
-const TILES: MetricId[] = ['hardWatts', 'efficiency', 'drift', 'ftp'];
+const TILES: MetricId[] = ['zone', 'hardWatts', 'efficiency', 'drift', 'ftp', 'hardBpm'];
 const COLOR: Record<MetricId, string> = {
+  zone: ink.ember,
   hardWatts: ink.ember,
   ftp: ink.ember,
   efficiency: ink.glacier,
@@ -51,17 +54,20 @@ export function ProgressScreen() {
   // Freeze "now" per visit so a render doesn't shift the windows.
   const [now] = useState(() => Date.now());
   const rides = history.sessions;
+  const { settings } = useSettings();
+  const ageYears = settings.ageYears ?? null;
+  const ctx = useMemo(() => ({ observedMaxBpm: observedMaxBpmFromHistory(rides), ageYears }), [rides, ageYears]);
   const prior = PERIODS.find((p) => p.id === period)!.prior;
 
   const series = useMemo(() => {
     const out = {} as Record<MetricId, ReturnType<typeof metricPoints>>;
-    for (const id of Object.keys(METRICS) as MetricId[]) out[id] = metricPoints(rides, METRICS[id]);
+    for (const id of Object.keys(METRICS) as MetricId[]) out[id] = metricPoints(rides, METRICS[id], ctx);
     return out;
-  }, [rides]);
+  }, [rides, ctx]);
 
   const weeks = useMemo(() => weeklyVolume(rides, 12, now), [rides, now]);
   const streak = useMemo(() => weekStreak(rides, now), [rides, now]);
-  const records = useMemo(() => personalRecords(rides), [rides]);
+  const records = useMemo(() => personalRecords(rides, ctx), [rides, ctx]);
 
   if (!auth.user) {
     return (

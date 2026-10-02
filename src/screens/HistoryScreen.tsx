@@ -10,6 +10,9 @@ import { useHistory } from '../state/HistoryContext';
 import { ink, type } from '../theme/tokens';
 import type { WorkoutRecord } from '../types';
 import { clockText } from '../logic/rideView';
+import { zoneMinutes, type TrendContext } from '../logic/trends';
+import { observedMaxBpmFromHistory } from '../logic/vo2max';
+import { useSettings } from '../state/SettingsContext';
 
 export function dayTitle(iso: string): string {
   const date = new Date(iso);
@@ -38,13 +41,16 @@ export function rideTime(session: WorkoutRecord): string {
   return new Date(session.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
-export function rideDetail(session: WorkoutRecord): string {
+export function rideDetail(session: WorkoutRecord, ctx?: TrendContext): string {
   const s = session.summary;
+  const zone = zoneMinutes(session, ctx);
   const parts = session.completed
     ? [s ? `${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}` : 'Full ride', clockText(session.durationMs)]
     : [`${clockText(session.durationMs)} ridden`];
+  // What the ride was for comes first: minutes near VO2max, when a heart-rate monitor was on.
+  if (zone != null) parts.push(`${clockText(Math.round(zone * 60_000))} near VO₂max`);
   if (s?.avgHardWatts != null) parts.push(`${s.avgHardWatts} W hard`);
-  if (s?.avgBpm != null) parts.push(`${s.avgBpm} bpm`);
+  if (zone == null && s?.avgBpm != null) parts.push(`${s.avgBpm} bpm`);
   return parts.join(' · ');
 }
 
@@ -67,6 +73,12 @@ export function HistoryScreen() {
   const history = useHistory();
   const auth = useAuth();
   const groups = useMemo(() => groupSessions(history.sessions), [history.sessions]);
+  const { settings } = useSettings();
+  const ageYears = settings.ageYears ?? null;
+  const ctx = useMemo(
+    () => ({ observedMaxBpm: observedMaxBpmFromHistory(history.sessions), ageYears }),
+    [history.sessions, ageYears],
+  );
 
   return (
     <Screen>
@@ -89,7 +101,7 @@ export function HistoryScreen() {
                   <Row
                     key={session.id}
                     label={rideTime(session)}
-                    detail={rideDetail(session)}
+                    detail={rideDetail(session, ctx)}
                     onPress={() => router.push(`/history/${session.id}`)}
                     onLongPress={() => {
                       tapHaptic('medium');

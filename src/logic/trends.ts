@@ -9,8 +9,20 @@
  * personal records call out bests (Strava, TrainerRoad).
  */
 import type { WorkoutRecord } from '../types';
+import { zoneResult } from './zone';
 
-export type MetricId = 'hardWatts' | 'efficiency' | 'drift' | 'ftp' | 'hardBpm';
+export type MetricId = 'zone' | 'hardWatts' | 'efficiency' | 'drift' | 'ftp' | 'hardBpm';
+
+/** What a metric may need to know about the rider, beyond the ride itself. */
+export type TrendContext = { observedMaxBpm: number | null; ageYears: number | null };
+const NO_CONTEXT: TrendContext = { observedMaxBpm: null, ageYears: null };
+
+/** Minutes at or above 90% of max heart rate on a ride, the same number the after-ride card shows. */
+export function zoneMinutes(ride: WorkoutRecord, ctx: TrendContext = NO_CONTEXT): number | null {
+  if (!ride.summary) return null;
+  const result = zoneResult({ summary: ride.summary, observedMaxBpm: ctx.observedMaxBpm, ageYears: ctx.ageYears, hardTarget: null });
+  return result.kind === 'hr' ? result.ms / 60_000 : null;
+}
 
 export type Metric = {
   id: MetricId;
@@ -23,12 +35,22 @@ export type Metric = {
   explain: string;
   /** What the rider needs connected for this metric to exist. */
   needs: string;
-  value: (ride: WorkoutRecord) => number | null;
+  value: (ride: WorkoutRecord, ctx?: TrendContext) => number | null;
 };
 
 const finite = (v: number | null | undefined): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export const METRICS: Record<MetricId, Metric> = {
+  zone: {
+    id: 'zone',
+    label: 'Time near VO₂max',
+    unit: 'min',
+    decimals: 1,
+    better: 'up',
+    explain: 'Minutes per ride with your heart rate at 90% of max or higher. This is what 30/15 is built to give you, so it is the clearest sign a session did its job. A guide from heart rate, not a lab measurement.',
+    needs: 'a heart-rate monitor',
+    value: (r, ctx) => zoneMinutes(r, ctx),
+  },
   hardWatts: {
     id: 'hardWatts',
     label: 'Hard-rep power',
@@ -84,10 +106,10 @@ export const METRICS: Record<MetricId, Metric> = {
 export type Point = { t: number; value: number; rideId: string };
 
 /** One point per ride that has this metric, oldest first. */
-export function metricPoints(rides: readonly WorkoutRecord[], metric: Metric): Point[] {
+export function metricPoints(rides: readonly WorkoutRecord[], metric: Metric, ctx?: TrendContext): Point[] {
   const out: Point[] = [];
   for (const ride of rides) {
-    const value = metric.value(ride);
+    const value = metric.value(ride, ctx);
     const t = Date.parse(ride.endedAt);
     if (value != null && Number.isFinite(t)) out.push({ t, value, rideId: ride.id });
   }
@@ -211,7 +233,7 @@ export function weekStreak(rides: readonly WorkoutRecord[], now: number): number
 export type Record_ = { id: string; label: string; value: string; unit: string; rideId: string; at: string };
 
 /** Personal bests across all rides. Only records the rider's data supports. */
-export function personalRecords(rides: readonly WorkoutRecord[]): Record_[] {
+export function personalRecords(rides: readonly WorkoutRecord[], ctx?: TrendContext): Record_[] {
   const out: Record_[] = [];
   const best = (label: string, unit: string, decimals: number, pick: (r: WorkoutRecord) => number | null) => {
     let top: { v: number; r: WorkoutRecord } | null = null;
@@ -221,6 +243,10 @@ export function personalRecords(rides: readonly WorkoutRecord[]): Record_[] {
     }
     if (top) out.push({ id: label, label, value: top.v.toFixed(decimals), unit, rideId: top.r.id, at: top.r.endedAt });
   };
+  best('Most time near VO₂max', 'min', 1, (r) => {
+    const minutes = zoneMinutes(r, ctx);
+    return minutes != null && minutes > 0 ? minutes : null;
+  });
   best('Best single 30-second rep', 'W', 0, (r) => (r.summary?.repWatts?.length ? Math.max(...r.summary.repWatts) : null));
   best('Best hard-rep average', 'W', 0, (r) => finite(r.summary?.avgHardWatts));
   best('Best efficiency factor', 'W/bpm', 2, (r) => finite(r.summary?.efficiencyFactor));

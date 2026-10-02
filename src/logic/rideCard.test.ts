@@ -83,3 +83,15 @@ test('badges need an earlier ride to beat, and a ride never competes with its ow
   const stronger = { ...weaker, avgHardWatts: 220, workKj: 400, repWatts: [240], efficiencyFactor: 1.5 };
   assert.deepEqual(rideBadges(summary, [{ summary: stronger }]), []);
 });
+
+test('time near VO2max is drawn on the card only when the ride has it', () => {
+  const zone = { headline: '8:15', verdict: 'Goal reached', progress: 1, goalLabel: 'Goal 6:30', caption: 'Time at 158 bpm or higher, 90% of max heart rate.', reached: true };
+  const withZone = rideCardSvg({ ...base, hardTarget: 144, zone });
+  assert.match(withZone.svg, /TIME NEAR VO₂MAX/);
+  assert.match(withZone.svg, />8:15</);
+  assert.match(withZone.svg, /Goal reached/);
+  assert.match(withZone.svg, /158 bpm or higher/);
+  const without = rideCardSvg({ ...base, hardTarget: 144 });
+  assert.doesNotMatch(without.svg, /TIME NEAR VO₂MAX/);
+  assert.ok(withZone.height > without.height);
+});
