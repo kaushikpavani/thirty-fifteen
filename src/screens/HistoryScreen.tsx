@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader } from '../components/kit/Grouped';
 import { BIKE_TONES, RoadBike } from '../components/bike/RoadBike';
+import { useAuth } from '../auth/AuthContext';
+import { tapHaptic } from '../components/kit/press';
 import { useHistory } from '../state/HistoryContext';
 import { ink, type } from '../theme/tokens';
 import type { WorkoutRecord } from '../types';
@@ -31,22 +33,39 @@ function groupSessions(sessions: WorkoutRecord[]) {
   return groups;
 }
 
-export function rideTitle(session: WorkoutRecord): string {
-  if (!session.completed) return `${clockText(session.durationMs)} ridden`;
-  return session.summary ? `${session.summary.setsDone} sets` : 'Full ride';
+/** When the ride started, in the rider's own clock style: "7:40 PM" or "19:40". */
+export function rideTime(session: WorkoutRecord): string {
+  return new Date(session.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export function rideDetail(session: WorkoutRecord): string {
   const s = session.summary;
-  const parts = session.completed ? [clockText(session.durationMs)] : [];
+  const parts = session.completed
+    ? [s ? `${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}` : 'Full ride', clockText(session.durationMs)]
+    : [`${clockText(session.durationMs)} ridden`];
   if (s?.avgHardWatts != null) parts.push(`${s.avgHardWatts} W hard`);
   if (s?.avgBpm != null) parts.push(`${s.avgBpm} bpm`);
-  parts.push(`FTP ${session.ftpWatts}`);
   return parts.join(' · ');
+}
+
+/**
+ * Deleting a ride is permanent, so it always asks first. Shared by the
+ * list (press and hold) and the ride's own page.
+ */
+export function confirmDeleteRide(session: WorkoutRecord, signedIn: boolean, onDelete: () => void): void {
+  Alert.alert(
+    'Delete this ride?',
+    `${dayTitle(session.endedAt)}, ${rideTime(session)}. This permanently removes it from this iPhone${signedIn ? ' and your cloud account' : ''}. It cannot be undone.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete ride', style: 'destructive', onPress: onDelete },
+    ],
+  );
 }
 
 export function HistoryScreen() {
   const history = useHistory();
+  const auth = useAuth();
   const groups = useMemo(() => groupSessions(history.sessions), [history.sessions]);
 
   return (
@@ -69,9 +88,18 @@ export function HistoryScreen() {
                 {group.items.map((session) => (
                   <Row
                     key={session.id}
-                    label={rideTitle(session)}
+                    label={rideTime(session)}
                     detail={rideDetail(session)}
                     onPress={() => router.push(`/history/${session.id}`)}
+                    onLongPress={() => {
+                      tapHaptic('medium');
+                      confirmDeleteRide(session, auth.user != null, () => {
+                        void history.deleteSession(session.id).then((ok) => {
+                          if (!ok) Alert.alert('Couldn’t delete that ride', 'Nothing was removed. Please try again.');
+                        });
+                      });
+                    }}
+                    accessibilityHint="Opens the ride. Press and hold to delete it."
                     testID={`history-ride-${session.id}`}
                     trailing={
                       <View style={[styles.badge, session.completed ? styles.badgeDone : null]}>
@@ -86,6 +114,7 @@ export function HistoryScreen() {
             </View>
           ))
         )}
+        {groups.length > 0 ? <Footer>Press and hold a ride to delete it.</Footer> : null}
       </ScrollView>
     </Screen>
   );

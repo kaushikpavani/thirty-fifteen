@@ -5,7 +5,7 @@ import { track } from '../storage/cloud';
 import { deleteWorkoutHistory } from '../storage/deletion';
 import type { CloudAttempt } from '../storage/deletionState';
 import { loadDeletionState } from '../storage/deletionStore';
-import { readRides, saveRides, syncRides, withId } from '../storage/history';
+import { deletedRideIds, deleteRide, readRides, saveRides, syncRides, withId } from '../storage/history';
 import { sessionsAfterWatermark } from '../storage/merge';
 import { addDownloaded, backupLine, type BackupState } from '../storage/rideSync';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
@@ -20,6 +20,8 @@ type HistoryContextValue = {
   addSession: (input: NewWorkoutRecord) => Promise<void>;
   /** Clears the on-screen list immediately, then the cloud copy when signed in. */
   clearSessions: () => Promise<CloudAttempt>;
+  /** Deletes one ride from this iPhone, and from the cloud when signed in. False if it couldn't be deleted. */
+  deleteSession: (id: string) => Promise<boolean>;
 };
 
 type SyncStatus = { kind: 'idle' | 'syncing' | 'backed-up' } | { kind: 'pending'; pending: number; reason: 'offline' | 'error' };
@@ -28,8 +30,8 @@ const HistoryContext = createContext<HistoryContextValue | null>(null);
 
 /**
  * Rides only ever get added to what this provider shows. A read, a sync, a
- * sign-in or a sign-out can bring rides in; only clearSessions (the rider's
- * own delete) takes them out.
+ * sign-in or a sign-out can bring rides in; only the rider's own deletes
+ * (clearSessions, deleteSession) take them out.
  */
 export function HistoryProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -92,10 +94,13 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
         if (again.rides.length >= read.rides.length) read = again;
       }
       const cutoff = (await loadDeletionState()).historyDeletedThrough;
+      const deleted = await deletedRideIds();
       if (cancelled) return;
       // Union with what's already on screen: a re-read (sign-in, sign-out)
       // can add rides but never take any away.
-      show(addDownloaded(sessionsAfterWatermark(read.rides, cutoff), sessionsRef.current));
+      show(
+        addDownloaded(sessionsAfterWatermark(read.rides, cutoff), sessionsRef.current).filter((ride) => !deleted.has(ride.id)),
+      );
       setReady(true);
       setStatus({ kind: 'idle' });
       if (userId) runSync();
@@ -147,6 +152,19 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     return deleteWorkoutHistory();
   }, [show]);
 
+  const deleteSession = useCallback(
+    async (id: string) => {
+      // Wait for any sync in flight so it can't re-add the ride from a stale snapshot.
+      await syncing.current?.catch(() => undefined);
+      if (!(await deleteRide(id))) return false;
+      unsaved.current = unsaved.current.filter((ride) => ride.id !== id);
+      show(sessionsRef.current.filter((ride) => ride.id !== id));
+      runSync();
+      return true;
+    },
+    [runSync, show],
+  );
+
   const backup: BackupState = useMemo(() => {
     const total = sessions.length;
     if (!userId) return { kind: 'signed-out', total };
@@ -156,8 +174,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   }, [sessions.length, userId, status]);
 
   const value = useMemo(
-    () => ({ ready, sessions, backup, cloudNote: backupLine(backup), addSession, clearSessions }),
-    [ready, sessions, backup, addSession, clearSessions],
+    () => ({ ready, sessions, backup, cloudNote: backupLine(backup), addSession, clearSessions, deleteSession }),
+    [ready, sessions, backup, addSession, clearSessions, deleteSession],
   );
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;

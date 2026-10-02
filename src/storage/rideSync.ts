@@ -4,8 +4,9 @@
  * Sync is additive in both directions: rides on the phone that the cloud
  * doesn't have are uploaded; rides in the cloud the phone doesn't have are
  * downloaded. Nothing in a sync ever removes a ride from the phone. The
- * only exception to "download what's missing" is a ride at or before the
- * rider's own history-delete cutoff, so a delete isn't undone by a sync.
+ * only exceptions to "download what's missing" are the rider's own deletes:
+ * rides at or before their history-delete cutoff, and rides they deleted
+ * one at a time. A sync never undoes a delete.
  */
 import type { WorkoutRecord } from '../types';
 
@@ -18,18 +19,24 @@ function afterCutoff(endedAt: string, deletedThrough: string | null): boolean {
   return Date.parse(endedAt) > Date.parse(deletedThrough);
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 export function planSync(
   local: readonly WorkoutRecord[],
   remote: readonly RemoteEntry[],
   deletedThrough: string | null,
-): { upload: WorkoutRecord[]; download: string[] } {
+  /** Rides the rider deleted one at a time (see rideTombstones). */
+  deleted: ReadonlySet<string> = NONE,
+): { upload: WorkoutRecord[]; download: string[]; remove: string[] } {
   const remoteIds = new Set(remote.map((entry) => entry.id));
   const localIds = new Set(local.map((ride) => ride.id));
   return {
-    upload: local.filter((ride) => !remoteIds.has(ride.id) && afterCutoff(ride.endedAt, deletedThrough)),
+    upload: local.filter((ride) => !remoteIds.has(ride.id) && !deleted.has(ride.id) && afterCutoff(ride.endedAt, deletedThrough)),
     download: remote
-      .filter((entry) => !localIds.has(entry.id) && afterCutoff(entry.endedAt, deletedThrough))
+      .filter((entry) => !localIds.has(entry.id) && !deleted.has(entry.id) && afterCutoff(entry.endedAt, deletedThrough))
       .map((entry) => entry.id),
+    // Deleted rides the cloud still has: remove them there too.
+    remove: remote.filter((entry) => deleted.has(entry.id)).map((entry) => entry.id),
   };
 }
 
@@ -38,8 +45,9 @@ export function pendingBackup(
   local: readonly WorkoutRecord[],
   cloudIds: ReadonlySet<string>,
   deletedThrough: string | null,
+  deleted: ReadonlySet<string> = NONE,
 ): WorkoutRecord[] {
-  return local.filter((ride) => !cloudIds.has(ride.id) && afterCutoff(ride.endedAt, deletedThrough));
+  return local.filter((ride) => !cloudIds.has(ride.id) && !deleted.has(ride.id) && afterCutoff(ride.endedAt, deletedThrough));
 }
 
 /**

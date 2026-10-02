@@ -2,7 +2,8 @@
  * Rides on this phone, one storage key per ride.
  *
  * The rule this module exists to enforce: a ride that reached the phone
- * stays on the phone until the rider explicitly deletes their history.
+ * stays on the phone until the rider explicitly deletes it (one ride, or
+ * their whole history).
  * Nothing here rewrites "the list" — rides are only ever added (or
  * re-written under their own id), so a bad sync response, a failed read,
  * or a crash mid-write can at worst affect one ride, never erase the rest.
@@ -144,7 +145,13 @@ export function createRideStore(kv: KeyValue) {
     await kv.setItem(MIGRATED_KEY, '1');
   }
 
-  return { read, put, removeAll };
+  /** The rider asked to delete these specific rides. Touches only their keys. */
+  async function remove(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await kv.multiRemove(ids.map(keyFor));
+  }
+
+  return { read, put, remove, removeAll };
 }
 
 export type RideStore = ReturnType<typeof createRideStore>;

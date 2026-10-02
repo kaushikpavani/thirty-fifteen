@@ -77,6 +77,8 @@ type RowProps = {
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   onPress?: () => void;
+  onLongPress?: () => void;
+  accessibilityHint?: string;
   chevron?: boolean;
   tint?: string;
   testID?: string;
@@ -93,6 +95,8 @@ export function Row({
   leading,
   trailing,
   onPress,
+  onLongPress,
+  accessibilityHint,
   chevron = onPress != null,
   tint,
   testID,
@@ -132,6 +136,8 @@ export function Row({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityHint={accessibilityHint}
       disabled={disabled}
       testID={testID}
       accessibilityRole="button"

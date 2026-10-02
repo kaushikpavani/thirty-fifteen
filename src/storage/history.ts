@@ -10,6 +10,7 @@ import { createId } from './id';
 import { createQueue } from './queue';
 import { createRideStore, parseRecord, type StoreRead } from './rideStore';
 import { chunk, pendingBackup, planSync, toIso, type RemoteEntry } from './rideSync';
+import { createTombstones } from './rideTombstones';
 
 export { mergeRecords } from './merge';
 export { createId };
@@ -17,8 +18,8 @@ export { createId };
 /**
  * Rides on this phone are the source of truth, stored one key per ride
  * (see rideStore). The cloud is a backup: sync only ever adds rides in
- * either direction, and only the rider's own "Delete ride history"
- * removes rides from the phone.
+ * either direction, and only the rider's own deletes (one ride, or
+ * "Delete ride history") remove rides from the phone.
  */
 
 const store = createRideStore({
@@ -30,6 +31,11 @@ const store = createRideStore({
 });
 
 const writes = createQueue();
+
+const tombstones = createTombstones({
+  getItem: (key) => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+});
 
 export function readRides(): Promise<StoreRead> {
   return writes(() => store.read());
@@ -56,6 +62,37 @@ export async function saveRides(rides: WorkoutRecord[]): Promise<boolean> {
 /** The rider asked to delete their history on this phone. Does not talk to the cloud. */
 export async function clearHistory(): Promise<void> {
   await writes(() => store.removeAll());
+}
+
+/**
+ * The rider asked to delete one ride. The delete is recorded first so no
+ * sync can bring the ride back; only then is it removed from the phone.
+ * Returns false, with the ride untouched, if the delete couldn't be recorded.
+ * The cloud copy is removed by the next sync (see syncRides).
+ */
+export async function deleteRide(id: string): Promise<boolean> {
+  try {
+    await tombstones.add(id);
+  } catch {
+    return false;
+  }
+  await writes(async () => {
+    try {
+      await store.remove([id]);
+    } catch {
+      // The recorded delete keeps it off screen; the key is retried below on the next read.
+    }
+  });
+  return true;
+}
+
+/** Ids of rides deleted one at a time. Used to keep them off screen even if a key removal failed. */
+export async function deletedRideIds(): Promise<ReadonlySet<string>> {
+  try {
+    return await tombstones.load();
+  } catch {
+    return new Set();
+  }
 }
 
 export function withId(input: NewWorkoutRecord): WorkoutRecord {
@@ -188,6 +225,7 @@ export async function syncRides(local: WorkoutRecord[]): Promise<SyncResult> {
   const user = await loadCachedAuthUser();
   if (!user) return { kind: 'signed-out' };
   const cutoff = (await loadDeletionState()).historyDeletedThrough;
+  const deleted = await deletedRideIds();
   const everything = { kind: 'synced' as const, downloaded: [] as WorkoutRecord[] };
   let remote: RemoteEntry[];
   try {
@@ -196,17 +234,25 @@ export async function syncRides(local: WorkoutRecord[]): Promise<SyncResult> {
     const message = err instanceof Error ? err.message : '';
     return {
       ...everything,
-      pending: pendingBackup(local, new Set(), cutoff).map((ride) => ride.id),
+      pending: pendingBackup(local, new Set(), cutoff, deleted).map((ride) => ride.id),
       reason: offline(message) ? 'offline' : 'error',
     };
   }
-  const plan = planSync(local, remote, cutoff);
+  const plan = planSync(local, remote, cutoff, deleted);
   const cloudIds = new Set(remote.map((entry) => entry.id));
   let reason: 'offline' | 'error' | null = null;
   try {
     for (const id of await uploadRides(supabase, plan.upload, user.id)) cloudIds.add(id);
   } catch (err) {
     reason = offline(err instanceof Error ? err.message : '') ? 'offline' : 'error';
+  }
+  // Remove the cloud copies of rides the rider deleted. If this fails it is retried on the next sync.
+  try {
+    for (const batch of chunk(plan.remove, DOWNLOAD_CHUNK)) {
+      await supabase.from('workout_sessions').delete().in('id', batch);
+    }
+  } catch {
+    // Offline or rejected: the ids stay recorded and are retried.
   }
   let downloaded: WorkoutRecord[] = [];
   try {
@@ -215,6 +261,6 @@ export async function syncRides(local: WorkoutRecord[]): Promise<SyncResult> {
   } catch (err) {
     reason = reason ?? (offline(err instanceof Error ? err.message : '') ? 'offline' : 'error');
   }
-  const pending = pendingBackup(local, cloudIds, cutoff).map((ride) => ride.id);
+  const pending = pendingBackup(local, cloudIds, cutoff, deleted).map((ride) => ride.id);
   return { kind: 'synced', downloaded, pending, reason: pending.length ? (reason ?? 'error') : null };
 }

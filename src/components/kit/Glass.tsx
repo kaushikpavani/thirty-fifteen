@@ -64,7 +64,21 @@ const TINT: Record<GlassTint, { color: string; ramp: readonly [string, string, s
 
 export function Glass({ radius, tint, interactive = false, style, children }: GlassProps) {
   const solid = useReduceTransparency();
+  // Light from above: a bright top lip that falls away by the middle, and a rim that catches it.
+  const bevel = (
+    <>
+      <LinearGradient
+        pointerEvents="none"
+        colors={tint ? ['rgba(255,255,255,0.26)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.10)'] : ['rgba(255,255,255,0.20)', 'rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
+        locations={[0, 0.5, 1]}
+        style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
+      />
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.rim, { borderRadius: radius }, tint ? styles.rimTint : null]} />
+    </>
+  );
   if (LIQUID) {
+    // Real Liquid Glass bends whatever is behind it, and most of this app sits on true black,
+    // where there is nothing to bend. The bevel keeps the control reading as glass there too.
     return (
       <GlassView
         glassEffectStyle="regular"
@@ -73,6 +87,9 @@ export function Glass({ radius, tint, interactive = false, style, children }: Gl
         tintColor={tint ? TINT[tint].color : undefined}
         style={[{ borderRadius: radius }, style]}
       >
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {bevel}
+        </View>
         {children}
       </GlassView>
     );
@@ -83,18 +100,9 @@ export function Glass({ radius, tint, interactive = false, style, children }: Gl
         {tint ? (
           <LinearGradient pointerEvents="none" colors={TINT[tint].ramp} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
         ) : (
-          <>
-            {solid ? null : <BlurView pointerEvents="none" intensity={36} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />}
-            {/* Light from above: bright at the top lip, falling away by the middle. */}
-            <LinearGradient
-              pointerEvents="none"
-              colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.10)']}
-              locations={[0, 0.5, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-          </>
+          solid ? null : <BlurView pointerEvents="none" intensity={36} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
         )}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.rim, { borderRadius: radius }, tint ? styles.rimTint : null]} />
+        {bevel}
       </View>
       {children}
     </View>
@@ -155,9 +163,9 @@ const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
   // On the web, absolutely positioned layers paint over unpositioned children (SVG icons), so the backing sits behind.
   backing: Platform.OS === 'web' ? { zIndex: -1 } : {},
-  frost: { backgroundColor: 'rgba(118,118,128,0.20)' },
+  frost: { backgroundColor: 'rgba(118,118,128,0.24)' },
   solid: { backgroundColor: ink.raised },
-  rim: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
-  rimTint: { borderColor: 'rgba(255,255,255,0.26)' },
+  rim: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)' },
+  rimTint: { borderColor: 'rgba(255,255,255,0.32)' },
   center: { alignItems: 'center', justifyContent: 'center' },
 });

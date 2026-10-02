@@ -1,6 +1,6 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { doneStats, RepChart } from '../components/DoneSummary';
 import { RepDualChart } from '../components/kit/RepDualChart';
@@ -10,7 +10,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { insightStats } from '../logic/rideSummary';
-import { dayTitle } from './HistoryScreen';
+import { confirmDeleteRide, dayTitle, rideTime } from './HistoryScreen';
 import { ink, radius, type, surface } from '../theme/tokens';
 import { emailRideSummary } from '../logic/rideEmail';
 import { shareRidePdf } from '../logic/rideShare';
@@ -71,13 +71,26 @@ export function RideDetailScreen() {
     });
   };
 
+  const deleteThisRide = () => {
+    confirmDeleteRide(session, auth.user != null, () => {
+      void history.deleteSession(session.id).then((ok) => {
+        if (!ok) {
+          Alert.alert('Couldn’t delete that ride', 'Nothing was removed. Please try again.');
+          return;
+        }
+        if (router.canGoBack()) router.back();
+        else router.replace('/history');
+      });
+    });
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
         <NavBack inset={0} label="Past rides" testID="ride-detail-back" />
         <LargeTitle inset={4}>{dayTitle(session.endedAt)}</LargeTitle>
         <Text style={styles.subtitle}>
-          {session.completed ? 'Finished' : 'Ended early'} · FTP {session.ftpWatts} W
+          {rideTime(session)} · {session.completed ? 'Finished' : 'Ended early'} · FTP {session.ftpWatts} W
         </Text>
 
         {!summary ? (
@@ -147,6 +160,15 @@ export function RideDetailScreen() {
             ) : null}
           </View>
         ) : null}
+
+        <Pressable
+          onPress={deleteThisRide}
+          accessibilityRole="button"
+          testID="ride-detail-delete"
+          style={({ pressed }) => [styles.delete, pressed && styles.deletePressed]}
+        >
+          <Text style={styles.deleteText}>Delete this ride</Text>
+        </Pressable>
       </ScrollView>
     </Screen>
   );
@@ -155,6 +177,9 @@ export function RideDetailScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48, gap: 0 },
   actions: { gap: 10, marginTop: 18 },
+  delete: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  deletePressed: { opacity: 0.6 },
+  deleteText: { color: ink.danger, ...type.body },
   subtitle: { color: ink.secondary, ...type.callout, marginTop: 4, marginBottom: 8 },
   missing: { color: ink.secondary, ...type.body, marginTop: 24, textAlign: 'center' },
   card: { ...surface.card, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
