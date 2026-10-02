@@ -1,4 +1,5 @@
 import type { PhaseKind, RideSummary } from '../types';
+import { hrSeconds, parseHrSecs } from './zone';
 
 export const SPARKLINE_MAX = 48;
 
@@ -200,7 +201,9 @@ export function summarizeRide(input: {
   const avgHardBpm = mean(hardBpm);
   const perRepWatts = repWatts(input.segments, input.samples);
   const perRepBpm = repBpm(input.segments, input.samples);
+  const hrSecs = hrSeconds(input.samples);
   return {
+    ...(hrSecs ? { hrSecs } : {}),
     setsDone: done,
     setsPlanned: planned,
     durationMs: elapsed,
@@ -321,7 +324,9 @@ export function parseStoredSummary(raw: unknown): RideSummary | undefined {
     : [];
   const ef = nullableDecimal(row.efficiencyFactor);
   const decoupling = nullableDecimal(row.decouplingPct);
+  const hrSecs = parseHrSecs(row.hrSecs);
   return {
+    ...(hrSecs ? { hrSecs } : {}),
     setsDone,
     setsPlanned,
     durationMs,

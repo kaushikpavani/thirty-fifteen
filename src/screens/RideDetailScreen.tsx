@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '../components/Screen';
+import { ZoneCard } from '../components/ZoneCard';
 import { doneStats, RepChart } from '../components/DoneSummary';
 import { RepDualChart } from '../components/kit/RepDualChart';
 import { Footer, LargeTitle, NavBack } from '../components/kit/Grouped';
@@ -96,6 +97,8 @@ export function RideDetailScreen() {
         {!summary ? (
           <Footer>This ride finished before per-rep stats were tracked, so only the basics are saved.</Footer>
         ) : null}
+
+        {summary ? <ZoneCard summary={summary} hardTarget={session.hardWatts} testID="ride-detail-zone" /> : null}
 
         {repWatts.length > 0 ? (
           <View style={styles.card} testID="ride-detail-power">

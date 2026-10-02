@@ -5,7 +5,7 @@ export const WHY_TITLE = 'Why 30/15';
 export const WHY_SECTIONS = [
   {
     title: 'More time where it counts',
-    body: 'Fifteen seconds is too short for your oxygen uptake to fall. You stack up more minutes near VO₂max than you could hold in one long effort.',
+    body: 'Fifteen seconds is too short for your oxygen uptake to fall. You stack up more minutes near VO₂max than you could hold in one long effort. After each ride, 30/15 shows how long you spent there.',
   },
   {
     title: 'Backed by research',

@@ -104,6 +104,8 @@ export interface RideSummary {
    * enough paired reps to split in half.
    */
   decouplingPct?: number | null;
+  /** Seconds spent at each heart rate (secs[0] is `from` bpm). Lets a ride say how long it spent near VO2max. Absent without a strap, and on older rides. */
+  hrSecs?: { from: number; secs: number[] };
 }
 
 export interface WorkoutRecord {

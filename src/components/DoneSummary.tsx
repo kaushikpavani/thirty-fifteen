@@ -18,6 +18,7 @@ import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { Icon } from './kit/Icon';
 import { FtpCheckCard } from './FtpCheckCard';
+import { ZoneCard } from './ZoneCard';
 import { FtpChangeNotice } from './FtpChangeNotice';
 import { Pill } from './kit/Pill';
 import { RepDualChart } from './kit/RepDualChart';
@@ -162,6 +163,8 @@ export function DoneSummary({
           {FINISH_TITLE}
         </Animated.Text>
         <Text style={styles.subtitle}>{FINISH_SUBTITLE}</Text>
+
+        <ZoneCard summary={summary} hardTarget={hardTarget} testID="done-zone" />
 
         {repWatts.length > 0 ? (
           <View style={styles.card} testID="done-power">
