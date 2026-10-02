@@ -8,7 +8,7 @@ import { Vo2Histogram } from '../components/kit/Vo2Histogram';
 import { useHeartRate } from '../state/HeartRateContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
-import { ink, type } from '../theme/tokens';
+import { ink, type, surface } from '../theme/tokens';
 import type { WorkoutSettings } from '../types';
 import { observedMaxBpmFromHistory, vo2MaxEstimate, type Sex } from '../logic/vo2max';
 
@@ -69,8 +69,8 @@ export function FitnessScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <NavBack label="Settings" testID="fitness-back" />
-        <LargeTitle>Fitness</LargeTitle>
+        <NavBack inset={0} label="Settings" testID="fitness-back" />
+        <LargeTitle inset={4}>Fitness</LargeTitle>
 
         {estimate ? (
           <View style={styles.card} testID="vo2-card">
@@ -223,7 +223,7 @@ export function FitnessScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48 },
-  card: { backgroundColor: ink.surface, borderRadius: 18, padding: 20, marginTop: 12, marginBottom: 8 },
+  card: { ...surface.card, borderRadius: 26, padding: 20, marginTop: 12, marginBottom: 8 },
   vo2Label: { color: ink.secondary, ...type.caption },
   vo2Row: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
   vo2Value: { color: ink.text, fontSize: 48, fontWeight: '600', letterSpacing: -1, fontVariant: ['tabular-nums'] },

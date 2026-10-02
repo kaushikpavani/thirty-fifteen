@@ -11,7 +11,7 @@ import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { insightStats } from '../logic/rideSummary';
 import { dayTitle } from './HistoryScreen';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 import { emailRideSummary } from '../logic/rideEmail';
 import { shareRidePdf } from '../logic/rideShare';
 import { shareSignInAlert } from '../logic/shareGate';
@@ -28,8 +28,8 @@ export function RideDetailScreen() {
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <NavBack label="Past rides" testID="ride-detail-back" />
-          <LargeTitle>Ride</LargeTitle>
+          <NavBack inset={0} label="Past rides" testID="ride-detail-back" />
+          <LargeTitle inset={4}>Ride</LargeTitle>
           <Text style={styles.missing}>This ride is not on this iPhone anymore.</Text>
         </ScrollView>
       </Screen>
@@ -74,8 +74,8 @@ export function RideDetailScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <NavBack label="Past rides" testID="ride-detail-back" />
-        <LargeTitle>{dayTitle(session.endedAt)}</LargeTitle>
+        <NavBack inset={0} label="Past rides" testID="ride-detail-back" />
+        <LargeTitle inset={4}>{dayTitle(session.endedAt)}</LargeTitle>
         <Text style={styles.subtitle}>
           {session.completed ? 'Finished' : 'Ended early'} · FTP {session.ftpWatts} W
         </Text>
@@ -154,10 +154,10 @@ export function RideDetailScreen() {
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48, gap: 0 },
-  actions: { gap: 10, marginTop: 4 },
+  actions: { gap: 10, marginTop: 18 },
   subtitle: { color: ink.secondary, ...type.callout, marginTop: 4, marginBottom: 8 },
   missing: { color: ink.secondary, ...type.body, marginTop: 24, textAlign: 'center' },
-  card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
+  card: { ...surface.card, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 },
   cardTitle: { color: ink.text, fontSize: 15, fontWeight: '600' },
   cardMeta: { color: ink.secondary, ...type.caption },

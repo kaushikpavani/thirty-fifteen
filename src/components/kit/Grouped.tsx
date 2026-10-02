@@ -2,24 +2,22 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Switch, Text, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { ink, radius, type } from '../../theme/tokens';
+import { GlassButton } from './Glass';
 import { Icon, type IconName } from './Icon';
 
 /** iOS inset-grouped list pieces, tuned to Carbon & Ember. */
 
-export function NavBack({ label, testID, title }: { label: string; testID?: string; title?: string }) {
+/** The back button: a glass circle with a chevron, as in iOS 26. The label is spoken, not shown. */
+export function NavBack({ label, testID, title, inset = 16 }: { label: string; testID?: string; title?: string; inset?: number }) {
   return (
-    <View style={styles.nav}>
-      <Pressable
+    <View style={[styles.nav, { paddingHorizontal: inset }]}>
+      <GlassButton
+        icon="back"
+        iconSize={20}
         onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
-        accessibilityRole="button"
         accessibilityLabel={`Back to ${label}`}
         testID={testID}
-        hitSlop={8}
-        style={styles.back}
-      >
-        <Icon name="back" size={20} color={ink.emberText} />
-        <Text style={styles.backLabel}>{label}</Text>
-      </Pressable>
+      />
       {title ? (
         <Text style={styles.navTitle} pointerEvents="none" accessibilityRole="header">
           {title}
@@ -29,9 +27,9 @@ export function NavBack({ label, testID, title }: { label: string; testID?: stri
   );
 }
 
-export function LargeTitle({ children }: { children: string }) {
+export function LargeTitle({ children, inset = 20 }: { children: string; inset?: number }) {
   return (
-    <Text style={styles.largeTitle} accessibilityRole="header">
+    <Text style={[styles.largeTitle, { paddingHorizontal: inset }]} accessibilityRole="header">
       {children}
     </Text>
   );
@@ -187,11 +185,9 @@ export function Stepper({
 }
 
 const styles = StyleSheet.create({
-  nav: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, alignSelf: 'flex-start', paddingHorizontal: 8 },
-  backLabel: { color: ink.emberText, fontSize: 17 },
+  nav: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-start', marginTop: 4, marginBottom: 6 },
   navTitle: { position: 'absolute', left: 0, right: 0, textAlign: 'center', color: ink.text, ...type.headline },
-  largeTitle: { color: ink.text, ...type.largeTitle, paddingHorizontal: 20, marginTop: 2 },
+  largeTitle: { color: ink.text, ...type.largeTitle, marginTop: 2 },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,7 +198,14 @@ const styles = StyleSheet.create({
   },
   section: { color: '#8E8E93', ...type.section },
   footer: { color: '#8E8E93', ...type.caption, paddingHorizontal: 32, marginTop: 8 },
-  group: { backgroundColor: ink.grouped, borderRadius: radius.group, overflow: 'hidden', marginHorizontal: 16 },
+  group: {
+    backgroundColor: ink.grouped,
+    borderRadius: radius.group,
+    overflow: 'hidden',
+    marginHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.09)',
+  },
   hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginLeft: 16 },
   tile: { alignItems: 'center', justifyContent: 'center' },
   row: { minHeight: 54, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -212,7 +215,7 @@ const styles = StyleSheet.create({
   rowLabel: { color: ink.text, ...type.body },
   rowDetail: { color: ink.secondary, ...type.caption },
   rowValue: { color: ink.secondary, ...type.body, ...type.tabular, flexShrink: 0, maxWidth: '55%' },
-  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: ink.raised, borderRadius: 9, height: 32, overflow: 'hidden' },
+  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: ink.raised, borderRadius: 16, height: 32, overflow: 'hidden' },
   stepHit: { width: 46, height: 32, alignItems: 'center', justifyContent: 'center' },
   stepSplit: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.12)' },
   stepGlyph: { color: ink.text, fontSize: 22, lineHeight: 26 },

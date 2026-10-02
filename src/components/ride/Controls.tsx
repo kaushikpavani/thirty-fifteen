@@ -2,7 +2,8 @@ import React, { useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAnimatedValue } from '../../hooks/useAnimatedValue';
 import { Icon, type IconName } from '../kit/Icon';
-import { tapHaptic, usePressScale } from '../kit/Pill';
+import { Glass } from '../kit/Glass';
+import { tapHaptic, usePressScale } from '../kit/press';
 import { ink, motion } from '../../theme/tokens';
 
 /** The only control while the clock runs. Glass, 84 pt, centered under the thumb. */
@@ -21,9 +22,10 @@ export function PauseGlass({ onPress }: { onPress: () => void }) {
           onPress();
         }}
         hitSlop={12}
-        style={styles.glass}
       >
-        <Icon name="pause" size={26} color="#FFFFFF" />
+        <Glass radius={42} interactive style={styles.glass}>
+          <Icon name="pause" size={26} color="#FFFFFF" />
+        </Glass>
       </Pressable>
     </Animated.View>
   );
@@ -47,9 +49,10 @@ export function WarmupJump({ icon, label, hint, onPress, testID }: { icon: IconN
             onPress();
           }}
           hitSlop={8}
-          style={styles.jump}
         >
-          <Icon name={icon} size={20} color="#FFFFFF" />
+          <Glass radius={28} interactive style={styles.jump}>
+            <Icon name={icon} size={20} color="#FFFFFF" />
+          </Glass>
         </Pressable>
       </Animated.View>
       <Text style={styles.jumpLabel}>{label}</Text>
@@ -102,10 +105,12 @@ export function HoldToEnd({ onEnd }: { onEnd: () => void }) {
       testID="end"
       onPressIn={begin}
       onPressOut={cancel}
-      style={styles.hold}
+      style={styles.holdWrap}
     >
-      <Animated.View style={[styles.holdFill, { width }]} />
-      <Text style={styles.holdLabel}>Hold to end</Text>
+      <Glass radius={30} style={styles.hold}>
+        <Animated.View style={[styles.holdFill, { width }]} />
+        <Text style={styles.holdLabel}>Hold to end</Text>
+      </Glass>
     </Pressable>
   );
 }
@@ -124,39 +129,14 @@ export function StatTriplet({ items }: { items: { value: string; label: string }
 }
 
 const styles = StyleSheet.create({
-  glass: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.32)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  glass: { width: 84, height: 84, alignItems: 'center', justifyContent: 'center' },
   jumpWrap: { alignItems: 'center', gap: 6, marginTop: 22 },
-  jump: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  jump: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
   jumpLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
-  hold: {
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    alignSelf: 'stretch',
-  },
+  holdWrap: { alignSelf: 'stretch' },
+  hold: { height: 60, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,90,70,0.32)' },
-  holdLabel: { color: ink.danger, fontSize: 20, fontWeight: '600' },
+  holdLabel: { color: ink.danger, fontSize: 19, fontWeight: '600' },
   triplet: {
     flexDirection: 'row',
     alignSelf: 'stretch',

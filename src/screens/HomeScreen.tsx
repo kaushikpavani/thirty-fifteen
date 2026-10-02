@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthContext';
 import { FtpChangeNotice } from '../components/FtpChangeNotice';
 import { AccountBadge } from '../components/kit/AccountBadge';
+import { GlassButton } from '../components/kit/Glass';
 import { Icon } from '../components/kit/Icon';
 import { Pill, tapHaptic } from '../components/kit/Pill';
 import { ProfileChart } from '../components/kit/ProfileChart';
@@ -19,7 +21,7 @@ import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { track } from '../storage/cloud';
 import { lastRideLine } from './lastRide';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 
 function SensorTile({
   kind,
@@ -52,7 +54,7 @@ function SensorTile({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${connected ? `Connected${name ? ` to ${name}` : ''}. ${value == null ? 'No reading' : `${value} ${unit}`}` : status}`}
-      style={({ pressed }) => [styles.tile, !connected && styles.tileIdle, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
       <View style={styles.tileTop}>
         <View style={[styles.tileIcon, { backgroundColor: connected ? soft : ink.grouped }]}>
@@ -93,6 +95,8 @@ export function HomeScreen() {
   const heart = useHeartRate();
   const history = useHistory();
   const [whyOpen, setWhyOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+  const dock = Math.max(insets.bottom, 12);
   const workout = engine.state.workout;
   const minutes = Math.round(workout.totalMs / 60_000);
   const lastRide = useMemo(() => lastRideLine(history.sessions, settings.reps), [history.sessions, settings.reps]);
@@ -116,32 +120,23 @@ export function HomeScreen() {
   const heartName = heart.phase.phase === 'connected' ? heart.phase.name : null;
 
   return (
-    <Screen bottom>
+    <Screen>
       <LinearGradient
         pointerEvents="none"
         colors={['rgba(255,90,31,0)', 'rgba(255,90,31,0.10)', 'rgba(255,90,31,0.22)']}
         locations={[0, 0.6, 1]}
         style={styles.glow}
       />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: dock + START_H + 28 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.wordmark} accessibilityRole="header" accessibilityLabel="30 15">
             30<Text style={{ color: ink.ember }}>/</Text>15
           </Text>
           <View style={styles.headerActions}>
             {auth.user ? (
-              <AccountBadge name={auth.user.name ?? auth.user.email ?? 'Signed in'} testID="home-account-badge" />
+              <AccountBadge name={auth.user.name ?? auth.user.email ?? 'Signed in'} size={44} testID="home-account-badge" />
             ) : null}
-            <Pressable
-              onPress={() => router.push('/settings')}
-              testID="open-settings"
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-              hitSlop={6}
-              style={({ pressed }) => [styles.gear, pressed && styles.pressed]}
-            >
-              <Icon name="sliders" size={20} />
-            </Pressable>
+            <GlassButton icon="sliders" onPress={() => router.push('/settings')} accessibilityLabel="Settings" testID="open-settings" />
           </View>
         </View>
 
@@ -236,9 +231,6 @@ export function HomeScreen() {
           </Pressable>
         ) : null}
 
-        <View style={styles.spacer} />
-
-        <Pill label="Start" onPress={() => void start()} testID="start" accessibilityHint="Starts the warm-up. Sensors are optional." />
         <Pressable
           onPress={() => setWhyOpen(true)}
           testID="why-3015"
@@ -249,27 +241,40 @@ export function HomeScreen() {
           <Text style={styles.whyText}>Why 30/15</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Start floats above the page. Content fades out beneath it instead of ending at a hard line. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(16,6,2,0)', 'rgba(16,6,2,0.86)', 'rgba(16,6,2,0.96)']}
+        locations={[0, 0.55, 1]}
+        style={[styles.edge, { height: dock + START_H + 56 }]}
+      />
+      <View style={[styles.dock, { paddingBottom: dock }]} pointerEvents="box-none">
+        <Pill label="Start" height={START_H} onPress={() => void start()} testID="start" accessibilityHint="Starts the warm-up. Sensors are optional." />
+      </View>
       <WhySheet visible={whyOpen} onClose={() => setWhyOpen(false)} />
     </Screen>
   );
 }
 
+const START_H = 62;
+
 const styles = StyleSheet.create({
-  glow: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 300 },
-  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12 },
+  glow: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 340 },
+  scroll: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 6 },
+  edge: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  dock: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   wordmark: { color: ink.text, ...type.largeTitle, letterSpacing: -0.8 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  gear: { width: 44, height: 44, borderRadius: 22, backgroundColor: ink.grouped, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.7 },
-  session: { marginTop: 22, backgroundColor: ink.surface, borderRadius: radius.card, padding: 20, paddingBottom: 18, gap: 18 },
+  session: { marginTop: 22, ...surface.card, borderRadius: radius.card, padding: 20, paddingBottom: 18, gap: 18 },
   sessionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   caption: { color: ink.secondary, ...type.callout },
   sessionTitle: { color: ink.text, fontSize: 44, lineHeight: 48, fontWeight: '600', letterSpacing: -1.5, ...type.tabular },
   bike: { marginTop: 4, marginRight: -6 },
   tiles: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  tile: { flex: 1, backgroundColor: ink.surface, borderRadius: radius.tile, padding: 16, minHeight: 112, gap: 14, justifyContent: 'space-between' },
-  tileIdle: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.14)' },
+  tile: { flex: 1, ...surface.card, borderRadius: radius.tile, padding: 16, minHeight: 112, gap: 14, justifyContent: 'space-between' },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tileIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   live: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -286,7 +291,7 @@ const styles = StyleSheet.create({
   nudgeLink: { color: ink.emberText, ...type.caption, fontWeight: '600', paddingVertical: 4 },
   lastRide: {
     marginTop: 12,
-    backgroundColor: ink.surface,
+    ...surface.card,
     borderRadius: radius.row,
     minHeight: 60,
     paddingHorizontal: 16,
@@ -296,7 +301,6 @@ const styles = StyleSheet.create({
   },
   lastTitle: { color: ink.text, fontSize: 15, fontWeight: '600' },
   lastDetail: { color: ink.secondary, ...type.caption, ...type.tabular },
-  spacer: { flex: 1, minHeight: 24 },
-  why: { marginTop: 6, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  why: { marginTop: 10, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   whyText: { color: ink.secondary, ...type.callout },
 });

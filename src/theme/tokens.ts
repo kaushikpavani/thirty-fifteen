@@ -5,7 +5,7 @@
  * color floods the screen, and there it tells the time.
  * Mirrors docs/ux/tokens.md. Hierarchy matters more than any single hex.
  */
-import { Platform, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 import type { PhaseKind } from '../types';
 
 export const ink = {
@@ -64,6 +64,14 @@ export function fieldFor(kind: PhaseKind): Field {
       return fields.warmup;
   }
 }
+
+/**
+ * Content surfaces. Cards are the content layer, so they stay opaque (glass
+ * is for controls). A hairline of light on the edge lifts them off true black.
+ */
+export const surface = {
+  card: { backgroundColor: ink.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.09)' } as ViewStyle,
+} as const;
 
 export const radius = { card: 28, tile: 24, group: 22, row: 20, pill: 32 } as const;
 

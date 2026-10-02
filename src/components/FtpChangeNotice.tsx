@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFtpCheck } from '../hooks/useFtpCheck';
 import { useSettings } from '../state/SettingsContext';
 import { derivedWatts } from '../workout/defaults';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 
 /** "FTP raised to 215 W" with the reason, Undo, and Got it. Shown until acknowledged. */
 export function FtpChangeNotice({ testID = 'ftp-change' }: { testID?: string }) {
@@ -35,7 +35,7 @@ export function FtpChangeNotice({ testID = 'ftp-change' }: { testID?: string }) 
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12, borderWidth: 1, borderColor: ink.emberSoft },
+  card: { ...surface.card, borderRadius: radius.card - 2, padding: 18, marginTop: 12, borderWidth: 1, borderColor: ink.emberSoft },
   kicker: { color: ink.emberText, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
   title: { color: ink.text, ...type.headline, marginTop: 6 },
   body: { color: ink.secondary, ...type.callout, marginTop: 6 },

@@ -1,34 +1,17 @@
 import React from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { useAnimatedValue } from '../../hooks/useAnimatedValue';
-import * as Haptics from 'expo-haptics';
-import { useReduceMotion } from '../../hooks/useReduceMotion';
-import { ink, motion } from '../../theme/tokens';
+import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ink } from '../../theme/tokens';
+import { Glass } from './Glass';
 import { Icon, type IconName } from './Icon';
+import { tapHaptic, usePressScale } from './press';
 
-const native = Platform.OS !== 'web';
+export { tapHaptic, usePressScale } from './press';
 
-export function tapHaptic(style: 'light' | 'medium' | 'heavy' = 'light') {
-  if (Platform.OS === 'web') return;
-  const map = {
-    light: Haptics.ImpactFeedbackStyle.Light,
-    medium: Haptics.ImpactFeedbackStyle.Medium,
-    heavy: Haptics.ImpactFeedbackStyle.Heavy,
-  };
-  void Haptics.impactAsync(map[style]).catch(() => undefined);
-}
-
-/** Press-in shrink on a soft spring. Shared by every big control. */
-export function usePressScale() {
-  const reduce = useReduceMotion();
-  const scale = useAnimatedValue(1);
-  const to = (value: number) => {
-    if (reduce) return;
-    Animated.spring(scale, { toValue: value, useNativeDriver: native, speed: 40, bounciness: value === 1 ? 6 : 0 }).start();
-  };
-  return { scale, pressIn: () => to(motion.pressScale), pressOut: () => to(1) };
-}
-
+/**
+ * ember: the one primary action on a screen, tinted glass.
+ * light: a solid white capsule for confirming inside sheets and onboarding.
+ * glass / quiet: every other action, plain glass.
+ */
 type Variant = 'ember' | 'light' | 'glass' | 'quiet';
 
 type Props = {
@@ -43,12 +26,22 @@ type Props = {
   accessibilityHint?: string;
 };
 
-/** The one big rounded button. Ember for Start and Resume, light for Get started and Done. */
-export function Pill({ label, onPress, variant = 'ember', icon, height = 64, style, testID, disabled, accessibilityHint }: Props) {
+/** The one big capsule button. */
+export function Pill({ label, onPress, variant = 'ember', icon, height, style, testID, disabled, accessibilityHint }: Props) {
   const { scale, pressIn, pressOut } = usePressScale();
-  const fg = variant === 'ember' || variant === 'light' ? '#000000' : ink.text;
+  const primary = variant === 'ember';
+  const h = height ?? (primary || variant === 'light' ? 60 : 52);
+  const fg = primary || variant === 'light' ? '#000000' : ink.text;
+  const body = (
+    <View style={styles.row}>
+      {icon ? <Icon name={icon} size={18} color={fg} /> : null}
+      <Text style={[styles.label, !primary && variant !== 'light' && styles.labelQuiet, { color: fg }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
   return (
-    <Animated.View style={[{ transform: [{ scale }], borderRadius: height / 2 }, variant === 'ember' && styles.emberShadow, style]}>
+    <Animated.View style={[{ transform: [{ scale }], borderRadius: h / 2 }, primary && styles.emberShadow, disabled && styles.disabled, style]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -58,15 +51,17 @@ export function Pill({ label, onPress, variant = 'ember', icon, height = 64, sty
         onPressIn={pressIn}
         onPressOut={pressOut}
         onPress={() => {
-          tapHaptic(variant === 'ember' ? 'medium' : 'light');
+          tapHaptic(primary ? 'medium' : 'light');
           onPress();
         }}
-        style={[styles.base, { height, borderRadius: height / 2 }, styles[variant], disabled && styles.disabled]}
       >
-        <View style={styles.row}>
-          {icon ? <Icon name={icon} size={18} color={fg} /> : null}
-          <Text style={[styles.label, { color: fg }]}>{label}</Text>
-        </View>
+        {variant === 'light' ? (
+          <View style={[styles.base, styles.light, { height: h, borderRadius: h / 2 }]}>{body}</View>
+        ) : (
+          <Glass radius={h / 2} tint={primary ? 'ember' : undefined} interactive style={[styles.base, { height: h }]}>
+            {body}
+          </Glass>
+        )}
       </Pressable>
     </Animated.View>
   );
@@ -75,16 +70,14 @@ export function Pill({ label, onPress, variant = 'ember', icon, height = 64, sty
 const styles = StyleSheet.create({
   base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  ember: { backgroundColor: ink.ember },
   light: { backgroundColor: ink.text },
-  glass: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  quiet: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.4 },
-  label: { fontSize: 20, fontWeight: '600', letterSpacing: -0.2 },
+  label: { fontSize: 19, fontWeight: '600', letterSpacing: -0.2 },
+  labelQuiet: { fontSize: 17 },
   emberShadow: {
     shadowColor: ink.ember,
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
   },
 });

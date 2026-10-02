@@ -3,7 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { Screen } from '../components/Screen';
 import { Footer, LargeTitle, NavBack, SectionHeader } from '../components/kit/Grouped';
 import { VO2_NORMS_SOURCE } from '../data/vo2Norms';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 
 type Item = { title: string; body: string };
 type Source = { title: string; cite: string; use: string; url: string };
@@ -102,8 +102,8 @@ export function Vo2InfoScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <NavBack label="Fitness" testID="vo2-info-back" />
-        <LargeTitle>About this chart</LargeTitle>
+        <NavBack inset={0} label="Fitness" testID="vo2-info-back" />
+        <LargeTitle inset={4}>About this chart</LargeTitle>
         <Text style={styles.intro}>
           The chart shows how VO₂max is spread among people of your sex and age, and where your estimate falls. Here is
           where the numbers come from.
@@ -144,7 +144,7 @@ export function Vo2InfoScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48 },
   intro: { color: ink.secondary, ...type.callout, marginTop: 8 },
-  card: { backgroundColor: ink.surface, borderRadius: radius.group, paddingHorizontal: 16 },
+  card: { ...surface.card, borderRadius: radius.group, paddingHorizontal: 16 },
   item: { paddingVertical: 14 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: ink.hairline },
   pressed: { opacity: 0.6 },

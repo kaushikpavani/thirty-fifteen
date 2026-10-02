@@ -8,7 +8,7 @@ import { Sparkline, TrendChart } from '../components/kit/TrendChart';
 import { WeekBars } from '../components/kit/WeekBars';
 import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 import {
   deltaText,
   inPeriod,
@@ -67,8 +67,8 @@ export function ProgressScreen() {
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <NavBack label="Back" testID="progress-back" />
-          <LargeTitle>Progress</LargeTitle>
+          <NavBack inset={0} label="Back" testID="progress-back" />
+          <LargeTitle inset={4}>Progress</LargeTitle>
           <View style={styles.card} testID="progress-locked">
             <Text style={styles.lockTitle}>See how you&apos;re improving</Text>
             {[
@@ -104,8 +104,8 @@ export function ProgressScreen() {
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <NavBack label="Back" testID="progress-back" />
-          <LargeTitle>Progress</LargeTitle>
+          <NavBack inset={0} label="Back" testID="progress-back" />
+          <LargeTitle inset={4}>Progress</LargeTitle>
           <View style={styles.card} testID="progress-empty">
             <Text style={styles.lockTitle}>Your progress starts with your first ride</Text>
             <Text style={styles.bulletText}>Finish a 30/15 session and your trends begin here.</Text>
@@ -128,8 +128,8 @@ export function ProgressScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <NavBack label="Back" testID="progress-back" />
-        <LargeTitle>Progress</LargeTitle>
+        <NavBack inset={0} label="Back" testID="progress-back" />
+        <LargeTitle inset={4}>Progress</LargeTitle>
 
         <View style={styles.periods} accessibilityRole="tablist">
           {PERIODS.map((p) => (
@@ -267,12 +267,12 @@ function DeltaLine({ text, good, small }: { text: string | null; good: boolean |
 
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48 },
-  periods: { flexDirection: 'row', backgroundColor: ink.surface, borderRadius: 12, padding: 3, marginTop: 12 },
-  period: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 9, minHeight: 36, justifyContent: 'center' },
+  periods: { flexDirection: 'row', ...surface.card, borderRadius: 21, padding: 3, marginTop: 12 },
+  period: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 18, minHeight: 36, justifyContent: 'center' },
   periodOn: { backgroundColor: ink.raised },
   periodText: { color: ink.secondary, fontSize: 14, fontWeight: '600' },
   periodTextOn: { color: ink.text },
-  card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
+  card: { ...surface.card, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   cardTitle: { color: ink.text, ...type.headline, marginBottom: 4 },
   explain: { color: ink.secondary, ...type.caption, lineHeight: 17 },

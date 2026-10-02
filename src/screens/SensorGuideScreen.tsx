@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, LargeTitle, NavBack, SectionHeader } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 
 type Item = { title: string; body: string };
 
@@ -98,8 +98,8 @@ export function SensorGuideScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <NavBack label="Back" testID="sensor-guide-back" />
-        <LargeTitle>What can I connect?</LargeTitle>
+        <NavBack inset={0} label="Back" testID="sensor-guide-back" />
+        <LargeTitle inset={4}>What can I connect?</LargeTitle>
         <Text style={styles.intro}>
           30/15 connects over Bluetooth to any heart-rate monitor or power meter that uses the standard Bluetooth fitness
           profiles. No account or extra app needed for most devices. Sensors are optional: every ride still works without
@@ -131,7 +131,7 @@ export function SensorGuideScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 48 },
   intro: { color: ink.secondary, ...type.callout, marginTop: 8 },
-  card: { backgroundColor: ink.surface, borderRadius: radius.group, paddingHorizontal: 16 },
+  card: { ...surface.card, borderRadius: radius.group, paddingHorizontal: 16 },
   item: { paddingVertical: 14 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: ink.hairline },
   itemTitle: { color: ink.text, ...type.headline, fontSize: 16 },

@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { ink, radius, type } from '../theme/tokens';
+import { ink, radius, type, surface } from '../theme/tokens';
 import type { RideSummary } from '../types';
 import { FINISH_SUBTITLE, FINISH_TITLE } from '../workout/craft';
 import { insightStats } from '../logic/rideSummary';
@@ -222,33 +222,26 @@ export function DoneSummary({
           <Icon name="check" size={14} color={ink.signal} />
           <Text style={styles.savedText}>Saved on this iPhone</Text>
         </View>
-        <Pressable
-          onPress={shareThisRide}
-          testID="done-share"
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.emailRow, pressed && styles.pressed]}
-        >
-          <Icon name="share" size={14} color={ink.secondary} />
-          <Text style={styles.emailText}>Share this ride</Text>
-        </Pressable>
-        {auth.user ? (
-          <Pressable
-            onPress={() =>
-              void emailRideSummary({
-                session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
-                summary,
-                user: auth.user!,
-                vo2,
-              })
-            }
-            testID="done-email"
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.emailRow, pressed && styles.pressed]}
-          >
-            <Icon name="mail" size={14} color={ink.secondary} />
-            <Text style={styles.emailText}>Email this ride</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.actions}>
+          <Pill label="Share" variant="glass" icon="share" onPress={shareThisRide} testID="done-share" style={styles.action} />
+          {auth.user ? (
+            <Pill
+              label="Email"
+              variant="glass"
+              icon="mail"
+              onPress={() =>
+                void emailRideSummary({
+                  session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
+                  summary,
+                  user: auth.user!,
+                  vo2,
+                })
+              }
+              testID="done-email"
+              style={styles.action}
+            />
+          ) : null}
+        </View>
         <Pill label="Done" variant="light" onPress={onDone} testID="done" />
       </ScrollView>
     </View>
@@ -262,7 +255,7 @@ const styles = StyleSheet.create({
   kicker: { color: '#FF8A55', fontSize: 13, fontWeight: '600', letterSpacing: 1.5, paddingHorizontal: 4, fontVariant: ['tabular-nums'] },
   title: { color: ink.text, fontSize: 44, lineHeight: 48, fontWeight: '700', letterSpacing: -1.4, marginTop: 10, paddingHorizontal: 4 },
   subtitle: { color: '#A8A8AE', fontSize: 20, marginTop: 8, paddingHorizontal: 4 },
-  card: { backgroundColor: ink.surface, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
+  card: { ...surface.card, borderRadius: radius.card - 2, padding: 18, marginTop: 12 },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 },
   cardTitle: { color: ink.text, fontSize: 15, fontWeight: '600' },
   cardMeta: { color: ink.secondary, ...type.caption },
@@ -291,7 +284,6 @@ const styles = StyleSheet.create({
   bikeRow: { alignItems: 'center', marginBottom: 18, gap: 2 },
   saved: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
   savedText: { color: ink.tertiary, ...type.caption },
-  emailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, marginBottom: 4 },
-  emailText: { color: ink.secondary, ...type.callout },
-  pressed: { opacity: 0.6 },
+  actions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  action: { flex: 1 },
 });
