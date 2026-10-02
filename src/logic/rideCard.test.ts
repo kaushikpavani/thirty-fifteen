@@ -49,8 +49,8 @@ test('the page is sized to the card, so the PDF is always a single page', () => 
 
 test('fitness standing shows as "Fitter than X%" with the group', () => {
   const { svg } = rideCardSvg({ ...base, vo2, standing: standing(38.9, 46, 'male') });
-  assert.match(svg, /Fitter than 69%/);
-  assert.match(svg, /of men aged 45–49/);
+  assert.match(svg, /Fitter than 63%/);
+  assert.match(svg, /of men aged 40–49/);
   assert.match(svg, /FRIEND registry/);
 });
 

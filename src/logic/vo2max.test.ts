@@ -70,13 +70,13 @@ test('vo2MaxCategory needs both age and sex to place a value', () => {
 });
 
 test('vo2MaxCategory labels by percentile within the rider\u2019s age and sex (FRIEND 2022)', () => {
-  // Men 45–49 (blended from the 40s and 50s): median 33.8, 60th 36.4, 80th 43.5, 90th 49.0.
+  // Men 40–49: median 35.3, 60th 37.9, 80th 45.2, 90th 50.8.
   assert.equal(vo2MaxCategory(38.9, 46, 'male'), 'Above average');
   assert.equal(vo2MaxCategory(35.3, 46, 'male'), 'Average');
   assert.equal(vo2MaxCategory(46, 46, 'male'), 'Excellent');
   assert.equal(vo2MaxCategory(20, 46, 'male'), 'Low');
   // The same value means more for an older rider or a woman.
-  assert.equal(vo2MaxCategory(38.9, 66, 'male'), 'Superior');
+  assert.equal(vo2MaxCategory(38.9, 66, 'male'), 'Excellent');
   assert.equal(vo2MaxCategory(38.9, 46, 'female'), 'Excellent');
 });
 

@@ -163,7 +163,7 @@ export function currentVo2Section(input: {
 
 export type Sex = 'male' | 'female';
 
-/** Where the value sits among the rider's sex and five-year age group, in plain words (FRIEND registry percentiles). */
+/** Where the value sits among the rider's sex and age decade, in plain words (FRIEND registry percentiles). */
 export type Vo2Category = StandingLevel;
 
 /** Null without an age or sex to place it against. */

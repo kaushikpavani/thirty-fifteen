@@ -23,7 +23,7 @@ function bar(x: number, y: number, w: number, base: number): string {
 }
 
 /**
- * Where the rider stands among people their own sex and five-year age group: the group's
+ * Where the rider stands among people their own age and sex: the group's
  * VO2max distribution (FRIEND registry), with everyone the rider is ahead
  * of filled in, a "You" marker with its uncertainty range, and the median.
  * Drag across it to read any value's percentile.

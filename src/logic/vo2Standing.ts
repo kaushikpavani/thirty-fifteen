@@ -1,6 +1,6 @@
 /**
- * Where a VO2max value sits among people of the same sex and five-year age
- * group, using the FRIEND registry's published percentiles (see data/vo2Norms).
+ * Where a VO2max value sits among people of the same sex and age decade,
+ * using the FRIEND registry's published percentiles (see data/vo2Norms).
  *
  * Between the 10th and 90th percentile the answer comes straight from the
  * published deciles (linear between neighbours). Beyond them the paper
@@ -12,35 +12,11 @@ import { VO2_NORMS, type NormBand } from '../data/vo2Norms';
 
 export type StandingSex = 'male' | 'female';
 
-const blend = (own: number, other: number) => 0.75 * own + 0.25 * other;
-
-/**
- * The five-year band for this rider. Ages outside 20–89 use the nearest band.
- *
- * FRIEND publishes ten-year groups. Fitness falls steadily with age, so a
- * 49-year-old compared against all of 40–49 is being ranked against people
- * up to nine years younger. To narrow that, each published decade is treated
- * as describing its middle age (25, 35, …) and a five-year group is read off
- * the straight line between the two nearest decades: three parts its own
- * decade, one part the neighbour it leans towards. The youngest and oldest
- * half-decades (20–24, 85+) have no neighbour on that side, so they use
- * their own decade as published rather than extrapolating.
- */
+/** The age-decade band for this rider. Ages outside 20–89 use the nearest band. */
 export function normBand(ageYears: number, sex: StandingSex): NormBand {
   const bands = VO2_NORMS[sex];
   const age = Math.min(89, Math.max(20, Math.floor(ageYears)));
-  const i = Math.max(0, bands.findIndex((b) => age >= b.minAge && age <= b.maxAge));
-  const own = bands[i]!;
-  const upper = age >= own.minAge + 5;
-  const other = bands[upper ? i + 1 : i - 1] ?? own;
-  return {
-    minAge: upper ? own.minAge + 5 : own.minAge,
-    maxAge: upper ? own.maxAge : own.minAge + 4,
-    n: own.n,
-    deciles: own.deciles.map((d, k) => blend(d, other.deciles[k]!)) as unknown as NormBand['deciles'],
-    mean: blend(own.mean, other.mean),
-    sd: blend(own.sd, other.sd),
-  };
+  return bands.find((b) => age >= b.minAge && age <= b.maxAge) ?? bands[bands.length - 1]!;
 }
 
 /** Standard normal CDF (Abramowitz–Stegun 7.1.26, |error| < 1.5e-7). */
@@ -142,5 +118,5 @@ export function standing(value: number, ageYears: number, sex: StandingSex): Sta
       break;
     }
   }
-  return { band, group, percentile, level: levelFor(exact), median: Math.round(band.deciles[4] * 10) / 10, next };
+  return { band, group, percentile, level: levelFor(exact), median: band.deciles[4], next };
 }

@@ -14,8 +14,8 @@ const COMPARISON: Item[] = [
     body: `${VO2_NORMS_SOURCE.tests.toLocaleString()} treadmill tests of healthy adults aged 20 to 89, measured with a breathing mask in 34 US exercise labs. This is the FRIEND registry, the largest set of directly measured fitness results published.`,
   },
   {
-    title: 'Five-year age groups',
-    body: 'The study publishes its results in ten-year groups. Fitness falls steadily with age, so we estimate five-year groups by blending each decade with its neighbour: three parts your own decade, one part the decade you’re closer to. The youngest (20–24) and oldest (85+) groups use the published decade as is.',
+    title: 'Ten-year age groups',
+    body: 'You’re ranked against people of your sex in your decade of age (20–29, 30–39 and so on, with 80 and over as one group), exactly as the study publishes them. Fitness falls with age, so the same number ranks a little higher late in a decade than early in it.',
   },
   {
     title: 'The shape of the chart',
