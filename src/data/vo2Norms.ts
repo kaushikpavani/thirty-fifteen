@@ -34,6 +34,7 @@ export type NormBand = {
 export const VO2_NORMS_SOURCE = {
   short: 'FRIEND registry, Mayo Clinic Proceedings, 2022',
   tests: 16_278,
+  url: 'https://doi.org/10.1016/j.mayocp.2021.08.020',
   citation:
     'Kaminsky LA, Arena R, Myers J, et al. Updated Reference Standards for Cardiorespiratory Fitness Measured with Cardiopulmonary Exercise Testing: Data from the Fitness Registry and the Importance of Exercise National Database (FRIEND). Mayo Clin Proc. 2022;97(2):285-293.',
 } as const;

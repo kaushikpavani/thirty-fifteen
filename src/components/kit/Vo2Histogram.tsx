@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { VO2_NORMS_SOURCE } from '../../data/vo2Norms';
 import { histogram, percentileOf, standing, valueAtPercentile, type StandingSex } from '../../logic/vo2Standing';
 import { ink, type } from '../../theme/tokens';
+import { Icon } from './Icon';
 
 const H = 168;
 const TOP = 30; // room for the "You" label
@@ -22,7 +23,7 @@ function bar(x: number, y: number, w: number, base: number): string {
 }
 
 /**
- * Where the rider stands among people their own age and sex: the group's
+ * Where the rider stands among people their own sex and five-year age group: the group's
  * VO2max distribution (FRIEND registry), with everyone the rider is ahead
  * of filled in, a "You" marker with its uncertainty range, and the median.
  * Drag across it to read any value's percentile.
@@ -33,6 +34,7 @@ export function Vo2Histogram({
   high,
   ageYears,
   sex,
+  onInfo,
   testID,
 }: {
   value: number;
@@ -40,6 +42,8 @@ export function Vo2Histogram({
   high: number;
   ageYears: number;
   sex: StandingSex;
+  /** Opens the page that cites the data and explains the method. */
+  onInfo?: () => void;
   testID?: string;
 }) {
   const [width, setWidth] = useState(0);
@@ -76,7 +80,21 @@ export function Vo2Histogram({
 
   return (
     <View testID={testID}>
-      <Text style={styles.kicker}>WHERE YOU STAND</Text>
+      <View style={styles.head}>
+        <Text style={styles.kicker}>WHERE YOU STAND</Text>
+        {onInfo ? (
+          <Pressable
+            onPress={onInfo}
+            hitSlop={14}
+            style={({ pressed }) => [styles.info, pressed && styles.infoPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="About this comparison and its data sources"
+            testID="vo2-info"
+          >
+            <Icon name="info" size={20} color={ink.secondary} />
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.hero}>
         Fitter than <Text style={styles.heroNum}>{here.percentile}%</Text>
       </Text>
@@ -176,15 +194,21 @@ export function Vo2Histogram({
       )}
 
       <Text style={styles.source}>
-        Compared with {VO2_NORMS_SOURCE.tests.toLocaleString()} lab treadmill tests of healthy adults ({VO2_NORMS_SOURCE.short}). The
-        orange bar is your estimate&apos;s likely range. Bike values run a little lower than treadmill ones, so this is a slightly tough
-        comparison for riders.
+        Compared with lab-tested healthy adults ({VO2_NORMS_SOURCE.short}). The orange bar is your estimate&apos;s likely range.{' '}
+        {onInfo ? (
+          <Text style={styles.sourceLink} onPress={onInfo} accessibilityRole="link">
+            Data and method
+          </Text>
+        ) : null}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  info: { padding: 2, borderRadius: 12 },
+  infoPressed: { opacity: 0.5 },
   kicker: { color: ink.tertiary, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
   hero: { color: ink.text, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginTop: 6 },
   heroNum: { color: ink.text, fontSize: 30, fontWeight: '700' },
@@ -212,5 +236,6 @@ const styles = StyleSheet.create({
   markLabel: { color: ink.secondary, fontSize: 12 },
   next: { color: ink.secondary, ...type.callout, marginTop: 14, textAlign: 'center' },
   nextStrong: { color: ink.text, fontWeight: '700' },
+  sourceLink: { color: ink.secondary, textDecorationLine: 'underline' },
   source: { color: ink.tertiary, fontSize: 11, lineHeight: 15, marginTop: 12 },
 });

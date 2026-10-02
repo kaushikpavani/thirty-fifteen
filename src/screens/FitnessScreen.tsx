@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Stepper } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
@@ -126,6 +127,7 @@ export function FitnessScreen() {
               high={estimate.high}
               ageYears={settings.ageYears}
               sex={settings.sex}
+              onInfo={() => router.push('/vo2-info')}
               testID="vo2-histogram"
             />
           </View>

@@ -17,13 +17,42 @@ test('the published deciles come back as exactly those percentiles, for every gr
   }
 });
 
-test('a 46-year-old man at 38.9 is above average: about the 63rd percentile', () => {
+test('a 46-year-old man at 38.9 is ranked among men aged 45–49: about the 69th percentile', () => {
   const s = standing(38.9, 46, 'male');
-  assert.equal(s.group, 'men aged 40–49');
-  assert.equal(s.percentile, 63);
+  assert.equal(s.group, 'men aged 45–49');
+  assert.equal(s.percentile, 69);
   assert.equal(s.level, 'Above average');
-  assert.equal(s.median, 35.3);
-  assert.deepEqual(s.next, { percentile: 70, value: 40.9, gap: 2 });
+  assert.equal(s.median, 33.8);
+  // 70th is only 0.35 away, too close to be a goal, so the next step is the 80th.
+  assert.deepEqual(s.next, { percentile: 80, value: 43.5, gap: 4.6 });
+});
+
+test('five-year groups sit between the published decades and lean towards the nearer one', () => {
+  const [d30, d40, d50] = [VO2_NORMS.male[1]!, VO2_NORMS.male[2]!, VO2_NORMS.male[3]!];
+  const young = normBand(42, 'male');
+  const old = normBand(47, 'male');
+  assert.deepEqual([young.minAge, young.maxAge, old.minAge, old.maxAge], [40, 44, 45, 49]);
+  for (let k = 0; k < 9; k++) {
+    assert.ok(Math.abs(young.deciles[k]! - (0.75 * d40.deciles[k]! + 0.25 * d30.deciles[k]!)) < 1e-9);
+    assert.ok(Math.abs(old.deciles[k]! - (0.75 * d40.deciles[k]! + 0.25 * d50.deciles[k]!)) < 1e-9);
+    // Younger half is fitter than the published decade, older half less fit.
+    assert.ok(young.deciles[k]! > d40.deciles[k]! && d40.deciles[k]! > old.deciles[k]!);
+    if (k > 0) assert.ok(old.deciles[k]! > old.deciles[k - 1]!);
+  }
+  // The same value ranks higher against an older group, at every boundary.
+  for (const sex of ['male', 'female'] as const) {
+    let prev = -1;
+    for (let age = 22; age <= 87; age += 5) {
+      const p = percentileOf(30, normBand(age, sex));
+      assert.ok(p >= prev, `${sex} ${age}`);
+      prev = p;
+    }
+  }
+});
+
+test('the youngest and oldest groups have no neighbour to lean on, so they use the published decade', () => {
+  assert.deepEqual([...normBand(22, 'female').deciles], [...VO2_NORMS.female[0]!.deciles]);
+  assert.deepEqual([...normBand(87, 'male').deciles], [...VO2_NORMS.male[6]!.deciles]);
 });
 
 test('percentiles rise smoothly through the tails and stay within 0–100', () => {
@@ -53,10 +82,11 @@ test('the histogram accounts for essentially everyone and peaks near the median'
   assert.ok(min >= 6 && max > 55);
 });
 
-test('ages outside 20–89 use the nearest band, and the oldest reads as 80+', () => {
+test('ages outside 20–89 use the nearest band, and the oldest reads as 85+', () => {
   assert.equal(normBand(17, 'female').minAge, 20);
-  assert.equal(normBand(94, 'male').minAge, 80);
-  assert.equal(standing(18, 85, 'female').group, 'women aged 80+');
+  assert.equal(normBand(94, 'male').minAge, 85);
+  assert.equal(standing(18, 85, 'female').group, 'women aged 85+');
+  assert.equal(standing(18, 82, 'female').group, 'women aged 80–84');
 });
 
 test('levels are fifths of the group, with the top 5% called out', () => {
