@@ -60,7 +60,15 @@ export function RideDetailScreen() {
       Alert.alert(prompt.title, prompt.message, prompt.buttons);
       return;
     }
-    void shareRidePdf({ session, summary, vo2 });
+    void shareRidePdf({
+      session,
+      summary,
+      vo2,
+      riderName: auth.user.name,
+      ageYears: settings.ageYears,
+      sex: settings.sex,
+      sessions: history.sessions,
+    });
   };
 
   return (

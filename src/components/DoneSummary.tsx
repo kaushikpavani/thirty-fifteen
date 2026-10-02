@@ -129,9 +129,14 @@ export function DoneSummary({
       return;
     }
     void shareRidePdf({
-      session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete },
+      session: { endedAt: new Date().toISOString(), ftpWatts, completed: complete, hardWatts: hardTarget },
       summary,
       vo2,
+      riderName: auth.user.name,
+      ageYears: settings.ageYears,
+      sex: settings.sex,
+      repsPerSet: reps,
+      sessions: history.sessions,
     });
   };
 
