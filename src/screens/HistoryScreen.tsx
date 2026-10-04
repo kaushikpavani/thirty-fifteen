@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { EMPTY_PHOTO } from '../content/photos';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader } from '../components/kit/Grouped';
@@ -90,6 +92,12 @@ export function HistoryScreen() {
         {history.cloudNote ? <Footer>{history.cloudNote}</Footer> : null}
         {groups.length === 0 ? (
           <View style={styles.empty}>
+            {EMPTY_PHOTO ? (
+              <View style={styles.emptyPhoto} accessibilityElementsHidden importantForAccessibility="no">
+                <Image source={EMPTY_PHOTO.source} style={styles.emptyPhotoImage} resizeMode="cover" accessibilityIgnoresInvertColors />
+                <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.0)', '#000']} locations={[0, 0.6, 1]} style={StyleSheet.absoluteFill} />
+              </View>
+            ) : null}
             <View style={styles.emptyTrace}>
               <EffortTrace segments={engine.state.workout.segments} height={84} />
             </View>
@@ -139,6 +147,8 @@ export function HistoryScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 48 },
   empty: { alignItems: 'center', marginTop: 64, gap: 8, paddingHorizontal: 32 },
+  emptyPhoto: { alignSelf: 'stretch', aspectRatio: 1.6, borderRadius: 24, overflow: 'hidden', marginBottom: 8 },
+  emptyPhotoImage: { width: '100%', height: '100%' },
   emptyTrace: { alignSelf: 'stretch' },
   emptyTitle: { color: ink.text, ...type.headline, marginTop: 18 },
   emptyBody: { color: ink.secondary, ...type.callout, textAlign: 'center' },

@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
-import { Alert, Animated, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Image, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import { FINISH_PHOTO } from '../content/photos';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { ink, radius, type, surface } from '../theme/tokens';
 import type { RideSummary } from '../types';
@@ -151,7 +153,14 @@ export function DoneSummary({
   return (
     <View style={styles.root}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: rise }]} pointerEvents="none">
-        <Bloom width={width} />
+        {FINISH_PHOTO ? (
+          <View style={styles.photo}>
+            <Image source={FINISH_PHOTO.source} style={styles.photoImage} resizeMode="cover" accessibilityIgnoresInvertColors />
+            <LinearGradient colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.1)', '#000']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+          </View>
+        ) : (
+          <Bloom width={width} />
+        )}
       </Animated.View>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 16) + 8 }]}
@@ -248,6 +257,8 @@ export function DoneSummary({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  photo: { position: 'absolute', top: 0, left: 0, right: 0, height: 360, overflow: 'hidden' },
+  photoImage: { width: '100%', height: '100%', opacity: 0.55 },
   bloom: { position: "absolute", top: 0, left: 0 },
   scroll: { flexGrow: 1, paddingHorizontal: 16 },
   kicker: { color: '#FF8A55', fontSize: 13, fontWeight: '600', letterSpacing: 1.5, paddingHorizontal: 4, fontVariant: ['tabular-nums'] },

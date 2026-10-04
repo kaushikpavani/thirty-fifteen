@@ -14,4 +14,10 @@ export type Photo = { source: ImageSourcePropType; credit?: string; url?: string
 /** Generated with ElevenLabs for this app (commercial licence on the account). No on-screen credit is required; Credits lists it. */
 export const WELCOME_PHOTO: Photo | null = { source: require('../../assets/images/welcome-hero.jpg') };
 
+/** Top of the ride-finished screen. */
+export const FINISH_PHOTO: Photo | null = { source: require('../../assets/images/finish-hero.jpg') };
+
+/** Past rides, before the first ride. */
+export const EMPTY_PHOTO: Photo | null = { source: require('../../assets/images/empty-hero.jpg') };
+
 export const WHY_PHOTO: Photo | null = null;
