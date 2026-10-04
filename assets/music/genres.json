@@ -1,0 +1,53 @@
+{
+  "model": "music_v2_5",
+  "seconds": {
+    "high": 90,
+    "low": 90
+  },
+  "notes": "Two instrumental tracks per genre. 'high' plays through every HARD rep; 'low' plays through EASY reps, warm-up, rests and cool-down. Each track carries on from where it left off, so longer tracks mean less repetition: raise 'seconds' (up to 600) and re-run with --force when credits allow. A genre with \"vocals\": true is allowed sung (wordless) voices; all others are forced instrumental.",
+  "genres": [
+    {
+      "id": "electronic",
+      "name": "Electronic",
+      "high": "High-energy instrumental electronic track for indoor cycling sprints, 128 BPM, driving four-on-the-floor kick, punchy sidechained bass, bright arpeggiated synths, building intensity with no breakdowns, crisp modern stereo production, no vocals.",
+      "low": "Instrumental downtempo electronic for active recovery between cycling sprints, 100 BPM, warm analog pads, soft pulsing bass, light percussion, steady and forward-moving, calm but not sleepy, crisp modern stereo production, no vocals."
+    },
+    {
+      "id": "dance",
+      "name": "Dance",
+      "high": "Uplifting instrumental dance-pop track for a spin class, 126 BPM, bouncy house bass, bright piano stabs, claps and open hi-hats, euphoric and relentless with no quiet breakdown, polished radio-quality stereo production, no vocals.",
+      "low": "Laid-back instrumental nu-disco groove for easy pedalling, 104 BPM, funky muted guitar, smooth bass, soft kick and shaker, relaxed and feel-good with a steady pulse, polished stereo production, no vocals."
+    },
+    {
+      "id": "edm",
+      "name": "EDM",
+      "high": "Festival big-room EDM instrumental for all-out cycling efforts, 130 BPM, huge supersaw lead, pounding kick, heavy sub bass, snare rolls and risers that keep the energy at peak throughout, loud modern stereo master, no vocals.",
+      "low": "Melodic progressive-house instrumental for recovery between hard efforts, 110 BPM, plucked synth melody, deep rolling bass, airy pads, gentle steady kick, hopeful and calm, modern stereo production, no vocals."
+    },
+    {
+      "id": "opera",
+      "name": "Opera",
+      "high": "Powerful operatic orchestral piece with a wordless tenor and soprano singing soaring vowels over full orchestra, driving timpani and fast strings at 132 BPM, triumphant and urgent, suited to hard athletic effort, grand concert-hall stereo recording, no lyrics.",
+      "low": "Gentle operatic intermezzo for recovery, flowing strings and harp with a soft wordless soprano line, 84 BPM, serene and steady with a clear pulse, warm concert-hall stereo recording, no lyrics.",
+      "vocals": true
+    },
+    {
+      "id": "classical",
+      "name": "Classical",
+      "high": "Fast, driving orchestral classical piece for hard cycling efforts, presto strings in relentless sixteenth notes, bold brass and timpani accents, 136 BPM, heroic and propulsive throughout, rich concert-hall stereo recording, instrumental.",
+      "low": "Calm classical piece for recovery, andante strings with solo piano and woodwinds, 80 BPM, warm, steady and uplifting with a gentle walking pulse, rich concert-hall stereo recording, instrumental."
+    },
+    {
+      "id": "indian",
+      "name": "Indian",
+      "high": "High-energy modern Indian fusion instrumental for sprint intervals, fast dhol and tabla driving at 130 BPM, bright sitar and bansuri riffs over punchy electronic bass and kick, festive and powerful throughout, crisp modern stereo production, no vocals.",
+      "low": "Relaxed Indian fusion instrumental for easy pedalling, soft tabla groove at 90 BPM, mellow sitar and bansuri melodies over warm tanpura drone and gentle bass, peaceful with a steady pulse, crisp modern stereo production, no vocals."
+    },
+    {
+      "id": "chinese",
+      "name": "Chinese",
+      "high": "High-energy modern Chinese fusion instrumental for sprint intervals, thunderous taiko-style drums and fast percussion at 130 BPM, soaring erhu and rapid guzheng and pipa runs over driving electronic bass, heroic and powerful throughout, crisp modern stereo production, no vocals.",
+      "low": "Calm Chinese fusion instrumental for recovery, flowing guzheng and dizi flute melodies with soft erhu, light percussion at 88 BPM over warm pads, serene with a steady pulse, crisp modern stereo production, no vocals."
+    }
+  ]
+}

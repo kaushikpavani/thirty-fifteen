@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: WorkoutSettings = {
   beepsEnabled: true,
   hapticsEnabled: true,
   musicEnabled: true,
+  musicGenre: 'electronic',
   coachVoice: 'female',
   coachLanguage: 'en',
   spokenCount: true,

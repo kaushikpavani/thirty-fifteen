@@ -6,6 +6,7 @@ import {
   type RemoteState,
   type RemoteStatus,
 } from './remoteTransport';
+import { MUSIC_GENRES, MUSIC_TRACKS } from './musicTracks';
 import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
 
 const bedModules = {
@@ -17,6 +18,31 @@ const bedModules = {
 } as const;
 
 const BEDS = ['drive', 'driveB', 'recover', 'recoverB', 'ambient'] as const;
+
+/** The original synthesised score. Only used until generated genres are installed. */
+export const PULSE = 'pulse';
+
+/** What the picker offers: the generated genres, or Pulse alone while there are none. */
+export function musicGenres(): { id: string; name: string }[] {
+  return MUSIC_GENRES.length ? MUSIC_GENRES : [{ id: PULSE, name: 'Pulse' }];
+}
+
+/** The genre that will actually play for a stored choice: itself if installed, else the first installed one. */
+export function resolveGenre(choice: string | null | undefined): string {
+  const list = musicGenres();
+  return list.some((entry) => entry.id === choice) ? (choice as string) : list[0]!.id;
+}
+
+/**
+ * The file behind each bed for a genre. A generated genre has two tracks:
+ * `high` for HARD, `low` for everything else (EASY, warm-up, rest, cool-down;
+ * the quieter parts just play it softer).
+ */
+function sourcesFor(genre: string): Record<MusicBed, number> {
+  const tracks = MUSIC_TRACKS[genre];
+  if (!tracks) return bedModules;
+  return { drive: tracks.high, driveB: tracks.high, recover: tracks.low, recoverB: tracks.low, ambient: tracks.low };
+}
 
 type LockMeta = { title?: string; artist?: string };
 type LockOptions = { showSeekForward?: boolean; showSeekBackward?: boolean };
@@ -46,6 +72,8 @@ type CreatePlayer = (source: number) => Player;
 let ready = false;
 let failed = false;
 const players: Partial<Record<MusicBed, Player>> = {};
+let genre = PULSE;
+let createPlayer: CreatePlayer | null = null;
 
 let active: MusicBed = 'recover';
 let playing = false;
@@ -143,7 +171,7 @@ function applyVolume(): void {
     const player = players[key];
     if (!player) continue;
     try {
-      player.volume = key === active ? heard : 0;
+      player.volume = player === players[active] ? heard : 0;
     } catch {
       // ignore
     }
@@ -247,10 +275,15 @@ function scheduleRestore(): void {
 
 /** Called once expo-audio is up. Failures stay quiet; the ride still runs. */
 export function attachMusicPlayers(create: CreatePlayer): void {
+  createPlayer = create;
   if (ready || failed) return;
   try {
+    const sources = sourcesFor(genre);
+    // A generated genre uses one track for two beds; share the player so it carries on rather than restarting.
+    const bySource = new Map<number, Player>();
     for (const key of BEDS) {
-      const player = create(bedModules[key]);
+      const player = bySource.get(sources[key]) ?? create(sources[key]);
+      bySource.set(sources[key], player);
       player.loop = true;
       player.volume = 0;
       players[key] = player;
@@ -267,6 +300,17 @@ export function attachMusicPlayers(create: CreatePlayer): void {
       delete players[key];
     }
   }
+}
+
+/** Switch the built-in music style. Takes effect straight away; a no-op if it is already loaded. */
+export function setMusicGenre(choice: string | null | undefined): void {
+  const next = resolveGenre(choice);
+  if (next === genre) return;
+  genre = next;
+  if (!ready || !createPlayer) return;
+  const create = createPlayer;
+  releaseMusicPlayers();
+  attachMusicPlayers(create);
 }
 
 /**
@@ -295,7 +339,7 @@ export function armMusicFromGesture(musicEnabled: boolean): void {
   }
   setTimeout(() => {
     for (const key of BEDS) {
-      if (key === active) continue;
+      if (key === active || players[key] === players[active]) continue;
       try {
         players[key]?.pause();
         void players[key]?.seekTo(0);
@@ -308,7 +352,7 @@ export function armMusicFromGesture(musicEnabled: boolean): void {
 
 function ensurePlaying(restart: boolean): void {
   for (const key of BEDS) {
-    if (key === active) continue;
+    if (key === active || players[key] === players[active]) continue;
     try {
       players[key]?.pause();
     } catch {
@@ -355,7 +399,9 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1, title?
     }
   }
   if (!playing || changed) {
-    ensurePlaying(changed && playing);
+    // Pulse loops are cut to the phase, so they restart on the downbeat. Generated tracks are
+    // full pieces: each one picks up where it left off, so a ride moves through the music.
+    ensurePlaying(changed && playing && genre === PULSE);
     publishLockScreen();
     return;
   }

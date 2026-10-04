@@ -13,7 +13,7 @@ import {
   stopSpeech,
   unlockRockyFromGesture,
 } from '../audio/cues';
-import { armMusicFromGesture, kickBed, pauseMusic, releaseDuck, setBedTransportHandler, stopMusic, syncMusic } from '../audio/music';
+import { armMusicFromGesture, setMusicGenre, kickBed, pauseMusic, releaseDuck, setBedTransportHandler, stopMusic, syncMusic } from '../audio/music';
 import { inSegmentSilence, ROCKY_DONE, ROCKY_GO, ROCKY_ROUND, WARMUP_ONE_LEFT } from '../audio/rocky';
 import {
   BEEP_DUCK_MS,
@@ -289,6 +289,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setElapsedMs(0);
     anchorWallRef.current = null;
     setCoachVoice(settingsRef.current);
+    setMusicGenre(settingsRef.current.musicGenre);
     unlockRockyFromGesture();
     armMusicFromGesture(settingsRef.current.musicEnabled);
     try {

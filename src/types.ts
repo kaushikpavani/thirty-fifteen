@@ -25,6 +25,8 @@ export interface WorkoutSettings {
   hapticsEnabled: boolean;
   /** Looping bed under the ride. Default on. Spoken cues and beeps still duck it. */
   musicEnabled: boolean;
+  /** Built-in music style, e.g. 'edm'. Falls back to what is installed (see audio/music). */
+  musicGenre: string;
   /** Which recorded coach speaks. 'off' keeps ticks and haptics only. */
   coachVoice: CoachVoice;
   /** Language the coach speaks, e.g. 'en'. Music is shared across languages. */

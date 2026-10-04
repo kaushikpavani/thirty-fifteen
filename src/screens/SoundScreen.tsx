@@ -5,6 +5,7 @@ import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Toggle } from '
 import { Icon } from '../components/kit/Icon';
 import { tapHaptic } from '../components/kit/Pill';
 import { previewVoice } from '../audio/cues';
+import { musicGenres, PULSE, resolveGenre } from '../audio/music';
 import { COACH_LANGUAGES } from '../audio/coachLines';
 import { coachLanguage, languageName, voiceName } from '../audio/voices';
 import { useSettings } from '../state/SettingsContext';
@@ -48,8 +49,8 @@ function PulseWave() {
 
 function Segmented({ value, onChange }: { value: boolean; onChange: (pulse: boolean) => void }) {
   const options = [
-    { pulse: true, label: 'Pulse' },
-    { pulse: false, label: 'Your music' },
+    { pulse: true, label: 'On' },
+    { pulse: false, label: 'Off' },
   ];
   return (
     <View style={styles.segment} accessibilityRole="radiogroup">
@@ -89,6 +90,8 @@ export function SoundScreen() {
   const current: CoachVoice = settings.speechEnabled ? settings.coachVoice : 'off';
 
   const language = coachLanguage(settings);
+  const genres = musicGenres();
+  const genre = resolveGenre(settings.musicGenre);
   // Tapping the row steps to the next language; each one has its own female and male coach.
   const nextLanguage = () => {
     tapHaptic('light');
@@ -146,12 +149,35 @@ export function SoundScreen() {
         <SectionHeader>Music</SectionHeader>
         <View style={styles.musicCard}>
           <Segmented value={settings.musicEnabled} onChange={(musicEnabled) => patch({ musicEnabled })} />
-          {settings.musicEnabled ? <PulseWave /> : null}
+          {settings.musicEnabled && genre === PULSE ? <PulseWave /> : null}
         </View>
+        {settings.musicEnabled && genres.length > 1 ? (
+          <>
+            <View style={styles.gap} />
+            <Group inset={50}>
+              {genres.map((g) => (
+                <Row
+                  key={g.id}
+                  label={g.name}
+                  onPress={() => {
+                    tapHaptic('light');
+                    patch({ musicGenre: g.id });
+                  }}
+                  chevron={false}
+                  testID={`genre-${g.id}`}
+                  accessibilityLabel={`${g.name}${genre === g.id ? '. Selected' : ''}`}
+                  leading={<View style={styles.check}>{genre === g.id ? <Icon name="check" size={18} color={ink.emberText} /> : null}</View>}
+                />
+              ))}
+            </Group>
+          </>
+        ) : null}
         <Footer>
-          {settings.musicEnabled
-            ? 'Pulse runs at 128 BPM, so every hard rep is exactly 16 bars and every easy is 8. The drop lands on Go.'
-            : 'Play Apple Music, Spotify or a podcast. It keeps playing and dips under cues.'}
+          {!settings.musicEnabled
+            ? 'No built-in music. Anything you are already playing carries on and dips under the coach.'
+            : genre === PULSE
+              ? 'Pulse runs at 128 BPM, so every hard rep is exactly 16 bars and every easy is 8. The drop lands on Go.'
+              : 'A driving track for every HARD rep and a calmer one for EASY, warm-up and cool-down. Each picks up where it left off.'}
         </Footer>
 
         <SectionHeader>Cues</SectionHeader>
