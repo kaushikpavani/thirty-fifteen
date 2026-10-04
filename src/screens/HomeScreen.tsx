@@ -9,8 +9,7 @@ import { AccountBadge } from '../components/kit/AccountBadge';
 import { GlassButton } from '../components/kit/Glass';
 import { Icon } from '../components/kit/Icon';
 import { Pill, tapHaptic } from '../components/kit/Pill';
-import { ProfileChart } from '../components/kit/ProfileChart';
-import { BIKE_TONES, RoadBike } from '../components/bike/RoadBike';
+import { EffortTrace } from '../components/kit/EffortTrace';
 import { Screen } from '../components/Screen';
 import { WhySheet } from '../components/WhySheet';
 import type { PowerConnectionState } from '../ble/cps';
@@ -143,18 +142,18 @@ export function HomeScreen() {
         <FtpChangeNotice testID="home-ftp-change" />
 
         <View style={styles.session}>
-          <View style={styles.sessionTop}>
-            <View>
-              <Text style={styles.caption}>
-                Today’s session · <Text style={type.tabular}>{minutes} min</Text>
-              </Text>
-              <Text style={styles.sessionTitle}>
-                {settings.sets} × {settings.reps}
-              </Text>
-            </View>
-            <RoadBike width={128} tone={BIKE_TONES.ember} wheelPeriodMs={2600} style={styles.bike} />
+          <View>
+            <Text style={styles.caption}>
+              Today’s session · <Text style={type.tabular}>{minutes} min</Text>
+            </Text>
+            <Text style={styles.sessionTitle}>
+              {settings.sets} × {settings.reps}
+            </Text>
           </View>
-          <ProfileChart segments={workout.segments} />
+          <EffortTrace segments={workout.segments} testID="home-trace" />
+          <Text style={styles.traceNote}>
+            {settings.workSec} s on · {settings.recoverSec} s off
+          </Text>
         </View>
 
         <View style={styles.tiles}>
@@ -269,10 +268,9 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pressed: { opacity: 0.7 },
   session: { marginTop: 22, ...surface.card, borderRadius: radius.card, padding: 20, paddingBottom: 18, gap: 18 },
-  sessionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   caption: { color: ink.secondary, ...type.callout },
   sessionTitle: { color: ink.text, fontSize: 44, lineHeight: 48, fontWeight: '600', letterSpacing: -1.5, ...type.tabular },
-  bike: { marginTop: 4, marginRight: -6 },
+  traceNote: { color: ink.tertiary, ...type.caption, ...type.tabular, marginTop: -8 },
   tiles: { flexDirection: 'row', gap: 12, marginTop: 12 },
   tile: { flex: 1, ...surface.card, borderRadius: radius.tile, padding: 16, minHeight: 112, gap: 14, justifyContent: 'space-between' },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

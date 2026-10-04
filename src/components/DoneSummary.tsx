@@ -22,7 +22,6 @@ import { ZoneCard } from './ZoneCard';
 import { FtpChangeNotice } from './FtpChangeNotice';
 import { Pill } from './kit/Pill';
 import { RepDualChart } from './kit/RepDualChart';
-import { BIKE_TONES, RoadBike, RoadStream } from './bike/RoadBike';
 
 const native = Platform.OS !== 'web';
 const WEEKDAY = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
@@ -217,10 +216,6 @@ export function DoneSummary({
         <FtpCheckCard testID="done-ftp-check" />
 
         <View style={styles.flex} />
-        <View style={styles.bikeRow} pointerEvents="none">
-          <RoadBike width={Math.min(240, width * 0.6)} tone={BIKE_TONES.ember} wheelPeriodMs={reduce ? null : 1100} />
-          <RoadStream width={width - 32} periodMs={reduce ? null : 700} color="rgba(255,200,170,0.25)" />
-        </View>
         <View style={styles.saved}>
           <Icon name="check" size={14} color={ink.signal} />
           <Text style={styles.savedText}>Saved on this iPhone</Text>
@@ -284,7 +279,6 @@ const styles = StyleSheet.create({
   insightValue: { color: ink.text, fontSize: 18, fontWeight: '600', ...type.tabular },
   insightExplain: { color: ink.secondary, ...type.caption, marginTop: 4, lineHeight: 17 },
   flex: { flex: 1, minHeight: 12 },
-  bikeRow: { alignItems: 'center', marginBottom: 18, gap: 2 },
   saved: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
   savedText: { color: ink.tertiary, ...type.caption },
   actions: { flexDirection: 'row', gap: 10, marginBottom: 10 },

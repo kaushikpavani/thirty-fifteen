@@ -3,7 +3,8 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader } from '../components/kit/Grouped';
-import { BIKE_TONES, RoadBike } from '../components/bike/RoadBike';
+import { EffortTrace } from '../components/kit/EffortTrace';
+import { useWorkout } from '../state/WorkoutContext';
 import { useAuth } from '../auth/AuthContext';
 import { tapHaptic } from '../components/kit/press';
 import { useHistory } from '../state/HistoryContext';
@@ -71,6 +72,7 @@ export function confirmDeleteRide(session: WorkoutRecord, signedIn: boolean, onD
 
 export function HistoryScreen() {
   const history = useHistory();
+  const engine = useWorkout();
   const auth = useAuth();
   const groups = useMemo(() => groupSessions(history.sessions), [history.sessions]);
   const { settings } = useSettings();
@@ -88,7 +90,9 @@ export function HistoryScreen() {
         {history.cloudNote ? <Footer>{history.cloudNote}</Footer> : null}
         {groups.length === 0 ? (
           <View style={styles.empty}>
-            <RoadBike width={220} tone={BIKE_TONES.ember} wheelPeriodMs={2400} />
+            <View style={styles.emptyTrace}>
+              <EffortTrace segments={engine.state.workout.segments} height={84} />
+            </View>
             <Text style={styles.emptyTitle}>No rides yet</Text>
             <Text style={styles.emptyBody}>Finish a ride and it shows up here.</Text>
           </View>
@@ -135,6 +139,7 @@ export function HistoryScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 48 },
   empty: { alignItems: 'center', marginTop: 64, gap: 8, paddingHorizontal: 32 },
+  emptyTrace: { alignSelf: 'stretch' },
   emptyTitle: { color: ink.text, ...type.headline, marginTop: 18 },
   emptyBody: { color: ink.secondary, ...type.callout, textAlign: 'center' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: ink.raised },
