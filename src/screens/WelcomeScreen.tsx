@@ -30,7 +30,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
       {WELCOME_PHOTO ? (
         <Animated.View style={[styles.photo, { opacity: fade }]} pointerEvents="none">
           <Image source={WELCOME_PHOTO.source} style={styles.photoImage} resizeMode="cover" accessibilityIgnoresInvertColors />
-          <LinearGradient colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.85)', '#000']} locations={[0, 0.35, 0.8, 1]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.55)', '#000']} locations={[0, 0.3, 0.78, 1]} style={StyleSheet.absoluteFill} />
         </Animated.View>
       ) : null}
       <LinearGradient
@@ -38,14 +38,14 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
         colors={['rgba(92,200,230,0.16)', 'rgba(92,200,230,0)']}
         style={styles.sky}
       />
-      <LinearGradient
+      {WELCOME_PHOTO ? null : <LinearGradient
         pointerEvents="none"
         colors={['rgba(255,90,31,0)', 'rgba(255,90,31,0.14)', 'rgba(255,90,31,0.42)']}
         locations={[0, 0.55, 1]}
         style={styles.dusk}
-      />
+      />}
       <View style={[styles.body, { paddingTop: insets.top, paddingBottom: insets.bottom + 18 }]}>
-        <View style={{ flex: WELCOME_PHOTO ? 2.4 : 1 }} />
+        <View style={{ flex: WELCOME_PHOTO ? 2.9 : 1 }} />
         <Animated.View style={{ opacity: fade, alignItems: 'center' }}>
           <Text style={[styles.word, { marginTop: 0 }]} accessibilityRole="header" accessibilityLabel="30 15">
             30<Text style={{ color: ink.ember }}>/</Text>15
@@ -58,7 +58,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
           <EffortTrace segments={SESSION_SHAPE} height={120} />
         </Animated.View>
         )}
-        <View style={styles.road}>
+        {WELCOME_PHOTO ? null : <View style={styles.road}>
           <LinearGradient
             pointerEvents="none"
             colors={['rgba(255,190,150,0)', 'rgba(255,190,150,0.55)', 'rgba(255,190,150,0)']}
@@ -69,7 +69,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
           <View style={{ marginTop: 14, opacity: 0.6 }}>
             <RoadStream width={width} periodMs={reduce ? null : 520} color="rgba(255,200,170,0.35)" />
           </View>
-        </View>
+        </View>}
         <View style={{ flex: 0.5 }} />
         <Pill label="Get started" variant="light" onPress={onDone} testID="welcome-start" style={styles.stretch} />
         {WELCOME_PHOTO?.credit ? <Text style={styles.credit}>{WELCOME_PHOTO.credit}</Text> : null}
@@ -80,7 +80,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  photo: { position: 'absolute', top: 0, left: 0, right: 0, height: '70%', overflow: 'hidden' },
+  photo: { position: 'absolute', top: 0, left: 0, right: 0, height: '78%', overflow: 'hidden' },
   photoImage: { width: '100%', height: '100%' },
   credit: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 14 },
   sky: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },

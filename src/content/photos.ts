@@ -11,6 +11,7 @@ import type { ImageSourcePropType } from 'react-native';
  */
 export type Photo = { source: ImageSourcePropType; credit?: string; url?: string };
 
-export const WELCOME_PHOTO: Photo | null = null;
+/** Generated with ElevenLabs for this app (commercial licence on the account). No on-screen credit is required; Credits lists it. */
+export const WELCOME_PHOTO: Photo | null = { source: require('../../assets/images/welcome-hero.jpg') };
 
 export const WHY_PHOTO: Photo | null = null;
