@@ -322,3 +322,69 @@ test('a ride deleted on one phone stays deleted on that phone, whatever the othe
   assert.equal(a.rides.some((r) => r.id === 'x'), false, 'the deleted ride came back on the phone that deleted it');
   assert.ok(a.rides.some((r) => r.id === 'y'));
 });
+
+// ——— Deleting the app and reinstalling ———
+
+test('delete the app, reinstall, sign in with the same account: every backed-up ride comes back, complete', async () => {
+  const { recordFromRow, workoutSessionWrite } = await import('../storage/cloudRow.ts');
+  // Twelve real rides with full stats, recorded over a month and backed up.
+  const original: WorkoutRecord[] = Array.from({ length: 12 }, (_, i) => ({
+    ...recordWith((_t, kind) => good(kind), i % 4 === 3 ? Math.round(workout.totalMs * 0.6) : workout.totalMs),
+    id: `ride-${i}`,
+    startedAt: new Date(Date.UTC(2026, 8, 1 + i * 2, 18)).toISOString(),
+    endedAt: new Date(Date.UTC(2026, 8, 1 + i * 2, 19)).toISOString(),
+  }));
+  // The cloud stores rows as JSON, with timestamps in Postgres' own format.
+  const cloudRows = original.map((r) => {
+    const row = JSON.parse(JSON.stringify(workoutSessionWrite(r, 'user-1', 'old-install'))) as Record<string, unknown>;
+    row.started_at = String(row.started_at).replace('Z', '+00:00');
+    row.ended_at = String(row.ended_at).replace('Z', '+00:00');
+    return row;
+  });
+
+  // --- the app is deleted: the phone has nothing. Reinstall and sign in. ---
+  const remote = cloudRows.map((row) => ({ id: row.id as string, endedAt: new Date(row.ended_at as string).toISOString() }));
+  const plan = planSync([], remote, null, new Set());
+  assert.equal(plan.download.length, 12);
+  assert.equal(plan.upload.length, 0);
+  assert.equal(plan.remove.length, 0);
+
+  const restored = plan.download.map((id) => recordFromRow(cloudRows.find((row) => row.id === id)!));
+  assert.ok(restored.every(Boolean), 'a cloud row could not be turned back into a ride');
+  const phone = addDownloaded([], restored as WorkoutRecord[]);
+  assert.equal(phone.length, 12);
+
+  // Nothing about a ride is lost on the way to the cloud and back.
+  for (const before of original) {
+    const after = phone.find((r) => r.id === before.id)!;
+    assert.deepEqual(after, before, `${before.id} changed on the round trip`);
+    assert.ok(after.summary?.hrSecs && after.summary.repWatts?.length, 'per-rep and heart-rate detail survived');
+  }
+  // Newest first, as Past rides shows them, and a second sync has nothing left to do.
+  assert.deepEqual(phone.map((r) => r.id), original.map((r) => r.id).reverse());
+  const again = planSync(phone, remote, null, new Set());
+  assert.deepEqual([again.download.length, again.upload.length], [0, 0]);
+});
+
+test('a ride never backed up cannot be restored, and the app says how many are still waiting', () => {
+  // Signed out (or offline) for these rides: they exist only on the phone.
+  const local = [ride('only-here-1', 5), ride('only-here-2', 6), ride('backed-up', 1)];
+  const waiting = pendingBackup(local, new Set(['backed-up']), null);
+  assert.deepEqual(waiting.map((r) => r.id), ['only-here-1', 'only-here-2']);
+});
+
+test('a damaged cloud row is skipped without stopping the others', async () => {
+  const { recordFromRow, workoutSessionWrite } = await import('../storage/cloudRow.ts');
+  const goodRow = JSON.parse(JSON.stringify(workoutSessionWrite(ride('ok', 3), 'user-1', null))) as Record<string, unknown>;
+  const rows: Record<string, unknown>[] = [
+    goodRow,
+    { ...goodRow, id: 'no-dates', started_at: null, ended_at: 'not a date' },
+    { ...goodRow, id: 'bad-numbers', duration_ms: 'long' },
+    { ...goodRow, id: 'junk-summary', summary: { setsDone: 'two' } },
+    {},
+  ];
+  const out = rows.map(recordFromRow);
+  assert.deepEqual(out.map((r) => r?.id ?? null), ['ok', null, null, 'junk-summary', null]);
+  // A ride whose stats are unreadable still comes back, just without the stats.
+  assert.equal(out[3]!.summary, undefined);
+});

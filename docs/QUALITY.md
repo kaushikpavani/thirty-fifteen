@@ -22,6 +22,7 @@ Two kinds of tests:
 | Updating the app over rides saved in the old storage format | All rides kept, in order, on every launch |
 | Storage failing one write in five | A ride confirmed saved is never lost; a failed write never damages other rides |
 | A failed or damaged read | Nothing is written or removed because of it |
+| Deleting the app, reinstalling, signing in with the same account | Every backed-up ride comes back with all its stats, unchanged, newest first; damaged cloud rows are skipped without stopping the rest |
 | Two phones signed in to one account | Both end up with every ride; neither overwrites the other; same-day rides stay separate |
 | A ride deleted on one phone | It never comes back on that phone, online or offline |
 | Old settings from earlier versions (old voice names, unknown language) | Fall back to current defaults |
@@ -47,6 +48,7 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 - [ ] Sign in on a second phone with the same account: rides appear on both.
 - [ ] Delete one ride: gone on the phone and, after a moment online, from the cloud.
 - [ ] Install a new build over an old one: every past ride is still there.
+- [ ] Delete the app, reinstall, sign in: every ride that showed as backed up is back, with its charts.
 - [ ] Airplane mode for a whole ride: it saves, and backs up when the connection returns.
 
 ## Known gaps
@@ -56,5 +58,9 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
   existing rides, but new ones would back up to whoever is signed in).
 - **Deleting a ride with a second phone signed in.** The other phone still holds the ride and will back it
   up again; it stays deleted on the phone that deleted it.
+- **Rides never backed up are not restorable.** A ride done signed out or offline lives only on the phone until a
+  sync succeeds. Deleting the app before then loses it. Past rides shows how many are still waiting.
+- **Settings are not restored after a reinstall.** FTP, age, weight, resting heart rate, the workout layout and
+  the coach choice live on the phone only. Rides come back; these have to be entered again.
 - **Screens and gestures** have no automated tests. They are checked by hand in the web preview and on device.
 - **The audio generators** are tested with a simulated ElevenLabs API, not the live one.

@@ -3,12 +3,11 @@ import type { NewWorkoutRecord, WorkoutRecord } from '../types';
 import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
 import { ensureDevice } from './cloud';
-import { cloudExtensionMissing, workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
-import { parseStoredSummary } from '../logic/rideSummary';
+import { cloudExtensionMissing, recordFromRow, workoutRowsForRetry, workoutSessionWrite, type WorkoutSessionWrite } from './cloudRow';
 import { loadDeletionState } from './deletionStore';
 import { createId } from './id';
 import { createQueue } from './queue';
-import { createRideStore, parseRecord, type StoreRead } from './rideStore';
+import { createRideStore, type StoreRead } from './rideStore';
 import { chunk, pendingBackup, planSync, toIso, type RemoteEntry } from './rideSync';
 import { createTombstones } from './rideTombstones';
 import { createRideCheckpoint } from './rideCheckpoint';
@@ -147,27 +146,6 @@ const PAGE = 1000;
 const UPLOAD_CHUNK = 20;
 const DOWNLOAD_CHUNK = 50;
 
-function rowToRecord(row: Record<string, unknown>): WorkoutRecord | null {
-  const startedAt = toIso(row.started_at);
-  const endedAt = toIso(row.ended_at);
-  if (!startedAt || !endedAt) return null;
-  const record = parseRecord({
-    id: row.id,
-    startedAt,
-    endedAt,
-    durationMs: row.duration_ms,
-    plannedDurationMs: row.planned_duration_ms,
-    ftpWatts: row.ftp_watts,
-    hardWatts: row.hard_watts,
-    easyWatts: row.easy_watts,
-    completed: row.completed,
-    completionPct: row.completion_pct,
-  });
-  if (!record) return null;
-  const summary = parseStoredSummary(row.summary);
-  return summary ? { ...record, summary } : record;
-}
-
 type Supabase = NonNullable<ReturnType<typeof getSupabase>>;
 
 /** Every ride id this account has in the cloud, page by page. RLS limits it to the signed-in rider. */
@@ -232,7 +210,7 @@ async function downloadRides(supabase: Supabase, ids: string[]): Promise<Workout
     }
     if (error) throw new Error(error.message);
     for (const row of data ?? []) {
-      const ride = rowToRecord(row);
+      const ride = recordFromRow(row);
       if (ride) out.push(ride);
     }
   }

@@ -1,4 +1,7 @@
+import { parseStoredSummary } from '../logic/rideSummary';
 import type { RideSummary, WorkoutRecord } from '../types';
+import { parseRecord } from './rideStore';
+import { toIso } from './rideSync';
 
 export type WorkoutSource = 'manual' | 'strava' | 'garmin' | 'ble';
 
@@ -46,6 +49,32 @@ export function workoutSessionWrite(
     external_id: null,
     summary: record.summary ?? null,
   };
+}
+
+/**
+ * A cloud row turned back into a ride on the phone: the reverse of
+ * workoutSessionWrite. This is what brings rides back after the app is
+ * deleted and reinstalled, or on a new phone. Null if the row isn't a ride.
+ */
+export function recordFromRow(row: Record<string, unknown>): WorkoutRecord | null {
+  const startedAt = toIso(row.started_at);
+  const endedAt = toIso(row.ended_at);
+  if (!startedAt || !endedAt) return null;
+  const record = parseRecord({
+    id: row.id,
+    startedAt,
+    endedAt,
+    durationMs: row.duration_ms,
+    plannedDurationMs: row.planned_duration_ms,
+    ftpWatts: row.ftp_watts,
+    hardWatts: row.hard_watts,
+    easyWatts: row.easy_watts,
+    completed: row.completed,
+    completionPct: row.completion_pct,
+  });
+  if (!record) return null;
+  const summary = parseStoredSummary(row.summary);
+  return summary ? { ...record, summary } : record;
 }
 
 export function omitSessionSummary(row: WorkoutSessionWrite): Omit<WorkoutSessionWrite, 'summary'> {
