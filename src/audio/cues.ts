@@ -4,7 +4,8 @@ import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
 import { configureIdleAudio, holdForeignDuck } from './session';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 import { VOICE_CLIPS } from './voiceClips';
-import { clipsForRide, coachLanguage, DEFAULT_COACH, nextTake, resolveClip, type RecordedVoice } from './voices';
+import { createPlayerPool } from './playerPool';
+import { coachLanguage, DEFAULT_COACH, nextTake, resolveClip, type RecordedVoice } from './voices';
 
 const beepModules = {
   go: require('../../assets/beep-go.wav'),
@@ -42,7 +43,16 @@ let voiceResolved = false;
 let voiceId: string | undefined;
 let rockyToken = 0;
 const cache: Partial<Record<BeepKind, Player>> = {};
-const rockyCache: Partial<Record<string, Player[]>> = {};
+/** Coach clips are loaded on first use and the least recently used are released (see playerPool). */
+const VOICE_POOL_MAX = 24;
+let voicePool: ReturnType<typeof createPlayerPool<Player>> | null = null;
+let voiceTable: VoiceTable = {};
+/** Why the last recorded line could not play, for the Sound settings screen. Null when all is well. */
+let voiceProblem: string | null = null;
+
+export function voiceIssue(): string | null {
+  return voiceProblem;
+}
 /** The take each clip played last, so repeats rotate. */
 const lastTake: Record<string, number> = {};
 let loadedVoice: string | null = null;
@@ -84,49 +94,53 @@ function releasePlayers(): void {
 }
 
 function releaseVoicePlayers(): void {
-  for (const key of Object.keys(rockyCache)) {
-    for (const player of rockyCache[key] ?? []) {
-      try {
-        player.remove();
-      } catch {
-        // ignore
-      }
-    }
-    delete rockyCache[key];
-  }
+  voicePool?.clear();
+  voicePool = null;
+  voiceTable = {};
   rockyReady = false;
   loadedVoice = null;
 }
 
+/** Clips that must land exactly on time: loaded when the coach is chosen and never released. */
+const PINNED = ['count3', 'count2', 'count1', 'go'];
+
+function voicePlayer(clip: string, take: number, pin = false): { player: Player; fresh: boolean } | null {
+  const source = voiceTable[clip]?.[take];
+  if (source == null || !voicePool) return null;
+  const got = voicePool.get(`${clip}#${take}`, source, pin);
+  if (!got) voiceProblem = `Could not load "${clip}": ${voicePool.lastError() ?? 'unknown error'}`;
+  return got;
+}
+
 /**
- * Load the selected coach's clips for this ride, releasing any other voice.
- * Only the lines these settings can use are loaded (one warm-up length, not
- * all twenty-six). Cheap when already loaded.
+ * Select the coach. Only the count-in and "Go" are loaded now; every other
+ * line loads the first time it is needed. Cheap when already selected.
  */
 export function setCoachVoice(settings: WorkoutSettings): void {
   if (settings.coachVoice === 'off') return;
   const voice: RecordedVoice = settings.coachVoice ?? DEFAULT_COACH;
   const language = coachLanguage(settings);
-  const tag = `${language}/${voice}/${settings.warmupMin}/${settings.betweenSetRestMin}/${settings.cooldownMin}`;
+  const tag = `${language}/${voice}`;
   if (loadedVoice === tag && rockyReady) return;
   const audio = loadExpoAudio();
   if (!audio || beepsUnavailable) return;
   releaseVoicePlayers();
-  try {
-    const table: VoiceTable = VOICE_CLIPS[language]?.[voice] ?? {};
-    for (const key of clipsForRide(Object.keys(table), settings)) {
-      rockyCache[key] = table[key]!.map((source) => {
-        const player = audio.createAudioPlayer(source, { keepAudioSessionActive: true });
-        player.volume = 1;
-        player.shouldCorrectPitch = true;
-        return player;
-      });
-    }
-    loadedVoice = tag;
-    rockyReady = true;
-  } catch {
-    releaseVoicePlayers();
+  voiceProblem = null;
+  voiceTable = VOICE_CLIPS[language]?.[voice] ?? {};
+  voicePool = createPlayerPool<Player>({
+    max: VOICE_POOL_MAX,
+    create: (source) => {
+      const player = audio.createAudioPlayer(source, { keepAudioSessionActive: true });
+      player.volume = 1;
+      player.shouldCorrectPitch = true;
+      return player;
+    },
+  });
+  for (const clip of PINNED) {
+    (voiceTable[clip] ?? []).forEach((_, take) => voicePlayer(clip, take, true));
   }
+  loadedVoice = tag;
+  rockyReady = true;
 }
 
 function holdBoundary(ms: number): void {
@@ -233,13 +247,11 @@ function speakFallback(text: string, settings: WorkoutSettings): void {
 }
 
 function pauseRocky(): void {
-  for (const key of Object.keys(rockyCache)) {
-    for (const player of rockyCache[key] ?? []) {
-      try {
-        player.pause();
-      } catch {
-        // ignore
-      }
+  for (const player of voicePool?.all() ?? []) {
+    try {
+      player.pause();
+    } catch {
+      // ignore
     }
   }
 }
@@ -259,42 +271,52 @@ export function speakCue(
   if (cue.key.startsWith('count:')) holdBoundary(900);
   if (cue.key === 'round' || cue.key.startsWith('round:')) holdBoundary(rockyDuckMs(cue.key));
   setCoachVoice(settings);
-  const takes = take.clip && rockyReady ? rockyCache[take.clip] : undefined;
-  let player: Player | undefined;
-  if (takes?.length) {
-    const index = nextTake(takes.length, lastTake[take.clip]);
+  const count = take.clip && rockyReady ? (voiceTable[take.clip]?.length ?? 0) : 0;
+  let got: { player: Player; fresh: boolean } | null = null;
+  if (count > 0) {
+    const index = nextTake(count, lastTake[take.clip]);
     lastTake[take.clip] = index;
-    player = takes[index];
+    // Stop whatever is speaking before a new player is made, so the old one can be released.
+    pauseRocky();
+    got = voicePlayer(take.clip, index, PINNED.includes(take.clip));
   }
   duckFor(rockyDuckMs(cue.key));
-  if (!player) {
+  if (!got) {
     speakFallback(take.line, settings);
     return;
   }
+  const { player, fresh } = got;
   const token = ++rockyToken;
   try {
     Speech.stop();
   } catch {
     // ignore
   }
-  pauseRocky();
   try {
     player.shouldCorrectPitch = true;
     player.playbackRate = playbackRateFor(settings);
     player.volume = 1;
+    const start = () => {
+      if (token !== rockyToken) return;
+      swallowPlayRejections(() => {
+        player.play();
+      });
+    };
+    // A player made this instant is already at the start; seeking before it has loaded can be refused.
+    if (fresh) {
+      start();
+      return;
+    }
     void player
       .seekTo(0)
-      .then(() => {
-        if (token !== rockyToken) return;
-        swallowPlayRejections(() => {
-          player.play();
-        });
-      })
+      .then(start)
       .catch(() => {
         if (token !== rockyToken) return;
-        speakFallback(take.line, settings);
+        voiceProblem = `Could not rewind "${take.clip}"`;
+        start();
       });
-  } catch {
+  } catch (error) {
+    voiceProblem = `Could not play "${take.clip}": ${error instanceof Error ? error.message : String(error)}`;
     speakFallback(take.line, settings);
   }
 }
@@ -347,7 +369,7 @@ function swallowPlayRejections(run: () => void): void {
  */
 export function unlockRockyFromGesture(): void {
   if (typeof document === 'undefined' || !rockyReady) return;
-  const player = Object.values(rockyCache)[0]?.[0];
+  const player = voicePool?.all()[0];
   if (!player) return;
   try {
     player.volume = 0;

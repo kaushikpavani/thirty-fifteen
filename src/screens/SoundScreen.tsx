@@ -1,10 +1,10 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Toggle } from '../components/kit/Grouped';
 import { Icon } from '../components/kit/Icon';
 import { tapHaptic } from '../components/kit/Pill';
-import { previewVoice } from '../audio/cues';
+import { previewVoice, voiceIssue } from '../audio/cues';
 import { musicGenres, PULSE, resolveGenre } from '../audio/music';
 import { COACH_LANGUAGES } from '../audio/coachLines';
 import { coachLanguage, languageName, voiceName } from '../audio/voices';
@@ -89,6 +89,7 @@ export function SoundScreen() {
   };
   const current: CoachVoice = settings.speechEnabled ? settings.coachVoice : 'off';
 
+  const [issue, setIssue] = useState<string | null>(null);
   const language = coachLanguage(settings);
   const genres = musicGenres();
   const genre = resolveGenre(settings.musicGenre);
@@ -105,6 +106,8 @@ export function SoundScreen() {
     else {
       patch({ speechEnabled: true, coachVoice: voice });
       void previewVoice(voice, ref.current);
+      // If the recording could not play, say so here instead of failing silently.
+      setTimeout(() => setIssue(voiceIssue()), 1500);
     }
   };
 
@@ -145,6 +148,12 @@ export function SoundScreen() {
           Tap a coach to hear them. One short line per rep at most, never over the count-in.
           {COACH_LANGUAGES.length > 1 ? '' : ' More languages are on the way.'}
         </Footer>
+
+        {issue ? (
+          <Text style={styles.issue} testID="voice-issue">
+            The recorded voice didn’t load, so the iPhone’s own voice was used. {issue}
+          </Text>
+        ) : null}
 
         <SectionHeader>Music</SectionHeader>
         <View style={styles.musicCard}>
@@ -206,6 +215,7 @@ export function SoundScreen() {
 
 const styles = StyleSheet.create({
   gap: { height: 12 },
+  issue: { color: ink.danger, ...type.caption, paddingHorizontal: 32, marginTop: 8 },
   scroll: { paddingBottom: 48 },
   check: { width: 22, alignItems: 'center' },
   musicCard: { backgroundColor: ink.grouped, borderRadius: radius.group, marginHorizontal: 16, padding: 14, gap: 14 },
