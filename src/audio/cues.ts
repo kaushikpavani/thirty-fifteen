@@ -258,7 +258,7 @@ function pauseRocky(): void {
 
 /** Recorded coach line in the selected voice. Tuned on-device voice if the clip is missing. */
 export function speakCue(
-  cue: { key: string; line: string; clip?: string },
+  cue: { key: string; line: string; clip?: string; /** Never fall back to the phone's own voice: silent unless the recording exists. */ recordedOnly?: boolean },
   settings: WorkoutSettings,
 ): void {
   if (cue.key === 'finish') {
@@ -280,6 +280,7 @@ export function speakCue(
     pauseRocky();
     got = voicePlayer(take.clip, index, PINNED.includes(take.clip));
   }
+  if (!got && cue.recordedOnly) return;
   duckFor(rockyDuckMs(cue.key));
   if (!got) {
     speakFallback(take.line, settings);

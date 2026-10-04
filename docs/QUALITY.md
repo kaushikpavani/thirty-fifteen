@@ -20,6 +20,8 @@ Two kinds of tests:
 | Ending a ride by hand at any point | Before the last hard rep is finished the rider is asked Save or Delete; after it (cool-down) the ride just saves; a few seconds in, nothing is kept or asked |
 | Choosing Delete for a ride ended part-way | Gone from the phone at once; a checkpoint that lands late cannot bring it back; never uploaded, and removed from the account if a copy got there; other rides untouched |
 | Battery dies while the Save-or-Delete question is showing | The ride is kept |
+| Power meter connected and the rider stays under the hard target | After the ramp-up and the normal encouragement line, the coach says how far under in tens of watts (or just pushes when it is a long way); at most once a rep, once a minute, eight a ride; once "there it is" if they recover in that rep; never in the last 4 s of a rep |
+| No power meter, a meter that drops out, or one that sends rubbish (NaN, negative, absurd) | The coach never nudges; the ride keeps its normal cues and music |
 | No sensors, power only, heart rate only, both | A clean ride record, a verdict and a share card every time; no VO₂max claim without heart rate |
 | Heart-rate monitor or power meter drops out mid-ride, connects late, or sends rubbish (NaN, negative, absurd values) | No bad numbers reach the saved ride, the verdict or the share card |
 | Updating the app over rides saved in the old storage format | All rides kept, in order, on every launch |
@@ -46,6 +48,7 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 
 - [ ] Settings → Sound: tap Sarah, then Chris. Each speaks in its own recorded voice and no red line appears. (A read-only `playbackRate` on the real player broke this once; the tests use a stand-in that behaves the same way, but only the phone proves it.)
 - [ ] Settings → Sound: tap each music style. About seven seconds of that style plays and fades; tapping another replaces it; leaving the screen or turning music Off stops it.
+- [ ] With a power meter, ride a hard rep well under target: after about 13 s the coach pushes in the recorded voice (needs the `power…` clips generated). Without a meter it stays quiet.
 - [ ] Pause in the first set, hold to end: Save / Delete / Keep riding appear; Delete leaves nothing in Past rides.
 - [ ] Sign in on a fresh install: FTP, profile and coach choice come back from the account.
 - [ ] Start a ride, lock the phone for five minutes: cues keep coming, clock is right on unlock.

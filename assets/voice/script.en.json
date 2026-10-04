@@ -529,6 +529,66 @@
    "text": "Halfway. Looking strong.",
    "takes": 1,
    "style": "hard"
+  },
+  {
+   "clip": "powerUnder10",
+   "text": "About ten watts under target. Push a little.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerUnder20",
+   "text": "About twenty watts under. Pick it up, let’s go.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerUnder30",
+   "text": "About thirty watts under. Dig in, we need that goal.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerClose1",
+   "text": "Almost there. A little more power.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerClose2",
+   "text": "Just under target. Push a bit harder.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerFar1",
+   "text": "You’re well under target. Dig in, you’ve got this.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerFar2",
+   "text": "Let’s go. We need to hit the goal. Pick it up.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerFar3",
+   "text": "Power’s dropping. Bring it back up.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "powerBack1",
+   "text": "There it is. Hold that.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "powerBack2",
+   "text": "Yes. That’s the target. Stay there.",
+   "takes": 1,
+   "style": "coach"
   }
  ]
 }

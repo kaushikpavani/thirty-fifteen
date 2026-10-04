@@ -17,6 +17,7 @@ import { usePowerMeter } from '../state/PowerMeterContext';
 import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { usePowerCoach } from '../hooks/usePowerCoach';
 import { useRideRecorder } from '../hooks/useRideRecorder';
 import { fieldFor, fields, ink, type as t } from '../theme/tokens';
 import type { PhaseKind } from '../types';
@@ -57,6 +58,8 @@ export function ActiveScreen() {
     addSession: history.addSession,
     discardRide: history.discardRide,
   });
+  // Only with a power meter sending fresh readings; without one the ride keeps its normal cues and music.
+  usePowerCoach({ state, settings, watts: meter.connectionState === 'connected' ? watts : null });
   /** Ended before the sets were done: the rider is being asked whether to keep the ride. */
   const [asking, setAsking] = useState(false);
 
