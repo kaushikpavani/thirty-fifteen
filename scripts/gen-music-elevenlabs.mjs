@@ -75,7 +75,7 @@ async function compose(job, apiKey) {
     });
     if (response.ok) return Buffer.from(await response.arrayBuffer());
     const detail = (await response.text()).slice(0, 500);
-    if (typeof args.format !== 'string' && formatIndex < FORMATS.length - 1 && [400, 401, 403, 422].includes(response.status) && /output_format|format|tier|subscription|plan/i.test(detail)) {
+    if (typeof args.format !== 'string' && formatIndex < FORMATS.length - 1 && response.status === 403 && /output_format/i.test(detail)) {
       console.log(`  ${format} isn't available on this plan; using ${FORMATS[formatIndex + 1]} instead.`);
       formatIndex += 1;
       attempt -= 1;

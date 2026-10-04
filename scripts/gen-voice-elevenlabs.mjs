@@ -120,10 +120,14 @@ async function synthesize(job, apiKey) {
     });
     if (response.ok) return Buffer.from(await response.arrayBuffer());
     const detail = (await response.text()).slice(0, 400);
-    // The plan doesn't include this bitrate: step down once for the whole run and try again.
-    if (typeof args.format !== 'string' && formatIndex < FORMATS.length - 1 && [400, 401, 403, 422].includes(response.status) && /output_format|format|tier|subscription|plan/i.test(detail)) {
-      console.log(`  ${format} isn't available on this plan; using ${FORMATS[formatIndex + 1]} instead.`);
-      formatIndex += 1;
+    // The plan doesn't include this bitrate: step down for the whole run and try again. Several
+    // requests are in flight at once, so one that was sent before the step-down just retries.
+    const formatRefused = typeof args.format !== 'string' && response.status === 403 && /output_format/i.test(detail);
+    if (formatRefused && (format !== FORMATS[formatIndex] || formatIndex < FORMATS.length - 1)) {
+      if (format === FORMATS[formatIndex]) {
+        console.log(`  ${format} isn't available on this plan; using ${FORMATS[formatIndex + 1]} instead.`);
+        formatIndex += 1;
+      }
       attempt -= 1;
       continue;
     }
@@ -256,7 +260,7 @@ async function main() {
             failed += 1;
             console.error(`  ✗ ${error.message}`);
             // A bad key, model or plan fails every call the same way: stop instead of repeating it.
-            if (/ 40[123] /.test(error.message)) queue.length = 0;
+            if (/ 40[123] /.test(error.message) && !/output_format/i.test(error.message)) queue.length = 0;
           }
         }
       };
