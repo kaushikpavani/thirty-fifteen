@@ -1,6 +1,6 @@
 import * as Speech from 'expo-speech';
 import type { CoachVoice, WorkoutSettings } from '../types';
-import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
+import { attachMusicPlayers, duckMusic, previewGenre, releaseMusicPlayers } from './music';
 import { configureIdleAudio, holdForeignDuck } from './session';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 import { VOICE_CLIPS } from './voiceClips';
@@ -320,6 +320,13 @@ export function speakCue(
     voiceProblem = `Could not play "${take.clip}": ${error instanceof Error ? error.message : String(error)}`;
     speakFallback(take.line, settings);
   }
+}
+
+/** Settings preview: a few seconds of a music style. */
+export async function previewMusic(genre: string): Promise<void> {
+  stopSpeech();
+  await initAudio();
+  previewGenre(genre);
 }
 
 /** Settings preview: one short sample in the chosen voice. */

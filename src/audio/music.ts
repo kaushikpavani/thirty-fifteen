@@ -9,6 +9,7 @@ import {
 import { MUSIC_GENRES, MUSIC_TRACKS } from './musicTracks';
 import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
 import { setPlayerRate } from './playerRate';
+import { createMusicPreview } from './musicPreview';
 
 const bedModules = {
   drive: require('../../assets/beds/drive.wav'),
@@ -242,6 +243,7 @@ function startSilentHold(): void {
 
 /** Keep the session up after an audio-mode change. No-op when the ride is paused. */
 export function kickBed(): void {
+  stopGenrePreview();
   if (!ready) return;
   if (playing && enabled) {
     const player = players[active];
@@ -303,6 +305,20 @@ export function attachMusicPlayers(create: CreatePlayer): void {
   }
 }
 
+let genrePreview: ReturnType<typeof createMusicPreview> | null = null;
+
+/** A short taste of a style, for the Settings picker. False if there is nothing to play. */
+export function previewGenre(choice: string | null | undefined): boolean {
+  const create = createPlayer;
+  if (!create) return false;
+  genrePreview ??= createMusicPreview((source) => create(source));
+  return genrePreview.play(MUSIC_TRACKS[resolveGenre(choice)]?.high);
+}
+
+export function stopGenrePreview(): void {
+  genrePreview?.stop();
+}
+
 /** Switch the built-in music style. Takes effect straight away; a no-op if it is already loaded. */
 export function setMusicGenre(choice: string | null | undefined): void {
   const next = resolveGenre(choice);
@@ -320,6 +336,7 @@ export function setMusicGenre(choice: string | null | undefined): void {
  * the clock takes the real level.
  */
 export function armMusicFromGesture(musicEnabled: boolean): void {
+  stopGenrePreview();
   if (!ready || !musicEnabled) return;
   enabled = true;
   active = 'recover';
@@ -469,6 +486,7 @@ export function stopMusic(): void {
 }
 
 export function releaseMusicPlayers(): void {
+  stopGenrePreview();
   stopMusic();
   for (const key of BEDS) {
     try {

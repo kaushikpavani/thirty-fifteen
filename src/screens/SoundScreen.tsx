@@ -1,11 +1,11 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Toggle } from '../components/kit/Grouped';
 import { Icon } from '../components/kit/Icon';
 import { tapHaptic } from '../components/kit/Pill';
-import { previewVoice, voiceIssue } from '../audio/cues';
-import { musicGenres, PULSE, resolveGenre } from '../audio/music';
+import { previewMusic, previewVoice, voiceIssue } from '../audio/cues';
+import { musicGenres, PULSE, resolveGenre, stopGenrePreview } from '../audio/music';
 import { COACH_LANGUAGES } from '../audio/coachLines';
 import { coachLanguage, languageName, voiceName } from '../audio/voices';
 import { useSettings } from '../state/SettingsContext';
@@ -78,6 +78,8 @@ function Segmented({ value, onChange }: { value: boolean; onChange: (pulse: bool
 
 export function SoundScreen() {
   const { settings, update } = useSettings();
+  // Leaving the screen ends any music taste.
+  useEffect(() => stopGenrePreview, []);
   const ref = useRef(settings);
   useLayoutEffect(() => {
     ref.current = settings;
@@ -102,6 +104,7 @@ export function SoundScreen() {
 
   const pick = (voice: CoachVoice) => {
     tapHaptic('light');
+    stopGenrePreview();
     if (voice === 'off') patch({ speechEnabled: false });
     else {
       patch({ speechEnabled: true, coachVoice: voice });
@@ -157,7 +160,13 @@ export function SoundScreen() {
 
         <SectionHeader>Music</SectionHeader>
         <View style={styles.musicCard}>
-          <Segmented value={settings.musicEnabled} onChange={(musicEnabled) => patch({ musicEnabled })} />
+          <Segmented
+            value={settings.musicEnabled}
+            onChange={(musicEnabled) => {
+              if (!musicEnabled) stopGenrePreview();
+              patch({ musicEnabled });
+            }}
+          />
           {settings.musicEnabled && genre === PULSE ? <PulseWave /> : null}
         </View>
         {settings.musicEnabled && genres.length > 1 ? (
@@ -171,6 +180,7 @@ export function SoundScreen() {
                   onPress={() => {
                     tapHaptic('light');
                     patch({ musicGenre: g.id });
+                    void previewMusic(g.id);
                   }}
                   chevron={false}
                   testID={`genre-${g.id}`}
@@ -186,7 +196,7 @@ export function SoundScreen() {
             ? 'No built-in music. Anything you are already playing carries on and dips under the coach.'
             : genre === PULSE
               ? 'Pulse runs at 128 BPM, so every hard rep is exactly 16 bars and every easy is 8. The drop lands on Go.'
-              : 'A driving track for every HARD rep and a calmer one for EASY, warm-up and cool-down. Each picks up where it left off.'}
+              : 'Tap a style to hear a few seconds. A driving track plays for every HARD rep and a calmer one for EASY, warm-up and cool-down. Each picks up where it left off.'}
         </Footer>
 
         <SectionHeader>Cues</SectionHeader>

@@ -45,6 +45,7 @@ Two kinds of tests:
 These depend on iOS, Bluetooth or audio hardware and cannot run in the test suite.
 
 - [ ] Settings → Sound: tap Sarah, then Chris. Each speaks in its own recorded voice and no red line appears. (A read-only `playbackRate` on the real player broke this once; the tests use a stand-in that behaves the same way, but only the phone proves it.)
+- [ ] Settings → Sound: tap each music style. About seven seconds of that style plays and fades; tapping another replaces it; leaving the screen or turning music Off stops it.
 - [ ] Pause in the first set, hold to end: Save / Delete / Keep riding appear; Delete leaves nothing in Past rides.
 - [ ] Sign in on a fresh install: FTP, profile and coach choice come back from the account.
 - [ ] Start a ride, lock the phone for five minutes: cues keep coming, clock is right on unlock.
