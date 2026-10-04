@@ -1,3 +1,4 @@
+import { POWER_LINES } from '../logic/powerCoach.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -54,6 +55,7 @@ test('the spoken script matches the lines the timing code falls back to', () => 
   assert.equal(en.last, LAST_ONE);
   assert.equal(en.done, ROCKY_DONE);
   assert.equal(en.warmup1left, WARMUP_ONE_LEFT);
+  for (const [clip, line] of Object.entries(POWER_LINES)) assert.equal(en[clip], line, clip);
   // The generated file is in step with the script it was generated from.
   assert.deepEqual(Object.keys(en), script.lines.map((l: { clip: string }) => l.clip));
 });
