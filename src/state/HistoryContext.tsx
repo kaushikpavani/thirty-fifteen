@@ -5,7 +5,16 @@ import { track } from '../storage/cloud';
 import { deleteWorkoutHistory } from '../storage/deletion';
 import type { CloudAttempt } from '../storage/deletionState';
 import { loadDeletionState } from '../storage/deletionStore';
-import { deletedRideIds, deleteRide, readRides, saveRides, syncRides, withId } from '../storage/history';
+import {
+  clearRideCheckpoint,
+  deletedRideIds,
+  deleteRide,
+  readRides,
+  recoverInterruptedRide,
+  saveRides,
+  syncRides,
+  withId,
+} from '../storage/history';
 import { sessionsAfterWatermark } from '../storage/merge';
 import { addDownloaded, backupLine, type BackupState } from '../storage/rideSync';
 import type { NewWorkoutRecord, WorkoutRecord } from '../types';
@@ -17,7 +26,8 @@ type HistoryContextValue = {
   backup: BackupState;
   /** backupLine(backup), ready to show. */
   cloudNote: string | null;
-  addSession: (input: NewWorkoutRecord) => Promise<void>;
+  /** `id` is the ride's own id from the recorder, so a recovered copy and the final save are the same ride. */
+  addSession: (input: NewWorkoutRecord, id?: string) => Promise<void>;
   /** Clears the on-screen list immediately, then the cloud copy when signed in. */
   clearSessions: () => Promise<CloudAttempt>;
   /** Deletes one ride from this iPhone, and from the cloud when signed in. False if it couldn't be deleted. */
@@ -88,6 +98,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     if (!auth.ready) return;
     let cancelled = false;
     void (async () => {
+      // A ride cut short by a dead battery or a crash is saved before anything is read.
+      await recoverInterruptedRide().catch(() => null);
       let read = await readRides();
       if (!read.ok) {
         const again = await readRides();
@@ -125,11 +137,13 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   }, [runSync]);
 
   const addSession = useCallback(
-    async (input: NewWorkoutRecord) => {
-      const record = withId(input);
+    async (input: NewWorkoutRecord, id?: string) => {
+      const record = id ? { ...input, id } : withId(input);
       show([record, ...sessionsRef.current.filter((ride) => ride.id !== record.id)]);
       // Save this ride on its own key first; nothing else on disk is touched.
       if (!(await saveRides([record]))) unsaved.current = [...unsaved.current, record];
+      // Saved under its own key (or queued for retry): the in-progress copy is no longer needed.
+      else void clearRideCheckpoint();
       void track('workout_finish', {
         completed: record.completed,
         completion_pct: record.completionPct,

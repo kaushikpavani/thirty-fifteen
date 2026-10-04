@@ -23,6 +23,19 @@ npx expo install --fix      # fix incompatible package versions
 
 Run lint and typecheck before declaring any task done.
 
+## Quality bar
+
+Riders trust this app with their rides. A change is not done until all of these hold:
+
+1. `npm run check` passes (typecheck, lint, every test including the scenario simulations).
+2. New behaviour has a test. A bug fix has a test that fails without the fix.
+3. Anything that touches saved rides, sync, deletion or the ride clock gets a scenario in
+   `src/logic/scenarios.test.ts` (or the nearest storage test): what happens when it is
+   interrupted, repeated, run out of order, or fed bad input.
+4. After pushing, confirm the GitHub "Check" workflow is green. A red run is a stop-the-line problem.
+5. `docs/QUALITY.md` lists what is simulated and what can only be checked on a real phone.
+   Keep it current, and say plainly in the hand-off what was not verified.
+
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.

@@ -151,7 +151,12 @@ export function createRideStore(kv: KeyValue) {
     await kv.multiRemove(ids.map(keyFor));
   }
 
-  return { read, put, remove, removeAll };
+  /** Whether a ride with this id is already stored. */
+  async function has(id: string): Promise<boolean> {
+    return (await kv.getItem(keyFor(id))) != null;
+  }
+
+  return { read, put, has, remove, removeAll };
 }
 
 export type RideStore = ReturnType<typeof createRideStore>;

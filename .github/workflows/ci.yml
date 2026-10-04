@@ -15,7 +15,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # `npm install`, not `npm ci`: npm versions disagree about one optional entry in the
+      # lockfile, and `npm ci` refuses to run when it would change the file at all. That
+      # turned every run red at this step, so the real checks below never ran.
+      - run: npm install --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npm run lint
       - run: npm test
+      - run: node scripts/gen-voice-elevenlabs.mjs --dry-run && node scripts/gen-music-elevenlabs.mjs --dry-run

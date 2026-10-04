@@ -11,6 +11,7 @@ import { createQueue } from './queue';
 import { createRideStore, parseRecord, type StoreRead } from './rideStore';
 import { chunk, pendingBackup, planSync, toIso, type RemoteEntry } from './rideSync';
 import { createTombstones } from './rideTombstones';
+import { createRideCheckpoint } from './rideCheckpoint';
 
 export { mergeRecords } from './merge';
 export { createId };
@@ -62,6 +63,45 @@ export async function saveRides(rides: WorkoutRecord[]): Promise<boolean> {
 /** The rider asked to delete their history on this phone. Does not talk to the cloud. */
 export async function clearHistory(): Promise<void> {
   await writes(() => store.removeAll());
+}
+
+const checkpoint = createRideCheckpoint({
+  getItem: (key) => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+  removeItem: (key) => AsyncStorage.removeItem(key),
+});
+
+/** Write the ride in progress so a dead battery or a crash can't lose it. */
+export function checkpointRide(ride: WorkoutRecord): Promise<boolean> {
+  return checkpoint.save(ride);
+}
+
+export function clearRideCheckpoint(): Promise<void> {
+  return checkpoint.clear();
+}
+
+/**
+ * A ride that was interrupted before it could be saved, moved into the ride
+ * store. Returns it, or null if there was nothing to recover. The checkpoint
+ * is only cleared once the ride is safely stored under its own key.
+ */
+export async function recoverInterruptedRide(): Promise<WorkoutRecord | null> {
+  const ride = await checkpoint.load();
+  if (!ride) return null;
+  if ((await deletedRideIds()).has(ride.id)) {
+    await checkpoint.clear();
+    return null;
+  }
+  // Already saved under its own key (the ride ended normally and only the clean-up was missed):
+  // the saved copy is the complete one, so never overwrite it with the in-progress snapshot.
+  const saved = await writes(() => store.has(ride.id)).catch(() => false);
+  if (saved) {
+    await checkpoint.clear();
+    return null;
+  }
+  if (!(await saveRides([ride]))) return null;
+  await checkpoint.clear();
+  return ride;
 }
 
 /**
