@@ -1,19 +1,16 @@
 import type { ImageSourcePropType } from 'react-native';
 
 /**
- * Licensed photos. Each needs its credit on screen and in Settings → Credits.
- * Files are graded to the Carbon & Ember palette from the originals.
+ * Photos shown on the welcome screen and the Why 30/15 sheet.
+ *
+ * None ship today: the app uses only artwork made for it, so nothing needs a
+ * third-party licence or an on-screen credit. To add one later, use an image
+ * you own outright (commissioned, your own photo, or generated under a
+ * commercial licence), set it here, and leave `credit` empty unless its
+ * licence asks for one.
  */
-export type Photo = { source: ImageSourcePropType; credit: string; url: string };
+export type Photo = { source: ImageSourcePropType; credit?: string; url?: string };
 
-export const WELCOME_PHOTO: Photo | null = {
-  source: require('../../assets/photos/welcome-road.jpg'),
-  credit: 'Photo: Marco Guidi · Vecteezy',
-  url: 'https://www.vecteezy.com/photo/27082148-a-man-riding-a-bike',
-};
+export const WELCOME_PHOTO: Photo | null = null;
 
-export const WHY_PHOTO: Photo | null = {
-  source: require('../../assets/photos/why-climb.jpg'),
-  credit: 'Photo: Erwin Pieloor · Vecteezy (AI-generated)',
-  url: 'https://www.vecteezy.com/photo/74210911-dedicated-male-cyclist-wearing-black-gear-aggressively',
-};
+export const WHY_PHOTO: Photo | null = null;

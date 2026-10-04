@@ -4,25 +4,26 @@ import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pill } from '../components/kit/Pill';
-import { BIKE_TONES, RoadBike, RoadStream } from '../components/bike/RoadBike';
+import { RoadStream } from '../components/bike/RoadBike';
+import { EffortTrace } from '../components/kit/EffortTrace';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { ink } from '../theme/tokens';
 import { WELCOME_PHOTO } from '../content/photos';
 
 const native = Platform.OS !== 'web';
+/** The standard 2 × 13 session, drawn as the app's signature line. */
+const SET = Array.from({ length: 13 }, () => [{ kind: 'hard' }, { kind: 'easy' }]).flat();
+const SESSION_SHAPE = [{ kind: 'warmup' }, ...SET, { kind: 'set_rest' }, ...SET, { kind: 'cooldown' }];
+
 export function WelcomeScreen({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const { width } = useWindowDimensions();
   const fade = useAnimatedValue(reduce ? 1 : 0);
-  const roll = useAnimatedValue(reduce ? 1 : 0);
   useEffect(() => {
     if (reduce) return;
     Animated.timing(fade, { toValue: 1, duration: 900, delay: 350, easing: Easing.out(Easing.cubic), useNativeDriver: native }).start();
-    Animated.timing(roll, { toValue: 1, duration: 1600, delay: 500, easing: Easing.out(Easing.cubic), useNativeDriver: native }).start();
-  }, [fade, reduce, roll]);
-  const bikeW = Math.min(300, width * 0.74);
-  const rollX = roll.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] });
+  }, [fade, reduce]);
 
   return (
     <View style={styles.root}>
@@ -53,8 +54,8 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
         </Animated.View>
         <View style={{ flex: 0.6 }} />
         {WELCOME_PHOTO ? null : (
-        <Animated.View style={[styles.scene, { transform: [{ translateX: rollX }] }]}>
-          <RoadBike width={bikeW} tone={BIKE_TONES.ember} wheelPeriodMs={reduce ? null : 900} />
+        <Animated.View style={[styles.scene, { opacity: fade }]}>
+          <EffortTrace segments={SESSION_SHAPE} height={120} />
         </Animated.View>
         )}
         <View style={styles.road}>
@@ -71,7 +72,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
         </View>
         <View style={{ flex: 0.5 }} />
         <Pill label="Get started" variant="light" onPress={onDone} testID="welcome-start" style={styles.stretch} />
-        {WELCOME_PHOTO ? <Text style={styles.credit}>{WELCOME_PHOTO.credit}</Text> : null}
+        {WELCOME_PHOTO?.credit ? <Text style={styles.credit}>{WELCOME_PHOTO.credit}</Text> : null}
       </View>
     </View>
   );
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
   sky: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
   dusk: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 480 },
   horizon: { height: 1, alignSelf: 'stretch' },
-  scene: { alignItems: 'center', marginBottom: -6 },
+  scene: { alignSelf: 'stretch', marginBottom: 10 },
   road: { alignSelf: 'stretch', marginHorizontal: -24 },
   body: { flex: 1, alignItems: 'center', paddingHorizontal: 24 },
   mark: { flexDirection: 'row', alignItems: 'flex-end', gap: 5, height: 72 },

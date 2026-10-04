@@ -56,7 +56,7 @@ function WhyBody() {
       {WHY_PHOTO ? (
         <View style={styles.photoWrap}>
           <Image source={WHY_PHOTO.source} style={styles.photo} resizeMode="cover" accessibilityIgnoresInvertColors />
-          <Text style={styles.photoCredit}>{WHY_PHOTO.credit}</Text>
+          {WHY_PHOTO.credit ? <Text style={styles.photoCredit}>{WHY_PHOTO.credit}</Text> : null}
         </View>
       ) : null}
       <VO2Chart />

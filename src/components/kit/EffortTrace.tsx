@@ -6,7 +6,6 @@ import { useAnimatedValue } from '../../hooks/useAnimatedValue';
 import { useReduceMotion } from '../../hooks/useReduceMotion';
 import { tracePath, tracePoints } from '../../logic/effortTrace';
 import { ink } from '../../theme/tokens';
-import type { Segment } from '../../types';
 
 const native = Platform.OS !== 'web';
 const DRAW_MS = 5200;
@@ -22,7 +21,7 @@ const FADE_MS = 500;
  * it runs on the native thread and costs nothing while the rider reads the
  * screen. With Reduce Motion on, the line is simply drawn in full.
  */
-export function EffortTrace({ segments, height = 112, testID }: { segments: readonly Segment[]; height?: number; testID?: string }) {
+export function EffortTrace({ segments, height = 112, testID }: { segments: readonly { kind: string }[]; height?: number; testID?: string }) {
   const reduce = useReduceMotion();
   const [width, setWidth] = useState(0);
   const progress = useAnimatedValue(0);
