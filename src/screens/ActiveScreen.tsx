@@ -10,6 +10,8 @@ import { RepRail } from '../components/kit/ProfileChart';
 import { HoldToEnd, PauseGlass, StatTriplet, WarmupJump } from '../components/ride/Controls';
 import { PhaseField } from '../components/ride/PhaseField';
 import { PowerGauge } from '../components/ride/PowerGauge';
+import { RideVideo } from '../components/ride/RideVideo';
+import { RIDE_VIDEO } from '../content/videos';
 import { BIKE_TONES, RoadBike, RoadStream } from '../components/bike/RoadBike';
 import { useHistory } from '../state/HistoryContext';
 import { useHeartRate } from '../state/HeartRateContext';
@@ -255,10 +257,16 @@ export function ActiveScreen() {
           <Text style={styles.bpmUnit}>bpm</Text>
         </View>
 
-        <View style={styles.bikeWash} pointerEvents="none">
-          <RoadBike width={210} tone={BIKE_TONES.line} line wheelPeriodMs={reduceMotion ? null : wheelPeriod(kind)} />
-          <RoadStream width={260} periodMs={reduceMotion ? null : wheelPeriod(kind) * 0.6} color="rgba(255,255,255,0.8)" />
-        </View>
+        {RIDE_VIDEO != null ? (
+          <View style={styles.videoSlot} pointerEvents="none">
+            <RideVideo source={RIDE_VIDEO} still={reduceMotion} style={styles.video} />
+          </View>
+        ) : (
+          <View style={styles.bikeWash} pointerEvents="none">
+            <RoadBike width={210} tone={BIKE_TONES.line} line wheelPeriodMs={reduceMotion ? null : wheelPeriod(kind)} />
+            <RoadStream width={260} periodMs={reduceMotion ? null : wheelPeriod(kind) * 0.6} color="rgba(255,255,255,0.8)" />
+          </View>
+        )}
         {view.countIn != null ? (
           <CountIn seconds={view.countIn} rep={nextRep} reduceMotion={reduceMotion} />
         ) : (
@@ -378,6 +386,8 @@ const styles = StyleSheet.create({
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 36 },
   bpmUnit: { color: 'rgba(255,255,255,0.9)', fontSize: 19, fontWeight: '600', alignSelf: 'flex-end', paddingBottom: 6 },
   flex: { flex: 1 },
+  videoSlot: { flex: 1, alignSelf: 'stretch', justifyContent: 'center', paddingVertical: 10, minHeight: 90 },
+  video: { flex: 1, minHeight: 90 },
   bikeWash: { flex: 1, alignItems: 'center', justifyContent: 'center', opacity: 0.16, gap: 2 },
   countIn: { alignItems: 'center' },
   countInLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: 3 },
