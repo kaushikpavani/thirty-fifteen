@@ -5,6 +5,7 @@ import { configureIdleAudio, holdForeignDuck } from './session';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 import { VOICE_CLIPS } from './voiceClips';
 import { createPlayerPool } from './playerPool';
+import { setPlayerRate } from './playerRate';
 import { coachLanguage, DEFAULT_COACH, nextTake, resolveClip, type RecordedVoice } from './voices';
 
 const beepModules = {
@@ -132,7 +133,6 @@ export function setCoachVoice(settings: WorkoutSettings): void {
     create: (source) => {
       const player = audio.createAudioPlayer(source, { keepAudioSessionActive: true });
       player.volume = 1;
-      player.shouldCorrectPitch = true;
       return player;
     },
   });
@@ -293,8 +293,9 @@ export function speakCue(
     // ignore
   }
   try {
-    player.shouldCorrectPitch = true;
-    player.playbackRate = playbackRateFor(settings);
+    // Speed is best effort: if it can't be set the clip plays at normal speed, it still plays.
+    const rate = playbackRateFor(settings);
+    if (rate !== 1) setPlayerRate(player, rate);
     player.volume = 1;
     const start = () => {
       if (token !== rockyToken) return;

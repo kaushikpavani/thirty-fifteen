@@ -8,6 +8,7 @@ import {
 } from './remoteTransport';
 import { MUSIC_GENRES, MUSIC_TRACKS } from './musicTracks';
 import { BED_VOLUME, DUCK_GAIN, type MusicBed } from './spirit';
+import { setPlayerRate } from './playerRate';
 
 const bedModules = {
   drive: require('../../assets/beds/drive.wav'),
@@ -393,7 +394,7 @@ export function syncMusic(bed: MusicBed, musicEnabled: boolean, rate = 1, title?
   const playerNow = players[active];
   if (playerNow) {
     try {
-      playerNow.playbackRate = rate;
+      setPlayerRate(playerNow, rate);
     } catch {
       // ignore
     }
