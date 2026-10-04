@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +13,7 @@ import { noteAppOpen } from '../storage/cloud';
 import { scheduleSync } from '../storage/sync';
 import { colors } from '../theme/colors';
 import { FtpAutoAdjuster } from '../components/FtpAutoAdjuster';
+import { SettingsSync } from '../components/SettingsSync';
 
 export default function RootLayout() {
   return (
@@ -48,14 +49,6 @@ function RootNavigator() {
     noteAppOpen();
     scheduleSync();
   }, [auth.ready]);
-  useEffect(() => {
-    if (!auth.justSignedIn) return;
-    auth.clearJustSignedIn();
-    const { ageYears, sex, weightLb, profilePromptSeen } = settings.settings;
-    if (!profilePromptSeen && ageYears == null && sex == null && weightLb == null) {
-      router.push('/profile-onboarding');
-    }
-  }, [auth, settings.settings]);
   if (!settings.ready || !auth.ready || !history.ready) {
     return (
       <View style={styles.boot}>
@@ -67,6 +60,7 @@ function RootNavigator() {
   return (
     <>
     <FtpAutoAdjuster />
+    <SettingsSync />
     <Stack
       screenOptions={{
         headerShown: false,

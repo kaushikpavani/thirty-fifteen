@@ -26,6 +26,10 @@ Two kinds of tests:
 | Two phones signed in to one account | Both end up with every ride; neither overwrites the other; same-day rides stay separate |
 | A ride deleted on one phone | It never comes back on that phone, online or offline |
 | Old settings from earlier versions (old voice names, unknown language) | Fall back to current defaults |
+| Deleting the app, reinstalling, signing in with the same account: settings | FTP, age, sex, weight, resting heart rate, the workout layout, coach and music choices all come back; the fresh install's defaults never overwrite the account |
+| Changing a setting, online or offline | It is sent to the account within seconds, or waits and goes on the next sync; nothing else in the account is disturbed |
+| Two phones changing different settings | Each setting ends up as the last one changed; neither phone wipes the other's changes |
+| Damaged or out-of-range values in the account | Ignored field by field; the phone keeps its own value |
 
 ## Protected by design, checked on the server
 
@@ -60,7 +64,5 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
   up again; it stays deleted on the phone that deleted it.
 - **Rides never backed up are not restorable.** A ride done signed out or offline lives only on the phone until a
   sync succeeds. Deleting the app before then loses it. Past rides shows how many are still waiting.
-- **Settings are not restored after a reinstall.** FTP, age, weight, resting heart rate, the workout layout and
-  the coach choice live on the phone only. Rides come back; these have to be entered again.
 - **Screens and gestures** have no automated tests. They are checked by hand in the web preview and on device.
 - **The audio generators** are tested with a simulated ElevenLabs API, not the live one.

@@ -1,5 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { hasSeenWelcome, loadSettings, markWelcomeSeen as persistWelcomeSeen, saveSettings } from '../storage/settings';
+import { notePendingSettings } from '../storage/settingsCloud';
+import { changedKeys } from '../storage/settingsSync';
 import type { WorkoutSettings } from '../types';
 import { DEFAULT_SETTINGS } from '../workout/defaults';
 
@@ -7,7 +9,11 @@ type SettingsContextValue = {
   ready: boolean;
   settings: WorkoutSettings;
   welcomeSeen: boolean;
-  update: (next: WorkoutSettings) => Promise<void>;
+  /**
+   * Save new settings. Changes are remembered as waiting to be backed up to the rider's
+   * account, unless `fromCloud` says they just came from there.
+   */
+  update: (next: WorkoutSettings, options?: { fromCloud?: boolean }) => Promise<void>;
   markWelcomeSeen: () => Promise<void>;
 };
 
@@ -17,12 +23,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<WorkoutSettings>(DEFAULT_SETTINGS);
   const [welcomeSeen, setWelcomeSeen] = useState(false);
+  /** The settings as last saved, so a change can be told from what it replaced. */
+  const current = useRef<WorkoutSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const [loaded, seen] = await Promise.all([loadSettings(), hasSeenWelcome()]);
       if (cancelled) return;
+      current.current = loaded;
       setSettings(loaded);
       setWelcomeSeen(seen);
       setReady(true);
@@ -32,8 +41,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const update = useCallback(async (next: WorkoutSettings) => {
+  const update = useCallback(async (next: WorkoutSettings, options?: { fromCloud?: boolean }) => {
+    const changed = options?.fromCloud ? [] : changedKeys(current.current, next);
+    current.current = next;
     setSettings(next);
+    // Note what changed before saving, so a crash between the two can only cause an extra upload, never a lost one.
+    await notePendingSettings(changed);
     await saveSettings(next);
   }, []);
 
