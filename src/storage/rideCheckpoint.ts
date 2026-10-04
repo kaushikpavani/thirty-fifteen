@@ -55,3 +55,49 @@ export function createRideCheckpoint(kv: CheckpointKv) {
 
   return { save, load, clear };
 }
+
+export type RideCheckpoint = ReturnType<typeof createRideCheckpoint>;
+
+/**
+ * Next launch: move an interrupted ride into the ride store. Returns it, or
+ * null if there was nothing to recover. The checkpoint is only cleared once
+ * the ride is safely stored, was already stored, or was thrown away by the rider.
+ */
+export async function recoverCheckpoint(deps: {
+  checkpoint: RideCheckpoint;
+  isDeleted: (id: string) => Promise<boolean>;
+  isSaved: (id: string) => Promise<boolean>;
+  save: (ride: WorkoutRecord) => Promise<boolean>;
+}): Promise<WorkoutRecord | null> {
+  const ride = await deps.checkpoint.load();
+  if (!ride) return null;
+  // The rider chose "Delete" for this ride; a checkpoint that landed late must not bring it back.
+  if (await deps.isDeleted(ride.id).catch(() => false)) {
+    await deps.checkpoint.clear();
+    return null;
+  }
+  // Already saved under its own key (the ride ended normally and only the clean-up was missed):
+  // the saved copy is the complete one, so never overwrite it with the in-progress snapshot.
+  if (await deps.isSaved(ride.id).catch(() => false)) {
+    await deps.checkpoint.clear();
+    return null;
+  }
+  if (!(await deps.save(ride))) return null;
+  await deps.checkpoint.clear();
+  return ride;
+}
+
+/**
+ * The rider ended a ride part-way and chose not to keep it. The delete is
+ * recorded first, so neither a late checkpoint nor a sync can bring the ride
+ * back; then the in-progress copy is removed. False if the delete could not
+ * be recorded (the in-progress copy is still removed).
+ */
+export async function discardCheckpoint(
+  deps: { checkpoint: RideCheckpoint; markDeleted: (id: string) => Promise<boolean> },
+  id: string,
+): Promise<boolean> {
+  const recorded = await deps.markDeleted(id).catch(() => false);
+  await deps.checkpoint.clear();
+  return recorded;
+}

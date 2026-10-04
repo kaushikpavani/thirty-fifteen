@@ -17,6 +17,9 @@ Two kinds of tests:
 | A full ride for each of those | Every part chirps once, every hard rep gets its count-in, no cue ever plays twice, every spoken line has a recording for those exact settings |
 | Phone locked or app in the background, clock stalling for up to five minutes | No cue doubles, nothing piles up when the app wakes |
 | Battery dies, app crashes, or iOS closes the app mid-ride | The ride is checkpointed every 10 s and recovered as "ended early" on the next launch; never duplicated; a finished ride is never replaced by its checkpoint |
+| Ending a ride by hand at any point | Before the last hard rep is finished the rider is asked Save or Delete; after it (cool-down) the ride just saves; a few seconds in, nothing is kept or asked |
+| Choosing Delete for a ride ended part-way | Gone from the phone at once; a checkpoint that lands late cannot bring it back; never uploaded, and removed from the account if a copy got there; other rides untouched |
+| Battery dies while the Save-or-Delete question is showing | The ride is kept |
 | No sensors, power only, heart rate only, both | A clean ride record, a verdict and a share card every time; no VO₂max claim without heart rate |
 | Heart-rate monitor or power meter drops out mid-ride, connects late, or sends rubbish (NaN, negative, absurd values) | No bad numbers reach the saved ride, the verdict or the share card |
 | Updating the app over rides saved in the old storage format | All rides kept, in order, on every launch |
@@ -41,6 +44,8 @@ Two kinds of tests:
 
 These depend on iOS, Bluetooth or audio hardware and cannot run in the test suite.
 
+- [ ] Pause in the first set, hold to end: Save / Delete / Keep riding appear; Delete leaves nothing in Past rides.
+- [ ] Sign in on a fresh install: FTP, profile and coach choice come back from the account.
 - [ ] Start a ride, lock the phone for five minutes: cues keep coming, clock is right on unlock.
 - [ ] Start a ride, force-quit the app at ~3 minutes, reopen: the ride is in Past rides as "Ended early".
 - [ ] Let the battery or a phone call interrupt a ride: same result.

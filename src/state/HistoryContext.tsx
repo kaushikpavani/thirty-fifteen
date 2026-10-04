@@ -7,6 +7,7 @@ import type { CloudAttempt } from '../storage/deletionState';
 import { loadDeletionState } from '../storage/deletionStore';
 import {
   clearRideCheckpoint,
+  discardRideInProgress,
   deletedRideIds,
   deleteRide,
   readRides,
@@ -32,6 +33,8 @@ type HistoryContextValue = {
   clearSessions: () => Promise<CloudAttempt>;
   /** Deletes one ride from this iPhone, and from the cloud when signed in. False if it couldn't be deleted. */
   deleteSession: (id: string) => Promise<boolean>;
+  /** The rider ended a ride part-way and chose not to keep it: gone from this iPhone and from the account. */
+  discardRide: (id: string) => Promise<void>;
 };
 
 type SyncStatus = { kind: 'idle' | 'syncing' | 'backed-up' } | { kind: 'pending'; pending: number; reason: 'offline' | 'error' };
@@ -179,6 +182,18 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
     [runSync, show],
   );
 
+  const discardRide = useCallback(
+    async (id: string) => {
+      await syncing.current?.catch(() => undefined);
+      await discardRideInProgress(id);
+      unsaved.current = unsaved.current.filter((ride) => ride.id !== id);
+      if (sessionsRef.current.some((ride) => ride.id === id)) show(sessionsRef.current.filter((ride) => ride.id !== id));
+      // Removes any copy that reached the account, now or as soon as the phone is back online.
+      runSync();
+    },
+    [runSync, show],
+  );
+
   const backup: BackupState = useMemo(() => {
     const total = sessions.length;
     if (!userId) return { kind: 'signed-out', total };
@@ -188,8 +203,8 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   }, [sessions.length, userId, status]);
 
   const value = useMemo(
-    () => ({ ready, sessions, backup, cloudNote: backupLine(backup), addSession, clearSessions, deleteSession }),
-    [ready, sessions, backup, addSession, clearSessions, deleteSession],
+    () => ({ ready, sessions, backup, cloudNote: backupLine(backup), addSession, clearSessions, deleteSession, discardRide }),
+    [ready, sessions, backup, addSession, clearSessions, deleteSession, discardRide],
   );
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;

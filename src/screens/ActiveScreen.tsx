@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, BackHandler, Easing, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useAnimatedValue } from '../hooks/useAnimatedValue';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,8 +18,9 @@ import { useSettings } from '../state/SettingsContext';
 import { useWorkout } from '../state/WorkoutContext';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useRideRecorder } from '../hooks/useRideRecorder';
-import { fieldFor, fields, type as t } from '../theme/tokens';
+import { fieldFor, fields, ink, type as t } from '../theme/tokens';
 import type { PhaseKind } from '../types';
+import { endChoice } from '../logic/endRide';
 import { clockText, nextHardRep, rideView } from '../logic/rideView';
 import { warmupJumpMs } from '../workout/transport';
 
@@ -48,7 +49,16 @@ export function ActiveScreen() {
   const paused = state.status === 'paused';
   const watts = meter.live?.watts ?? null;
   const bpm = heart.live?.bpm ?? null;
-  const { record, summary, hardAvg } = useRideRecorder({ state, settings, watts, bpm, addSession: history.addSession });
+  const { record, discard, summary, hardAvg } = useRideRecorder({
+    state,
+    settings,
+    watts,
+    bpm,
+    addSession: history.addSession,
+    discardRide: history.discardRide,
+  });
+  /** Ended before the sets were done: the rider is being asked whether to keep the ride. */
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     if (!engine.armedRef.current) router.replace('/home');
@@ -68,13 +78,27 @@ export function ActiveScreen() {
     router.replace('/home');
   };
 
-  const finishStop = () => {
+  const saveAndLeave = () => {
     record(false);
     leave();
   };
 
+  const deleteAndLeave = () => {
+    discard();
+    leave();
+  };
+
+  // Sets done (cool-down): just save. Part-way: ask. A few seconds in: nothing to keep.
+  const finishStop = () => {
+    if (endChoice(state.workout.segments, state.elapsedMs) === 'ask') setAsking(true);
+    else saveAndLeave();
+  };
+
   const onPause = useCallback(() => engine.pause(), [engine]);
-  const onResume = useCallback(() => engine.resume(), [engine]);
+  const onResume = useCallback(() => {
+    setAsking(false);
+    engine.resume();
+  }, [engine]);
 
   const view = useMemo(
     () =>
@@ -154,10 +178,37 @@ export function ActiveScreen() {
             />
           </View>
           <View style={styles.flex} />
-          <Pill label="Resume" icon="play" onPress={onResume} testID="resume" style={styles.stretch} />
-          <View style={{ height: 12 }} />
-          <HoldToEnd onEnd={finishStop} />
-          <Text style={styles.savedNote}>Ending saves the ride so far.</Text>
+          {asking ? (
+            <View style={styles.ask} accessibilityViewIsModal testID="end-choice">
+              <Text style={styles.askTitle} accessibilityRole="header">
+                Save this ride?
+              </Text>
+              <Text style={styles.askBody}>You stopped before the sets were finished. Keep what you rode, or delete it for good.</Text>
+              <Pill label="Save ride" onPress={saveAndLeave} testID="end-save" style={styles.stretch} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete ride"
+                accessibilityHint="Deletes this ride from this iPhone and from your account. This can't be undone."
+                testID="end-delete"
+                onPress={deleteAndLeave}
+                style={styles.askRow}
+              >
+                <Text style={styles.askDelete}>Delete ride</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Keep riding" testID="end-back" onPress={onResume} style={styles.askRow}>
+                <Text style={styles.askBack}>Keep riding</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Pill label="Resume" icon="play" onPress={onResume} testID="resume" style={styles.stretch} />
+              <View style={{ height: 12 }} />
+              <HoldToEnd onEnd={finishStop} />
+              <Text style={styles.savedNote}>
+                {endChoice(state.workout.segments, state.elapsedMs) === 'ask' ? 'You can save or delete the ride after ending.' : 'Ending saves the ride.'}
+              </Text>
+            </>
+          )}
         </View>
       </View>
     );
@@ -330,5 +381,11 @@ const styles = StyleSheet.create({
   frozen: { ...t.countdown, fontSize: 112, lineHeight: 118, color: 'rgba(255,255,255,0.55)', marginTop: 84 },
   frozenLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 15, marginTop: 8 },
   stretch: { alignSelf: 'stretch' },
+  ask: { alignSelf: 'stretch', alignItems: 'center', gap: 6 },
+  askTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
+  askBody: { color: 'rgba(255,255,255,0.75)', fontSize: 15, lineHeight: 21, textAlign: 'center', marginBottom: 12 },
+  askRow: { alignSelf: 'stretch', minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  askDelete: { color: ink.danger, fontSize: 17, fontWeight: '600' },
+  askBack: { color: 'rgba(255,255,255,0.85)', fontSize: 17, fontWeight: '500' },
   savedNote: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 14 },
 });

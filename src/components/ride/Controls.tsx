@@ -99,7 +99,7 @@ export function HoldToEnd({ onEnd }: { onEnd: () => void }) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="End ride"
-      accessibilityHint="Press and hold to end the ride. Your ride so far is saved."
+      accessibilityHint="Press and hold to end the ride."
       accessibilityActions={[{ name: 'activate' }]}
       onAccessibilityAction={() => onEnd()}
       testID="end"

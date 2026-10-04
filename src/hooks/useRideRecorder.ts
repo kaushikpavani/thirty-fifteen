@@ -31,8 +31,9 @@ export function useRideRecorder(args: {
   watts: number | null;
   bpm: number | null;
   addSession: (input: NewWorkoutRecord, id?: string) => Promise<void>;
+  discardRide: (id: string) => Promise<void>;
 }) {
-  const { state, settings, watts, bpm, addSession } = args;
+  const { state, settings, watts, bpm, addSession, discardRide } = args;
   const kind: PhaseKind = state.segment?.kind ?? 'warmup';
   const samples = useRef<RideSample[]>([]);
   const savedFor = useRef<number | null>(null);
@@ -130,9 +131,19 @@ export function useRideRecorder(args: {
     [addSession, settings, state.elapsedMs, state.startedAt, state.workout],
   );
 
+  /** The rider chose not to keep this ride. Nothing is saved, and no later checkpoint can bring it back. */
+  const discard = useCallback(() => {
+    const startedAt = state.startedAt;
+    if (!startedAt || savedFor.current === startedAt) return;
+    // Same latch as a save: stops every further checkpoint and any save of this ride.
+    savedFor.current = startedAt;
+    void discardRide(idFor(startedAt));
+  }, [discardRide, state.startedAt]);
+
   const hardNow = forRide(hard, state.startedAt, { sum: 0, count: 0 });
   return {
     record,
+    discard,
     summary: forRide(summary, state.startedAt, null),
     hardAvg: hardNow.count > 0 ? Math.round(hardNow.sum / hardNow.count) : null,
   };

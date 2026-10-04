@@ -10,7 +10,7 @@ import { createQueue } from './queue';
 import { createRideStore, type StoreRead } from './rideStore';
 import { chunk, pendingBackup, planSync, toIso, type RemoteEntry } from './rideSync';
 import { createTombstones } from './rideTombstones';
-import { createRideCheckpoint } from './rideCheckpoint';
+import { createRideCheckpoint, discardCheckpoint, recoverCheckpoint } from './rideCheckpoint';
 
 export { mergeRecords } from './merge';
 export { createId };
@@ -84,23 +84,22 @@ export function clearRideCheckpoint(): Promise<void> {
  * store. Returns it, or null if there was nothing to recover. The checkpoint
  * is only cleared once the ride is safely stored under its own key.
  */
-export async function recoverInterruptedRide(): Promise<WorkoutRecord | null> {
-  const ride = await checkpoint.load();
-  if (!ride) return null;
-  if ((await deletedRideIds()).has(ride.id)) {
-    await checkpoint.clear();
-    return null;
-  }
-  // Already saved under its own key (the ride ended normally and only the clean-up was missed):
-  // the saved copy is the complete one, so never overwrite it with the in-progress snapshot.
-  const saved = await writes(() => store.has(ride.id)).catch(() => false);
-  if (saved) {
-    await checkpoint.clear();
-    return null;
-  }
-  if (!(await saveRides([ride]))) return null;
-  await checkpoint.clear();
-  return ride;
+export function recoverInterruptedRide(): Promise<WorkoutRecord | null> {
+  return recoverCheckpoint({
+    checkpoint,
+    isDeleted: async (id) => (await deletedRideIds()).has(id),
+    isSaved: (id) => writes(() => store.has(id)),
+    save: (ride) => saveRides([ride]),
+  });
+}
+
+/**
+ * The rider ended a ride part-way and chose to delete it: gone from this
+ * phone now, never uploaded, and removed from the account by the next sync
+ * if a copy ever reached it.
+ */
+export function discardRideInProgress(id: string): Promise<boolean> {
+  return discardCheckpoint({ checkpoint, markDeleted: deleteRide }, id);
 }
 
 /**

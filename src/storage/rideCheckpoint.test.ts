@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildRideRecord, MIN_SAVE_MS } from '../logic/rideRecord.ts';
 import type { WorkoutRecord } from '../types.ts';
-import { CHECKPOINT_KEY, createRideCheckpoint } from './rideCheckpoint.ts';
+import { CHECKPOINT_KEY, createRideCheckpoint, discardCheckpoint, recoverCheckpoint } from './rideCheckpoint.ts';
+import { planSync } from './rideSync.ts';
+import { createTombstones } from './rideTombstones.ts';
 import { createRideStore } from './rideStore.ts';
 
 function memoryKv() {
@@ -109,4 +111,113 @@ test('a ride of a few seconds is a mis-tap; the threshold is shared with the man
   const tiny = buildRideRecord({ startedAt: START, endedAt: START + 3000, elapsedMs: 3000, completed: false, workout, settings, samples: [] });
   assert.equal(tiny.completionPct, 0);
   assert.equal(tiny.summary?.maxBpm, null);
+});
+
+/** The phone as history.ts wires it: one storage, a checkpoint, a ride store and the list of deleted rides. */
+function phone(kv = memoryKv()) {
+  const checkpoint = createRideCheckpoint(kv);
+  const store = createRideStore(kv);
+  const tombstones = createTombstones(kv);
+  const markDeleted = async (id: string) => {
+    try {
+      await tombstones.add(id);
+    } catch {
+      return false;
+    }
+    await store.remove([id]).catch(() => undefined);
+    return true;
+  };
+  const launch = () =>
+    recoverCheckpoint({
+      checkpoint,
+      isDeleted: async (id) => (await tombstones.load()).has(id),
+      isSaved: (id) => store.has(id),
+      save: async (ride) => (await store.put([ride]).then(() => true).catch(() => false)),
+    });
+  return { kv, checkpoint, store, tombstones, markDeleted, launch };
+}
+
+test('ended part-way and chose Delete: gone from the phone at once, and stays gone on the next launch', async () => {
+  const p = phone();
+  for (let t = 10_000; t <= 700_000; t += 10_000) await p.checkpoint.save(snapshot(t));
+  assert.equal(await discardCheckpoint(p, 'ride-1'), true);
+  assert.equal(await p.checkpoint.load(), null);
+  assert.equal((await p.store.read()).rides.length, 0);
+  assert.equal(await p.launch(), null);
+  assert.equal((await p.store.read()).rides.length, 0);
+});
+
+test('a checkpoint write that lands after Delete cannot bring the ride back', async () => {
+  const p = phone();
+  await p.checkpoint.save(snapshot(600_000));
+  await discardCheckpoint(p, 'ride-1');
+  // The last periodic write was already on its way when the rider tapped Delete.
+  await p.checkpoint.save(snapshot(610_000));
+  assert.equal(await p.launch(), null);
+  assert.equal(await p.checkpoint.load(), null, 'the late checkpoint is cleaned up');
+  assert.equal((await p.store.read()).rides.length, 0);
+  // And again, however many times the app is opened.
+  assert.equal(await p.launch(), null);
+});
+
+test('a deleted ride is never uploaded, and a copy that reached the account is removed from it', async () => {
+  const p = phone();
+  await p.checkpoint.save(snapshot(600_000));
+  await discardCheckpoint(p, 'ride-1');
+  const deleted = await p.tombstones.load();
+  // Even if a copy were still on the phone it would not go up.
+  assert.deepEqual(planSync([snapshot(600_000)], [], null, deleted), { upload: [], download: [], remove: [] });
+  // A copy already in the account (another phone, an earlier save) is removed and never downloaded.
+  const plan = planSync([], [{ id: 'ride-1', endedAt: new Date(START + 600_000).toISOString() }], null, deleted);
+  assert.deepEqual(plan, { upload: [], download: [], remove: ['ride-1'] });
+});
+
+test('Delete only ever removes that ride: earlier rides and the next ride are untouched', async () => {
+  const p = phone();
+  await p.store.put([snapshot(900_000, 'older')]);
+  await p.checkpoint.save(snapshot(600_000, 'ride-1'));
+  await discardCheckpoint(p, 'ride-1');
+  assert.deepEqual((await p.store.read()).rides.map((r) => r.id), ['older']);
+  // The next ride is interrupted by a dead battery: it is recovered as usual.
+  await p.checkpoint.save(snapshot(300_000, 'ride-2'));
+  assert.equal((await p.launch())?.id, 'ride-2');
+  assert.deepEqual((await p.store.read()).rides.map((r) => r.id).sort(), ['older', 'ride-2']);
+});
+
+test('battery dies while the Save-or-Delete question is on screen: the ride is kept', async () => {
+  const p = phone();
+  for (let t = 10_000; t <= 700_000; t += 10_000) await p.checkpoint.save(snapshot(t));
+  // No answer was given. Keeping is the safe default.
+  const ride = await p.launch();
+  assert.equal(ride?.id, 'ride-1');
+  assert.equal(ride?.durationMs, 700_000);
+  assert.equal((await p.store.read()).rides.length, 1);
+});
+
+test('storage refuses the delete record: the in-progress copy is still removed and nothing comes back', async () => {
+  const kv = memoryKv();
+  const good = phone(kv);
+  await good.checkpoint.save(snapshot(600_000));
+  const failing = phone({ ...kv, setItem: async () => Promise.reject(new Error('disk full')) });
+  assert.equal(await discardCheckpoint(failing, 'ride-1'), false);
+  assert.equal(await good.checkpoint.load(), null);
+  assert.equal(await good.launch(), null);
+});
+
+test('tapping Delete twice, or deleting a ride with no checkpoint yet, is harmless', async () => {
+  const p = phone();
+  assert.equal(await discardCheckpoint(p, 'ride-1'), true);
+  assert.equal(await discardCheckpoint(p, 'ride-1'), true);
+  assert.deepEqual([...(await p.tombstones.load())], ['ride-1']);
+  assert.equal(await p.launch(), null);
+});
+
+test('recovery after a normal finish never replaces the finished ride (real recovery path)', async () => {
+  const p = phone();
+  await p.checkpoint.save(snapshot(840_000));
+  const finished: WorkoutRecord = { ...buildRideRecord({ startedAt: START, endedAt: START + workout.totalMs, elapsedMs: workout.totalMs, completed: true, workout, settings, samples: samplesUntil(workout.totalMs) }), id: 'ride-1' };
+  await p.store.put([finished]);
+  assert.equal(await p.launch(), null);
+  assert.equal((await p.store.read()).rides[0]!.completed, true);
+  assert.equal(await p.checkpoint.load(), null);
 });
