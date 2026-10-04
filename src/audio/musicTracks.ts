@@ -2,8 +2,22 @@
 
 /** A genre appears here once both of its tracks have been generated. */
 export const MUSIC_GENRES: { id: string; name: string }[] = [
+  { id: "electronic", name: "Electronic" },
+  { id: "dance", name: "Dance" },
+  { id: "edm", name: "EDM" },
+  { id: "opera", name: "Opera" },
+  { id: "classical", name: "Classical" },
+  { id: "indian", name: "Indian" },
+  { id: "chinese", name: "Chinese" },
 ];
 
 /** genre → the HARD track and the EASY track. */
 export const MUSIC_TRACKS: Record<string, { high: number; low: number }> = {
+  electronic: { high: require('../../assets/music/electronic/high.mp3'), low: require('../../assets/music/electronic/low.mp3') },
+  dance: { high: require('../../assets/music/dance/high.mp3'), low: require('../../assets/music/dance/low.mp3') },
+  edm: { high: require('../../assets/music/edm/high.mp3'), low: require('../../assets/music/edm/low.mp3') },
+  opera: { high: require('../../assets/music/opera/high.mp3'), low: require('../../assets/music/opera/low.mp3') },
+  classical: { high: require('../../assets/music/classical/high.mp3'), low: require('../../assets/music/classical/low.mp3') },
+  indian: { high: require('../../assets/music/indian/high.mp3'), low: require('../../assets/music/indian/low.mp3') },
+  chinese: { high: require('../../assets/music/chinese/high.mp3'), low: require('../../assets/music/chinese/low.mp3') },
 };
