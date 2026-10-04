@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SETTINGS } from '../workout/defaults';
 import type { WorkoutSettings } from '../types';
+import { coachLanguage, normalizeCoach } from '../audio/voices';
 
 const KEY = '@thirtyfifteen/settings/v1';
 const ONBOARD_KEY = '@thirtyfifteen/ftp_onboarded/v1';
@@ -16,6 +17,9 @@ export async function loadSettings(): Promise<WorkoutSettings> {
     if (parsed.ftpSetByRider === undefined && typeof parsed.ftpWatts === 'number' && parsed.ftpWatts !== DEFAULT_SETTINGS.ftpWatts) {
       merged.ftpSetByRider = true;
     }
+    // Installs from before the two-coach line-up stored 'direct', 'calm' or 'numbers'.
+    merged.coachVoice = normalizeCoach(parsed.coachVoice);
+    merged.coachLanguage = coachLanguage(merged);
     return merged;
   } catch {
     return { ...DEFAULT_SETTINGS };

@@ -4,9 +4,10 @@ export const SILENCE_AFTER_MS = 1000;
 export const SILENCE_BEFORE_MS = 3000;
 
 /**
- * The coach says less, and says it on time. These are the Calm lines; every
- * voice speaks the same clip keys (see voices.ts), so timing never depends on
- * who is talking.
+ * The coach says less, and says it on time. These are the English lines, kept
+ * here as the fallback text; the recorded words come from the script for the
+ * rider's language (see voices.ts). Both coaches speak the same clip keys, so
+ * timing never depends on who is talking.
  */
 export const ROCKY_WELCOME = 'Warm-up. Easy spin to start.';
 /** Pool for HARD reps that are not a milestone. Consecutive reps never share a line. */
@@ -16,16 +17,25 @@ export const HARD_LINES = [
   'Quick feet.',
   'Relax your shoulders.',
   'Stay on it.',
+  'Eyes up. Keep driving.',
+  'Steady power.',
+  'You’re right on it.',
+  'Strong. Keep it there.',
+  'Breathe and push.',
 ] as const;
-export const EASY_LINES = ['Breathe.', 'Spin easy.', 'Good.'] as const;
+export const EASY_LINES = ['Breathe.', 'Spin easy.', 'Good.', 'Let it come down.', 'Shake it out.', 'Nice work.'] as const;
 /** Rep-aware lines. The coach knows where you are. */
 export const HALFWAY = 'Halfway.';
 export const THREE_TO_GO = 'Three to go.';
-export const LAST_ONE = 'Last one. Empty it.';
+export const LAST_ONE = 'Last one. Empty the tank.';
 export const ROCKY_HARD = HARD_LINES[0];
 export const ROCKY_EASY = EASY_LINES[0];
 /** Fixed. Not a pool. */
 export const ROCKY_FINISH = "That's the work. Cool down, easy spin.";
+/** At the very end of the ride. */
+export const ROCKY_DONE = 'Ride complete. Nice work.';
+/** A minute before the first hard rep. */
+export const WARMUP_ONE_LEFT = 'One minute of warm-up left. First hard rep is coming.';
 /** One syllable on the first HARD chirp. Fixed. Never skipped. */
 export const ROCKY_GO = 'Go.';
 /** Once, when the last easy of a set opens the set rest. Fixed. */

@@ -1,0 +1,534 @@
+{
+ "language": "en",
+ "name": "English",
+ "model": "eleven_v4",
+ "coaches": {
+  "female": {
+   "name": "Sarah",
+   "voiceId": "EXAVITQu4vr4xnSDxMaL"
+  },
+  "male": {
+   "name": "Chris",
+   "voiceId": "iP95p4xoKVk53GoZ742B"
+  }
+ },
+ "styles": {
+  "coach": "[confident]",
+  "count": "[firm]",
+  "go": "[energetic]",
+  "hard": "[energetic] [confident]",
+  "easy": "[calm] [warmly]"
+ },
+ "lines": [
+  {
+   "clip": "warmup5",
+   "text": "Warm-up. Five minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup6",
+   "text": "Warm-up. Six minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup7",
+   "text": "Warm-up. Seven minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup8",
+   "text": "Warm-up. Eight minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup9",
+   "text": "Warm-up. Nine minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup10",
+   "text": "Warm-up. Ten minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup11",
+   "text": "Warm-up. Eleven minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup12",
+   "text": "Warm-up. Twelve minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup13",
+   "text": "Warm-up. Thirteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup14",
+   "text": "Warm-up. Fourteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup15",
+   "text": "Warm-up. Fifteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup16",
+   "text": "Warm-up. Sixteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup17",
+   "text": "Warm-up. Seventeen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup18",
+   "text": "Warm-up. Eighteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup19",
+   "text": "Warm-up. Nineteen minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup20",
+   "text": "Warm-up. Twenty minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup21",
+   "text": "Warm-up. Twenty-one minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup22",
+   "text": "Warm-up. Twenty-two minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup23",
+   "text": "Warm-up. Twenty-three minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup24",
+   "text": "Warm-up. Twenty-four minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup25",
+   "text": "Warm-up. Twenty-five minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup26",
+   "text": "Warm-up. Twenty-six minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup27",
+   "text": "Warm-up. Twenty-seven minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup28",
+   "text": "Warm-up. Twenty-eight minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup29",
+   "text": "Warm-up. Twenty-nine minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup30",
+   "text": "Warm-up. Thirty minutes, easy spin.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "warmup1left",
+   "text": "One minute of warm-up left. First hard rep is coming.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "count3",
+   "text": "Three.",
+   "takes": 3,
+   "style": "count"
+  },
+  {
+   "clip": "count2",
+   "text": "Two.",
+   "takes": 3,
+   "style": "count"
+  },
+  {
+   "clip": "count1",
+   "text": "One.",
+   "takes": 3,
+   "style": "count"
+  },
+  {
+   "clip": "go",
+   "text": "Go!",
+   "takes": 3,
+   "style": "go"
+  },
+  {
+   "clip": "hard0",
+   "text": "Hold it.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard1",
+   "text": "Smooth and strong.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard2",
+   "text": "Quick feet.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard3",
+   "text": "Relax your shoulders.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard4",
+   "text": "Stay on it.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard5",
+   "text": "Eyes up. Keep driving.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard6",
+   "text": "Steady power.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard7",
+   "text": "You’re right on it.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard8",
+   "text": "Strong. Keep it there.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "hard9",
+   "text": "Breathe and push.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "halfway",
+   "text": "Halfway.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "three",
+   "text": "Three to go.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "last",
+   "text": "Last one. Empty the tank.",
+   "takes": 2,
+   "style": "hard"
+  },
+  {
+   "clip": "easy0",
+   "text": "Breathe.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "easy1",
+   "text": "Spin easy.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "easy2",
+   "text": "Good.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "easy3",
+   "text": "Let it come down.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "easy4",
+   "text": "Shake it out.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "easy5",
+   "text": "Nice work.",
+   "takes": 2,
+   "style": "easy"
+  },
+  {
+   "clip": "rest1",
+   "text": "Set done. One minute easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest2",
+   "text": "Set done. Two minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest3",
+   "text": "Set done. Three minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest4",
+   "text": "Set done. Four minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest5",
+   "text": "Set done. Five minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest6",
+   "text": "Set done. Six minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest7",
+   "text": "Set done. Seven minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest8",
+   "text": "Set done. Eight minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest9",
+   "text": "Set done. Nine minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "rest10",
+   "text": "Set done. Ten minutes easy. Take a drink.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "quick10",
+   "text": "Quick surge. Ten seconds.",
+   "takes": 1,
+   "style": "hard"
+  },
+  {
+   "clip": "cooldown3",
+   "text": "That’s the work. Cool-down, three minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown4",
+   "text": "That’s the work. Cool-down, four minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown5",
+   "text": "That’s the work. Cool-down, five minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown6",
+   "text": "That’s the work. Cool-down, six minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown7",
+   "text": "That’s the work. Cool-down, seven minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown8",
+   "text": "That’s the work. Cool-down, eight minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown9",
+   "text": "That’s the work. Cool-down, nine minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown10",
+   "text": "That’s the work. Cool-down, ten minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown11",
+   "text": "That’s the work. Cool-down, eleven minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown12",
+   "text": "That’s the work. Cool-down, twelve minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown13",
+   "text": "That’s the work. Cool-down, thirteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown14",
+   "text": "That’s the work. Cool-down, fourteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown15",
+   "text": "That’s the work. Cool-down, fifteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown16",
+   "text": "That’s the work. Cool-down, sixteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown17",
+   "text": "That’s the work. Cool-down, seventeen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown18",
+   "text": "That’s the work. Cool-down, eighteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown19",
+   "text": "That’s the work. Cool-down, nineteen minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "cooldown20",
+   "text": "That’s the work. Cool-down, twenty minutes easy.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "left10",
+   "text": "Ten minutes left.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "left5",
+   "text": "Five minutes left.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "left2",
+   "text": "Two minutes left.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "left1",
+   "text": "One minute left.",
+   "takes": 1,
+   "style": "coach"
+  },
+  {
+   "clip": "done",
+   "text": "Ride complete. Nice work.",
+   "takes": 1,
+   "style": "easy"
+  },
+  {
+   "clip": "preview",
+   "text": "Halfway. Looking strong.",
+   "takes": 1,
+   "style": "hard"
+  }
+ ]
+}

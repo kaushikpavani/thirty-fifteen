@@ -4,7 +4,7 @@ import { attachMusicPlayers, duckMusic, releaseMusicPlayers } from './music';
 import { configureIdleAudio, holdForeignDuck } from './session';
 import { BEEP_DUCK_MS, ladderBeep, rockyDuckMs, type LadderStep } from './spirit';
 import { VOICE_CLIPS } from './voiceClips';
-import { resolveClip, type RecordedVoice } from './voices';
+import { clipsForRide, coachLanguage, DEFAULT_COACH, nextTake, resolveClip, type RecordedVoice } from './voices';
 
 const beepModules = {
   go: require('../../assets/beep-go.wav'),
@@ -24,9 +24,8 @@ const beepModules = {
   doneHeavy: require('../../assets/beep-done-heavy.wav'),
 } as const;
 
-/** Recorded coach clips, one table per voice. Only the selected voice is loaded. */
-type VoiceTable = Record<string, number>;
-const voiceModules = VOICE_CLIPS as unknown as Record<RecordedVoice, VoiceTable>;
+/** Recorded coach clips: language → coach → clip → takes. Only the selected coach is loaded. */
+type VoiceTable = Record<string, number[]>;
 
 type BeepKind = keyof typeof beepModules;
 type ExpoAudioModule = Pick<typeof import('expo-audio'), 'createAudioPlayer' | 'setAudioModeAsync'>;
@@ -43,8 +42,10 @@ let voiceResolved = false;
 let voiceId: string | undefined;
 let rockyToken = 0;
 const cache: Partial<Record<BeepKind, Player>> = {};
-const rockyCache: Partial<Record<string, Player>> = {};
-let loadedVoice: RecordedVoice | null = null;
+const rockyCache: Partial<Record<string, Player[]>> = {};
+/** The take each clip played last, so repeats rotate. */
+const lastTake: Record<string, number> = {};
+let loadedVoice: string | null = null;
 
 const NOVELTY =
   /eloquence|bad news|bahh|bells|boing|bubbles|cellos|zarvox|trinoids|whisper|organ|superstar|jester|\bflo\b|grandma|grandpa|junior|kathy|ralph|albert/i;
@@ -84,10 +85,12 @@ function releasePlayers(): void {
 
 function releaseVoicePlayers(): void {
   for (const key of Object.keys(rockyCache)) {
-    try {
-      rockyCache[key]?.remove();
-    } catch {
-      // ignore
+    for (const player of rockyCache[key] ?? []) {
+      try {
+        player.remove();
+      } catch {
+        // ignore
+      }
     }
     delete rockyCache[key];
   }
@@ -95,22 +98,31 @@ function releaseVoicePlayers(): void {
   loadedVoice = null;
 }
 
-/** Load the selected coach's clips, releasing any other voice. Cheap when already loaded. */
-export function setCoachVoice(voice: CoachVoice): void {
-  if (voice === 'off') return;
-  if (loadedVoice === voice && rockyReady) return;
+/**
+ * Load the selected coach's clips for this ride, releasing any other voice.
+ * Only the lines these settings can use are loaded (one warm-up length, not
+ * all twenty-six). Cheap when already loaded.
+ */
+export function setCoachVoice(settings: WorkoutSettings): void {
+  if (settings.coachVoice === 'off') return;
+  const voice: RecordedVoice = settings.coachVoice ?? DEFAULT_COACH;
+  const language = coachLanguage(settings);
+  const tag = `${language}/${voice}/${settings.warmupMin}/${settings.betweenSetRestMin}/${settings.cooldownMin}`;
+  if (loadedVoice === tag && rockyReady) return;
   const audio = loadExpoAudio();
   if (!audio || beepsUnavailable) return;
   releaseVoicePlayers();
   try {
-    const table = voiceModules[voice];
-    for (const key of Object.keys(table)) {
-      const player = audio.createAudioPlayer(table[key]!, { keepAudioSessionActive: true });
-      player.volume = 1;
-      player.shouldCorrectPitch = true;
-      rockyCache[key] = player;
+    const table: VoiceTable = VOICE_CLIPS[language]?.[voice] ?? {};
+    for (const key of clipsForRide(Object.keys(table), settings)) {
+      rockyCache[key] = table[key]!.map((source) => {
+        const player = audio.createAudioPlayer(source, { keepAudioSessionActive: true });
+        player.volume = 1;
+        player.shouldCorrectPitch = true;
+        return player;
+      });
     }
-    loadedVoice = voice;
+    loadedVoice = tag;
     rockyReady = true;
   } catch {
     releaseVoicePlayers();
@@ -210,7 +222,7 @@ function speakFallback(text: string, settings: WorkoutSettings): void {
   try {
     Speech.stop();
     Speech.speak(text, {
-      language: 'en-US',
+      language: coachLanguage(settings) === 'en' ? 'en-US' : coachLanguage(settings),
       voice: voiceId,
       rate: Math.min(playbackRateFor(settings), 1),
       pitch: 0.98,
@@ -222,31 +234,38 @@ function speakFallback(text: string, settings: WorkoutSettings): void {
 
 function pauseRocky(): void {
   for (const key of Object.keys(rockyCache)) {
-    try {
-      rockyCache[key]?.pause();
-    } catch {
-      // ignore
+    for (const player of rockyCache[key] ?? []) {
+      try {
+        player.pause();
+      } catch {
+        // ignore
+      }
     }
   }
 }
 
 /** Recorded coach line in the selected voice. Tuned on-device voice if the clip is missing. */
 export function speakCue(
-  cue: { key: string; line: string; clip?: string; rep?: number },
+  cue: { key: string; line: string; clip?: string },
   settings: WorkoutSettings,
 ): void {
   if (cue.key === 'finish') {
     void playBeep(settings, 'doneHeavy', rockyDuckMs('finish'));
   }
   if (!settings.speechEnabled || settings.coachVoice === 'off' || !cue.line.trim()) return;
-  const voice: RecordedVoice = settings.coachVoice ?? 'calm';
-  const take = cue.key === 'fallback' ? { clip: '', line: cue.line } : resolveClip(voice, cue);
+  const take = cue.key === 'fallback' ? { clip: '', line: cue.line } : resolveClip(cue, settings);
   if (!take) return;
   if (cue.key === 'go') holdBoundary(700);
   if (cue.key.startsWith('count:')) holdBoundary(900);
   if (cue.key === 'round' || cue.key.startsWith('round:')) holdBoundary(rockyDuckMs(cue.key));
-  setCoachVoice(voice);
-  const player = take.clip && rockyReady ? rockyCache[take.clip] : undefined;
+  setCoachVoice(settings);
+  const takes = take.clip && rockyReady ? rockyCache[take.clip] : undefined;
+  let player: Player | undefined;
+  if (takes?.length) {
+    const index = nextTake(takes.length, lastTake[take.clip]);
+    lastTake[take.clip] = index;
+    player = takes[index];
+  }
   duckFor(rockyDuckMs(cue.key));
   if (!player) {
     speakFallback(take.line, settings);
@@ -328,7 +347,7 @@ function swallowPlayRejections(run: () => void): void {
  */
 export function unlockRockyFromGesture(): void {
   if (typeof document === 'undefined' || !rockyReady) return;
-  const player = rockyCache.welcome;
+  const player = Object.values(rockyCache)[0]?.[0];
   if (!player) return;
   try {
     player.volume = 0;

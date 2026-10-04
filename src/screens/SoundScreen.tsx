@@ -5,15 +5,16 @@ import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Toggle } from '
 import { Icon } from '../components/kit/Icon';
 import { tapHaptic } from '../components/kit/Pill';
 import { previewVoice } from '../audio/cues';
+import { COACH_LANGUAGES } from '../audio/coachLines';
+import { coachLanguage, languageName, voiceName } from '../audio/voices';
 import { useSettings } from '../state/SettingsContext';
 import { ink, radius, type } from '../theme/tokens';
 import type { CoachVoice, WorkoutSettings } from '../types';
 
-const VOICES: { id: CoachVoice; name: string; detail: string }[] = [
-  { id: 'direct', name: 'Coach', detail: 'Bright and motivating. Counts you in.' },
-  { id: 'calm', name: 'Calm', detail: 'Warm and unhurried. Few words.' },
-  { id: 'numbers', name: 'Numbers only', detail: 'Rep counts and milestones. Nothing else.' },
-  { id: 'off', name: 'Off', detail: 'Ticks and haptics only.' },
+const VOICES: { id: CoachVoice; detail: string }[] = [
+  { id: 'female', detail: 'Female coach. Confident and warm.' },
+  { id: 'male', detail: 'Male coach. Natural and down-to-earth.' },
+  { id: 'off', detail: 'Ticks and haptics only.' },
 ];
 
 /** A picture of Pulse: 16 bars that lift through HARD, 8 that breathe through EASY, a riser into the drop. */
@@ -87,6 +88,14 @@ export function SoundScreen() {
   };
   const current: CoachVoice = settings.speechEnabled ? settings.coachVoice : 'off';
 
+  const language = coachLanguage(settings);
+  // Tapping the row steps to the next language; each one has its own female and male coach.
+  const nextLanguage = () => {
+    tapHaptic('light');
+    const index = COACH_LANGUAGES.findIndex((entry) => entry.id === language);
+    patch({ coachLanguage: COACH_LANGUAGES[(index + 1) % COACH_LANGUAGES.length]!.id });
+  };
+
   const pick = (voice: CoachVoice) => {
     tapHaptic('light');
     if (voice === 'off') patch({ speechEnabled: false });
@@ -103,23 +112,36 @@ export function SoundScreen() {
         <LargeTitle>Sound &amp; haptics</LargeTitle>
 
         <SectionHeader>Coach</SectionHeader>
+        <Group>
+          <Row
+            label="Language"
+            value={languageName(language)}
+            testID="coach-language"
+            onPress={COACH_LANGUAGES.length > 1 ? nextLanguage : undefined}
+            chevron={false}
+          />
+        </Group>
+        <View style={styles.gap} />
         <Group inset={50}>
           {VOICES.map((v) => (
             <Row
               key={v.id}
-              label={v.name}
+              label={voiceName(v.id, language)}
               detail={v.detail}
               onPress={() => pick(v.id)}
               chevron={false}
               testID={`voice-${v.id}`}
-              accessibilityLabel={`${v.name}. ${v.detail}${current === v.id ? '. Selected' : ''}`}
+              accessibilityLabel={`${voiceName(v.id, language)}. ${v.detail}${current === v.id ? '. Selected' : ''}`}
               leading={
                 <View style={styles.check}>{current === v.id ? <Icon name="check" size={18} color={ink.emberText} /> : null}</View>
               }
             />
           ))}
         </Group>
-        <Footer>Tap a voice to hear it. One short line per rep at most, never over the count-in.</Footer>
+        <Footer>
+          Tap a coach to hear them. One short line per rep at most, never over the count-in.
+          {COACH_LANGUAGES.length > 1 ? '' : ' More languages are on the way.'}
+        </Footer>
 
         <SectionHeader>Music</SectionHeader>
         <View style={styles.musicCard}>
@@ -157,6 +179,7 @@ export function SoundScreen() {
 }
 
 const styles = StyleSheet.create({
+  gap: { height: 12 },
   scroll: { paddingBottom: 48 },
   check: { width: 22, alignItems: 'center' },
   musicCard: { backgroundColor: ink.grouped, borderRadius: radius.group, marginHorizontal: 16, padding: 14, gap: 14 },

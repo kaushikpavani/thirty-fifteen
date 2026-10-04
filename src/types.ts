@@ -27,6 +27,8 @@ export interface WorkoutSettings {
   musicEnabled: boolean;
   /** Which recorded coach speaks. 'off' keeps ticks and haptics only. */
   coachVoice: CoachVoice;
+  /** Language the coach speaks, e.g. 'en'. Music is shared across languages. */
+  coachLanguage: string;
   /** The coach counts "Three, two, one" into every HARD. */
   spokenCount: boolean;
   /** Optional profile fields, entered once, used only for the VO2max estimate. */
@@ -48,7 +50,8 @@ export interface WorkoutSettings {
   profilePromptSeen?: boolean;
 }
 
-export type CoachVoice = 'calm' | 'direct' | 'numbers' | 'off';
+/** One female and one male coach per language, or no voice at all. */
+export type CoachVoice = 'female' | 'male' | 'off';
 
 export interface Segment {
   id: string;

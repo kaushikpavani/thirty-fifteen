@@ -1,79 +1,41 @@
-# Voice script — for a human recording
+# Coach voices
 
-The app ships neural-voice takes (Kokoro, local). A real voice actor is better. Record each line below as its own file,
-mono, any sample rate, a little room tone before and after, and save it as
-`assets/voice-src/<voice>/<clip>.wav`. Then run:
+Each language has two coaches, one female and one male, who speak the same lines.
+English ships today: **Sarah** and **Chris**, generated with ElevenLabs (model `eleven_v4`).
+
+## Where things live
+
+| What | Where |
+| --- | --- |
+| The words, the coaches and their voice ids | `assets/voice/script.<lang>.json` |
+| The audio, one file per take | `assets/voice/<lang>/<coach>/<clip>.<take>.mp3` |
+| Generated: which file plays for each clip | `src/audio/voiceClips.ts` |
+| Generated: the words, for the on-device fallback voice | `src/audio/coachLines.ts` |
+
+## Generate or update the audio
 
 ```
-python3 scripts/gen-voice.py --model kokoro-v1.0.onnx --voices voices-v1.0.bin
+ELEVENLABS_API_KEY=sk_... node scripts/gen-voice-elevenlabs.mjs
 ```
 
-The script prefers your recording for every clip it finds, and trims, cleans and loudness-matches it the same way.
-Direction: a real coach at your shoulder on a hard morning. Warm, certain, never shouting. Short lines land fast.
+It only generates what is missing, so re-running after a failure or after adding a line is safe.
+`--dry-run` shows what would be generated and the character count without calling the API.
+Generate while on a paid ElevenLabs plan: that is what makes the clips usable commercially.
 
+## Add a language
 
-## Coach (direct) — `assets/voice-src/direct/`
+1. Copy `assets/voice/script.en.json` to `script.<code>.json`.
+2. Translate the `text` of each line. Keep every `clip` name as it is.
+3. Set `language`, `name`, and a native-speaking voice id for each coach.
+4. Run the script. The language appears in Settings › Sound & haptics.
 
-| clip | line |
-| --- | --- |
-| `welcome` | Let's ride! Easy spin to warm up. |
-| `go` | Go! |
-| `hard0` | Drive it! |
-| `hard1` | Strong legs! Stay on it! |
-| `hard2` | Quick feet! Keep it smooth! |
-| `hard3` | That's it! Hold the power! |
-| `hard4` | Push! You own this! |
-| `halfway` | Halfway! Looking strong! |
-| `three` | Three to go! Dig in! |
-| `last` | Last one! Everything you have! |
-| `easy0` | Breathe. Nice work. |
-| `easy1` | Spin it out. |
-| `easy2` | Good! Recover. |
-| `round0` | Set done! Spin easy and drink. |
-| `finish0` | That is how it is done! Cool down, easy spin. |
-| `count3` | Three! |
-| `count2` | Two! |
-| `count1` | One! |
-| `preview` | Halfway! Looking strong! |
+## The lines
 
-## Calm — `assets/voice-src/calm/`
+- **Length lines** say how long the next part lasts, from the rider's settings: warm-up (5–30 min),
+  rest between sets (1–10 min) and cool-down (3–20 min). One clip per possible length.
+- **One minute of warm-up left**, a minute before the first hard rep.
+- **Count-in** "Three. Two. One." then "Go!", with three takes each so they don't sound identical every rep.
+- **Hard and easy reps**: a pool of short lines, two takes each. At most one line per rep; some reps are quiet.
+- **Milestones**: Halfway, Three to go, Last one.
 
-| clip | line |
-| --- | --- |
-| `welcome` | Warm-up. Easy spin to start. |
-| `go` | Go. |
-| `hard0` | Hold it. |
-| `hard1` | Smooth and strong. |
-| `hard2` | Quick feet. |
-| `hard3` | Relax your shoulders. |
-| `hard4` | Stay on it. |
-| `halfway` | Halfway. |
-| `three` | Three to go. |
-| `last` | Last one. Empty it. |
-| `easy0` | Breathe. |
-| `easy1` | Spin easy. |
-| `easy2` | Good. |
-| `round0` | Set done. Spin easy, and drink. |
-| `finish0` | That's the work. Cool down, easy spin. |
-| `count3` | Three. |
-| `count2` | Two. |
-| `count1` | One. |
-| `preview` | Halfway. Smooth and strong. |
-
-## Numbers only — `assets/voice-src/numbers/`
-
-| clip | line |
-| --- | --- |
-| `welcome` | Warm-up. |
-| `go` | Go. |
-| `halfway` | Halfway. |
-| `three` | Three to go. |
-| `last` | Last one. |
-| `round0` | Set done. |
-| `finish0` | Done. |
-| `count3` | Three. |
-| `count2` | Two. |
-| `count1` | One. |
-| `preview` | Rep seven. Halfway. |
-
-Numbers only also records `rep1` … `rep20`: “Rep one.” … “Rep twenty.”
+Direction: a real coach at your shoulder. Certain, warm, never shouting. Short lines land fast.

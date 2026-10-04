@@ -198,7 +198,7 @@ export function SettingsScreen() {
   const watts = derivedWatts(settings.ftpWatts, settings.hardPct, settings.easyPct);
   const meterName = meter.phase.phase === 'connected' ? meter.phase.name : null;
   const heartName = heart.phase.phase === 'connected' ? heart.phase.name : null;
-  const voice = settings.speechEnabled ? voiceName(settings.coachVoice) : 'Off';
+  const voice = settings.speechEnabled ? voiceName(settings.coachVoice, settings.coachLanguage) : 'Off';
   const music = settings.musicEnabled ? 'Pulse' : 'Your music';
 
   return (

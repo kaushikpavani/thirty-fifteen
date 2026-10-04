@@ -67,6 +67,9 @@ export const REMAINING_THRESHOLDS_MS: { minutes: number; ms: number }[] = [
   { minutes: 1, ms: 60_000 },
 ];
 
+/** The warm-up must be at least this long before "one minute of warm-up left" is worth saying. */
+export const WARMUP_NOTICE_MIN_MS = 180_000;
+
 /** Mark a cue played. False when that key is already in the set, so it cannot speak twice. */
 export function takeCue(firedClock: Set<string>, firedRocky: Set<string>, cue: DueCue): boolean {
   const bucket = cue.type === 'rocky' ? firedRocky : firedClock;
@@ -251,6 +254,19 @@ export function cuesDue(args: {
     const window = { start: total - threshold.ms, end: total - threshold.ms + CLOCK_HIT_MS };
     if (firedClock.has(key) || !keep(fromMs, toMs, window, maxGap)) continue;
     remainingHits.push({ type: 'remaining', key, clip: `left${threshold.minutes}`, minutes: threshold.minutes, atMs: window.start });
+  }
+  // One minute before the first hard rep, when the warm-up is long enough for that to be news.
+  let firstHard = 0;
+  for (const seg of segments) {
+    if (seg.kind === 'hard') break;
+    firstHard += seg.durationMs;
+  }
+  if (firstHard < total && firstHard >= WARMUP_NOTICE_MIN_MS) {
+    const key = 'warmup:left1';
+    const window = { start: firstHard - 60_000, end: firstHard - 60_000 + CLOCK_HIT_MS };
+    if (!firedClock.has(key) && keep(fromMs, toMs, window, maxGap)) {
+      remainingHits.push({ type: 'remaining', key, clip: 'warmup1left', minutes: 1, atMs: window.start });
+    }
   }
   const remaining = remainingHits.reduce<DueRemaining | null>(
     (best, cue) => (best == null || cue.atMs >= best.atMs ? cue : best),

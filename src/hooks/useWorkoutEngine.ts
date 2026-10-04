@@ -14,7 +14,7 @@ import {
   unlockRockyFromGesture,
 } from '../audio/cues';
 import { armMusicFromGesture, kickBed, pauseMusic, releaseDuck, setBedTransportHandler, stopMusic, syncMusic } from '../audio/music';
-import { inSegmentSilence, ROCKY_FINISH, ROCKY_GO, ROCKY_ROUND } from '../audio/rocky';
+import { inSegmentSilence, ROCKY_DONE, ROCKY_GO, ROCKY_ROUND, WARMUP_ONE_LEFT } from '../audio/rocky';
 import {
   BEEP_DUCK_MS,
   HARD_OPEN_DUCK_MS,
@@ -139,7 +139,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     }
     if (cue.type === 'remaining') {
       const word = cue.minutes === 1 ? 'One minute' : `${cue.minutes} minutes`;
-      speakCue({ key: cue.key, line: `${word} left.`, clip: cue.clip }, s);
+      const line = cue.clip === 'warmup1left' ? WARMUP_ONE_LEFT : `${word} left.`;
+      speakCue({ key: cue.key, line, clip: cue.clip }, s);
       return;
     }
     if (cue.type === 'warn') {
@@ -287,7 +288,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     setStartedAt(started);
     setElapsedMs(0);
     anchorWallRef.current = null;
-    setCoachVoice(settingsRef.current.coachVoice);
+    setCoachVoice(settingsRef.current);
     unlockRockyFromGesture();
     armMusicFromGesture(settingsRef.current.musicEnabled);
     try {
@@ -377,7 +378,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       if (next >= total) {
         if (!firedRockyRef.current.has('finish')) {
           firedRockyRef.current.add('finish');
-          speakCue({ key: 'finish', line: ROCKY_FINISH }, settingsRef.current);
+          speakCue({ key: 'finish', line: ROCKY_DONE, clip: 'done' }, settingsRef.current);
         }
         statusRef.current = 'finished';
         lastCueRef.current = total;
