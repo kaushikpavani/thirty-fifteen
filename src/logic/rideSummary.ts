@@ -187,6 +187,8 @@ export function summarizeRide(input: {
   plannedSets: number;
   completed: boolean;
   samples: RideSample[];
+  /** Time actually spent riding; the playhead (`elapsedMs`) still decides sets and rep stats. */
+  activeMs?: number;
 }): RideSummary {
   const elapsed = Number.isFinite(input.elapsedMs) ? Math.max(0, input.elapsedMs) : 0;
   const planned = Math.max(0, Math.round(input.plannedSets));
@@ -206,7 +208,7 @@ export function summarizeRide(input: {
     ...(hrSecs ? { hrSecs } : {}),
     setsDone: done,
     setsPlanned: planned,
-    durationMs: elapsed,
+    durationMs: input.activeMs != null && Number.isFinite(input.activeMs) ? Math.max(0, input.activeMs) : elapsed,
     hardMs: timeInKind(input.segments, elapsed, 'hard'),
     easyMs: timeInKind(input.segments, elapsed, 'easy'),
     avgWatts: mean(watts),

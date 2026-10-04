@@ -178,7 +178,7 @@ export function ActiveScreen() {
               items={[
                 { value: hardAvg == null ? '—' : String(hardAvg), label: 'W hard avg' },
                 { value: bpm == null ? '—' : String(bpm), label: 'bpm' },
-                { value: clockText(state.elapsedMs), label: 'elapsed' },
+                { value: clockText(state.activeMs), label: 'elapsed' },
               ]}
             />
           </View>

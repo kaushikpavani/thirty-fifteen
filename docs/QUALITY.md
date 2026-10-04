@@ -17,6 +17,7 @@ Two kinds of tests:
 | A full ride for each of those | Every part chirps once, every hard rep gets its count-in, no cue ever plays twice, every spoken line has a recording for those exact settings |
 | Phone locked or app in the background, clock stalling for up to five minutes | No cue doubles, nothing piles up when the app wakes |
 | Battery dies, app crashes, or iOS closes the app mid-ride | The ride is checkpointed every 10 s and recovered as "ended early" on the next launch; never duplicated; a finished ride is never replaced by its checkpoint |
+| Skipping or halving the warm-up, skipping the cool-down, restarting a block | Ride time (finish screen, Past rides, share card, backup) is the time actually spent riding: every jump forward is left out, every restart adds the time it took; never negative |
 | Ending a ride by hand at any point | Before the last hard rep is finished the rider is asked Save or Delete; after it (cool-down) the ride just saves; a few seconds in, nothing is kept or asked |
 | Choosing Delete for a ride ended part-way | Gone from the phone at once; a checkpoint that lands late cannot bring it back; never uploaded, and removed from the account if a copy got there; other rides untouched |
 | Battery dies while the Save-or-Delete question is showing | The ride is kept |

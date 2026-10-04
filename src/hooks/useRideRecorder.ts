@@ -39,12 +39,12 @@ export function useRideRecorder(args: {
   const savedFor = useRef<number | null>(null);
   /** One id per ride, shared by every checkpoint and the final save, so they are always the same ride. */
   const rideId = useRef<{ startedAt: number | null; id: string }>({ startedAt: null, id: '' });
-  const latest = useRef({ elapsedMs: 0, kind, watts, bpm, startedAt: state.startedAt, workout: state.workout, settings });
+  const latest = useRef({ elapsedMs: 0, activeMs: 0, kind, watts, bpm, startedAt: state.startedAt, workout: state.workout, settings });
   const [summary, setSummary] = useState<Keyed<RideSummary | null>>({ startedAt: null, value: null });
   const [hard, setHard] = useState<Keyed<{ sum: number; count: number }>>({ startedAt: null, value: { sum: 0, count: 0 } });
 
   useLayoutEffect(() => {
-    latest.current = { elapsedMs: state.elapsedMs, kind, watts, bpm, startedAt: state.startedAt, workout: state.workout, settings };
+    latest.current = { elapsedMs: state.elapsedMs, activeMs: state.activeMs, kind, watts, bpm, startedAt: state.startedAt, workout: state.workout, settings };
   });
 
   useEffect(() => {
@@ -65,6 +65,7 @@ export function useRideRecorder(args: {
         startedAt: now.startedAt,
         endedAt: Date.now(),
         elapsedMs: now.elapsedMs,
+        activeMs: now.activeMs,
         completed: false,
         workout: now.workout,
         settings: now.settings,
@@ -120,6 +121,7 @@ export function useRideRecorder(args: {
         startedAt,
         endedAt: Date.now(),
         elapsedMs: state.elapsedMs,
+        activeMs: state.activeMs,
         completed,
         workout: state.workout,
         settings,
@@ -128,7 +130,7 @@ export function useRideRecorder(args: {
       setSummary({ startedAt, value: built.summary ?? null });
       void addSession(built, idFor(startedAt));
     },
-    [addSession, settings, state.elapsedMs, state.startedAt, state.workout],
+    [addSession, settings, state.activeMs, state.elapsedMs, state.startedAt, state.workout],
   );
 
   /** The rider chose not to keep this ride. Nothing is saved, and no later checkpoint can bring it back. */

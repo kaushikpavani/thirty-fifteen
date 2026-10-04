@@ -20,13 +20,16 @@ export function buildRideRecord(args: {
   workout: { segments: Seg[]; totalMs: number; hardWatts: number; easyWatts: number };
   settings: Pick<WorkoutSettings, 'ftpWatts' | 'sets'>;
   samples: readonly RideSample[];
+  /** Minutes actually spent (the playhead minus anything skipped). Defaults to the playhead for older callers. */
+  activeMs?: number;
 }): NewWorkoutRecord {
   const total = args.workout.totalMs || 1;
   const elapsed = args.completed ? total : Math.max(0, Math.min(args.elapsedMs, total));
+  const spent = args.activeMs != null && Number.isFinite(args.activeMs) ? Math.max(0, args.activeMs) : elapsed;
   return {
     startedAt: new Date(args.startedAt).toISOString(),
     endedAt: new Date(args.endedAt).toISOString(),
-    durationMs: elapsed,
+    durationMs: spent,
     plannedDurationMs: total,
     ftpWatts: args.settings.ftpWatts,
     hardWatts: args.workout.hardWatts,
@@ -39,6 +42,7 @@ export function buildRideRecord(args: {
       plannedSets: args.settings.sets,
       completed: args.completed,
       samples: args.samples as RideSample[],
+      activeMs: spent,
     }),
   };
 }

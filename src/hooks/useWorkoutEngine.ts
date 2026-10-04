@@ -33,6 +33,7 @@ import type { BuiltWorkout, Segment, TimerStatus, WorkoutSettings } from '../typ
 import { buildWorkout } from '../workout/builder';
 import { takeCue, type DueCue } from '../workout/cueCatchup';
 import { reduceAppPresence } from '../workout/appPresence';
+import { activeRideMs, addJump } from '../logic/rideClock';
 import { planCatchUp } from '../workout/playhead';
 import { runningElapsed } from '../workout/wallClock';
 import {
@@ -49,6 +50,8 @@ const TICK_MS = 100;
 export interface EngineState {
   status: TimerStatus;
   elapsedMs: number;
+  /** Time actually spent riding: elapsed minus anything skipped. */
+  activeMs: number;
   startedAt: number | null;
   segmentIndex: number;
   segment: Segment | null;
@@ -76,6 +79,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const workout = useMemo(() => buildWorkout(settings), [settings]);
   const [status, setStatus] = useState<TimerStatus>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [skewMs, setSkewMs] = useState(0);
+  const skewRef = useRef(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const armedRef = useRef(false);
 
@@ -281,6 +286,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     firedRockyRef.current = new Set();
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
+    skewRef.current = 0;
+    setSkewMs(0);
     lastCueRef.current = 0;
     armedRef.current = true;
     const started = Date.now();
@@ -376,6 +383,9 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
       }
 
       const next = Math.max(0, Math.min(targetMs, total));
+      // A jump is not time the rider spent: keep it out of the ride time.
+      skewRef.current = addJump(skewRef.current, elapsedRef.current, next);
+      setSkewMs(skewRef.current);
       if (next >= total) {
         if (!firedRockyRef.current.has('finish')) {
           firedRockyRef.current.add('finish');
@@ -447,6 +457,8 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
     anchorWallRef.current = null;
     pausedAccumRef.current = 0;
     elapsedRef.current = 0;
+    skewRef.current = 0;
+    setSkewMs(0);
     lastCueRef.current = 0;
     setStartedAt(null);
     setElapsedMs(0);
@@ -464,6 +476,7 @@ export function useWorkoutEngine(settings: WorkoutSettings) {
   const state: EngineState = {
     status,
     elapsedMs,
+    activeMs: activeRideMs(elapsedMs, skewMs),
     startedAt,
     segmentIndex: pos.index,
     segment: status === 'idle' ? null : pos.segment,
