@@ -119,3 +119,27 @@ export function accountDeleteNote(cloud: 'done' | 'queued' | 'unconfigured'): st
   if (cloud === 'unconfigured') return 'Cloud is not set up on this install, so there is no account to delete.';
   return 'You are still signed in. The cloud delete did not finish. Cloud data is still there until a later try.';
 }
+
+export type AccountWipe = 'cloud' | 'cloud-and-phone';
+
+/** The iPhone copy is cleared only when the rider picks that button. */
+export function accountWipeClearsPhone(choice: AccountWipe): boolean {
+  return choice === 'cloud-and-phone';
+}
+
+/**
+ * The Edge Function returning ok is the success. A follow-up session error
+ * counts only when the auth user is already gone (the delete finished and the
+ * response was lost). An expired token is not that.
+ */
+export function accountDeleteAccepted(input: { invokeOk: boolean; sessionError: string | null }): boolean {
+  if (input.invokeOk) return true;
+  if (!input.sessionError) return false;
+  return /does not exist/i.test(input.sessionError);
+}
+
+export function accountWipeNote(account: 'done' | 'queued' | 'unconfigured', phone: CloudAttempt | null): string {
+  const cloud = accountDeleteNote(account);
+  if (phone == null) return cloud;
+  return `${deviceEraseNote(phone)} ${cloud}`;
+}

@@ -169,7 +169,7 @@ Fallback if the music bed is not in 1.0:
 
 Six frames, in this order. One idea each. The caption sits in the margin, smaller than the clock, and never covers it. Capture the real UI. Crop a real screen rather than draw a new one.
 
-`supportsTablet` is true, so App Store Connect will also ask for iPad. Use the same story and the same restraint. Confirm the required device sizes in App Store Connect at submit time and shoot the largest iPhone size it asks for.
+`supportsTablet` is false for 1.0, so App Store Connect asks for iPhone screenshots only. Confirm the required iPhone sizes at submit time and shoot the largest size it asks for.
 
 Every frame, no exceptions: no TARGET label, no watt numeral, no %FTP, no Rocky or persona caption, no streak badge, no login wall, no second button, no price, no Pro mark, no paywall.
 

@@ -7,6 +7,8 @@ import { Pill } from '../components/kit/Pill';
 import { Sparkline, TrendChart } from '../components/kit/TrendChart';
 import { WeekBars } from '../components/kit/WeekBars';
 import { useAuth } from '../auth/AuthContext';
+import { signInLabel } from '../auth/providers';
+import { AppleSignInButton } from '../components/AppleSignInButton';
 import { useHistory } from '../state/HistoryContext';
 import { ink, radius, type, surface } from '../theme/tokens';
 import {
@@ -93,10 +95,17 @@ export function ProgressScreen() {
                 ? `Your ${rides.length === 1 ? 'ride is' : `${rides.length} rides are`} already on this iPhone. Sign in and they back up and show up here.`
                 : 'Free with an account. Your rides back up too.'}
             </Text>
+            <AppleSignInButton
+              inset={false}
+              disabled={auth.busy != null}
+              onPress={() => void auth.signIn('apple')}
+              testID="progress-sign-in-apple"
+            />
             <Pill
-              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
+              label={signInLabel('google', auth.busy)}
               variant="light"
               onPress={() => void auth.signIn('google')}
+              disabled={auth.busy != null}
               testID="progress-sign-in"
             />
           </View>

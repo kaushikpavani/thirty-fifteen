@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppleSignInError, signInWithApple } from './apple';
 import { createSessionFromUrl, signInWithProvider, signOutProvider } from './oauth';
+import type { SignInProvider } from './providers';
 import { getSupabase } from './supabase';
 import { isSupabaseConfigured } from './config';
 import { AppState, Linking } from 'react-native';
@@ -21,11 +23,11 @@ type AuthContextValue = {
   displayName: string | null;
   needsSetup: boolean;
   error: string | null;
-  busy: 'google' | 'facebook' | null;
+  busy: SignInProvider | null;
   /** True for one tick right after a genuine new sign-in (not a restored session). A screen can react once, then must call clearJustSignedIn(). */
   justSignedIn: boolean;
   clearJustSignedIn: () => void;
-  signIn: (provider: 'google' | 'facebook') => Promise<void>;
+  signIn: (provider: SignInProvider) => Promise<void>;
   signOut: () => Promise<void>;
   /** Drop the local session after the cloud account is gone. Does not call the network. */
   signOutLocal: () => Promise<void>;
@@ -41,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [localName, setLocalNameState] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'google' | 'facebook' | null>(null);
+  const [busy, setBusy] = useState<SignInProvider | null>(null);
   const [justSignedIn, setJustSignedIn] = useState(false);
   const configured = isSupabaseConfigured();
   const sawAuthEvent = useRef(false);
@@ -110,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (provider: 'google' | 'facebook') => {
+  const signIn = useCallback(async (provider: SignInProvider) => {
     setError(null);
     if (!isSupabaseConfigured()) {
       setNeedsSetup(true);
@@ -118,9 +120,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setBusy(provider);
     try {
-      await signInWithProvider(provider);
+      if (provider === 'apple') await signInWithApple();
+      else await signInWithProvider(provider);
       setNeedsSetup(false);
     } catch (err) {
+      if (err instanceof AppleSignInError && err.canceled) return;
       setError(err instanceof Error ? err.message : 'Sign-in failed.');
     } finally {
       setBusy(null);
