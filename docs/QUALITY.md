@@ -55,6 +55,7 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 - [ ] With a power meter connected, start a ride and open YouTube: live watts keep updating when you return, and the ride was recording while YouTube was in front. Same with a heart-rate strap.
 - [ ] Settings → Account on iOS shows Continue with Apple and Continue with Google. Start still works with neither.
 - [ ] Settings → Your data → Delete account removes the cloud account. Delete account and iPhone data also clears rides on the phone.
+- [ ] Public Support and Privacy pages (GitHub Pages) open on a phone: links stay under `/thirty-fifteen/`, and the deletion steps match Settings → Your data.
 - [ ] Sign in on a fresh install: FTP, profile and coach choice come back from the account.
 - [ ] Start a ride, lock the phone for five minutes: cues keep coming, clock is right on unlock.
 - [ ] Start a ride, force-quit the app at ~3 minutes, reopen: the ride is in Past rides as "Ended early".

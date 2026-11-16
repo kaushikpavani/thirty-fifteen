@@ -277,8 +277,8 @@ High-level answers for App Store Connect. This is not a completed questionnaire.
 
 **Deletion**
 
-- The public description says data can be deleted. Only submit that sentence when the binary can do it: clear local history on device, and delete the account’s cloud sessions (and the account, if you offer one).
-- Until that control exists, do not answer the privacy form as if deletion is self-serve.
+- The public description says data can be deleted. The binary can do it. Settings → Your data → Delete ride history clears rides on the phone and, when signed in, the cloud sessions that ended at or before the wipe. Delete account and cloud data removes the cloud account. Delete account and iPhone data also clears this phone.
+- Answer the privacy form as self-serve deletion. The same steps are on the public privacy page.
 
 **Not collected**
 
@@ -287,25 +287,23 @@ High-level answers for App Store Connect. This is not a completed questionnaire.
 - No microphone recording. Spoken cues play out; they are not captured from the rider.
 - No precise location, contacts, photos, or payment data in this plan.
 
-**Privacy Policy URL** is required once any data leaves the device (optional account, synced history, or feedback sent to you). Placeholder until the owner publishes one:
+**Privacy Policy URL** is required once any data leaves the device (optional account, synced history, or feedback sent to you). Use the page in `site/privacy/`:
 
 ```text
-https://example.com/30-15/privacy
+https://kaushikpavani.github.io/thirty-fifteen/privacy/
 ```
 
-Replace `example.com` before submit. Do not leave the placeholder in App Store Connect.
+Support URL is `https://kaushikpavani.github.io/thirty-fifteen/support/`. Both are published from `site/` by `.github/workflows/pages.yml`. Settings → Pages → Source must be GitHub Actions before the first deploy can succeed.
 
 ---
 
 ## URLs to fill
 
-Owner fills all three. None of them are wired yet.
-
-| Field | Placeholder | Notes |
+| Field | URL | Notes |
 |---|---|---|
-| Support URL | `https://example.com/30-15/support` | Required. A page with a contact path is enough. |
-| Marketing URL | `https://example.com/30-15` | Optional. Use it only if the page matches this listing. |
-| Privacy Policy URL | `https://example.com/30-15/privacy` | Required if account, sync, or uploaded feedback ships. |
+| Support URL | `https://kaushikpavani.github.io/thirty-fifteen/support/` | Required. Contact path is GitHub Issues. |
+| Marketing URL | `https://kaushikpavani.github.io/thirty-fifteen/` | Optional. Short intro at the site root. Use it when the page matches this listing. |
+| Privacy Policy URL | `https://kaushikpavani.github.io/thirty-fifteen/privacy/` | Required. Account, sync, and notes can leave the phone. |
 
 Copyright line, on the age-rating and app-information forms: the owner’s name.
 

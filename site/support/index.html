@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Support — 30/15</title>
+    <meta
+      name="description"
+      content="Help for the 30/15 iPhone app: pairing a power meter or heart-rate sensor, riding offline, and deleting your data."
+    />
+    <link rel="canonical" href="https://kaushikpavani.github.io/thirty-fifteen/support/" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <a class="mark" href="../">30<span class="slash">/</span>15</a>
+        <nav>
+          <a href="../support/" aria-current="page">Support</a>
+          <a href="../privacy/">Privacy</a>
+        </nav>
+      </header>
+
+      <h1>Support</h1>
+      <p class="lede">Help for the 30/15 iPhone app.</p>
+
+      <h2>What the app is</h2>
+      <p>
+        30/15 is an interval timer and ride log for indoor cycling. It runs a session of hard efforts and easy
+        recoveries, with spoken cues and an optional music bed. You can ride with nothing paired. If you connect a
+        Bluetooth power meter or heart-rate sensor, the ride shows the numbers that sensor sends.
+      </p>
+      <p>30/15 is free. Start does not ask you to create an account.</p>
+
+      <h2>Get help</h2>
+      <p>
+        Open a GitHub issue and describe what you expected, what happened, and which iPhone and sensor you were using.
+      </p>
+      <p>
+        <a href="https://github.com/kaushikpavani/thirty-fifteen/issues">github.com/kaushikpavani/thirty-fifteen/issues</a>
+      </p>
+      <p>
+        You can also write from the app: Settings → Leave a note. That note is stored for the developer to read. It
+        does not require an account. The <a href="../privacy/">Privacy Policy</a> describes what that note includes.
+      </p>
+
+      <h2>Pair a power meter or smart trainer</h2>
+      <p>
+        30/15 reads power over Bluetooth. It looks for the Cycling Power service. A smart trainer that does not offer
+        that service can still connect through the Fitness Machine service. Discovery is by those services, not by
+        brand name.
+      </p>
+      <ol>
+        <li>Wake the meter (turn the cranks) or turn the trainer on, and turn Bluetooth on.</li>
+        <li>On the home screen, tap the power tile. Or open Settings → Power meter.</li>
+        <li>
+          The first time you do this, iOS asks for Bluetooth. The prompt says 30/15 reads cycling power and heart rate
+          from your sensors. The app does not ask for Bluetooth on first launch.
+        </li>
+        <li>When the meter appears under Nearby, tap it. The app remembers it and tries to reconnect later.</li>
+      </ol>
+      <p>
+        If nothing appears, another app or a bike computer may already be holding the Bluetooth connection. Close that
+        link and search again. Meters that speak only ANT+ do not work on iPhone. A longer list of what can connect is
+        in the app under What can I connect?
+      </p>
+      <p>You can press Start with no meter. Live watts stay blank until a paired meter sends them.</p>
+
+      <h2>Pair a heart-rate sensor</h2>
+      <p>
+        30/15 reads the Bluetooth Heart Rate service. That includes a chest strap and a watch that is broadcasting
+        heart rate.
+      </p>
+      <ol>
+        <li>
+          Put the strap on, or turn on Bluetooth heart-rate broadcast on the watch. On many Garmin watches that is
+          Settings → Sensors &amp; Accessories → Heart Rate → Broadcast Heart Rate. Apple Watch does not broadcast on
+          its own; a broadcast app on the watch has to be running.
+        </li>
+        <li>On the home screen, tap the heart-rate tile. Or open Settings → Heart rate.</li>
+        <li>Tap the device under Nearby. Wake the watch if the row says it is waiting for a broadcast.</li>
+      </ol>
+      <p>
+        Live heart rate appears only when the sensor sends a beat. The ride still runs with no strap and no watch.
+        More device notes are in the app under What can I connect?
+      </p>
+
+      <h2>No account, and offline</h2>
+      <p>
+        Home → Start does not ask you to sign in, and it does not wait for a network. The interval clock, spoken cues,
+        and music bed run on the phone. Finished rides, FTP, and workout settings stay on the iPhone until you sign in.
+      </p>
+      <p>
+        Sign-in is optional. Settings → Account shows Continue with Apple and Continue with Google. After you sign in,
+        finished rides and the settings described in the <a href="../privacy/">Privacy Policy</a> can copy to your
+        account when the phone is online.
+      </p>
+
+      <h2>Sound while the phone is locked</h2>
+      <p>
+        During a ride, spoken cues and the music bed are set to keep playing if you lock the iPhone or switch to
+        another app. The iOS silent switch does not mute the ride. Bluetooth can keep delivering power and heart rate
+        while the app is in the background. The clock does not need a network to keep time.
+      </p>
+
+      <h2>Delete your data</h2>
+      <p>These are the controls in the app.</p>
+      <ul>
+        <li>
+          <strong>One ride.</strong> Settings → Past rides, then press and hold the ride and confirm Delete ride. On
+          the ride’s own page, tap Delete this ride. If you are signed in, that ride is also removed from the account.
+          If you end a ride before the sets are finished, Delete ride does the same for that ride.
+        </li>
+        <li>
+          <strong>All rides.</strong> Settings → Your data → Delete ride history. This removes the rides from this
+          iPhone. If you are signed in, it also deletes the cloud copy of rides that had already ended.
+        </li>
+        <li>
+          <strong>Notes and product events still on the phone.</strong> Settings → Your data → Clear queued notes and
+          analytics. This drops notes and product events that have not been sent yet.
+        </li>
+        <li>
+          <strong>This iPhone.</strong> Settings → Your data → Erase data on this iPhone. This removes rides, settings,
+          and saved sensors from this phone, and asks the backend to delete this install’s device row.
+        </li>
+        <li>
+          <strong>The account.</strong> Sign in, then Settings → Your data → Delete account and cloud data. Confirm
+          with Delete account to remove the cloud account and the cloud copy of your rides, profile, account notes,
+          and account product events. Rides on this iPhone stay. Confirm with Delete account and iPhone data to do
+          that and also erase rides and settings on this iPhone. If the phone cannot reach the server, the account
+          delete stays queued and is tried again. You are signed out after the server accepts it.
+        </li>
+      </ul>
+      <p>Reset to defaults, in the same Your data section, restores workout settings. It does not delete ride history.</p>
+
+      <footer class="foot">
+        <p>30/15 for iPhone. Sri Kaushik Pavani.</p>
+        <p><a href="../privacy/">Privacy Policy</a></p>
+      </footer>
+    </div>
+  </body>
+</html>
