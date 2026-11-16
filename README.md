@@ -94,13 +94,13 @@ Settings → Your data. Local clears apply immediately. Cloud deletes wait until
 | Clear queued notes and analytics | Unsent feedback and analytics are dropped | Rows already delivered stay until account delete |
 | Reset defaults | FTP and the session structure return to the defaults | Nothing |
 | Erase data on this phone | History, queued notes, analytics, settings, rider name, and the install id | The install row, and the same session delete as history, when the network is there |
-| Delete account and cloud data | You are signed out only after the server accepts it | Profile, sessions, analytics, notes, connections, and imports for that rider, then the auth user. Devices stay, with no user attached |
+| Delete account and cloud data | You are signed out only after the server accepts it. **Delete account** leaves rides on this phone. **Delete account and iPhone data** clears rides, settings, sensors, and the local name on this phone first | Profile, sessions, analytics, notes, connections, and imports for that rider, then the auth user. Devices stay, with no user attached |
 
-One confirm is required for **Delete account and cloud data**. The other actions run on tap.
+Delete account asks which of those two you want. If the phone is offline, the cloud delete stays queued and you stay signed in until it finishes. The screen says so. It does not claim the cloud copy is gone.
 
 Anonymous notes have no user id, so a rider cannot pull them back. Notes sent while signed in are removed with the account.
 
-Account delete does not wipe sessions that are still stored on the phone. Delete workout history does that. If you sign in again later, sessions still on the phone can upload again.
+**Delete account** does not wipe sessions that are still stored on the phone. Delete workout history, or **Delete account and iPhone data**, does that. If you sign in again later, sessions still on the phone can upload again.
 
 ## Cloud
 
@@ -115,6 +115,8 @@ A second empty project is optional, for staging. Point a separate `.env.local` a
    - [`supabase/migrations/20260926120000_foundation.sql`](supabase/migrations/20260926120000_foundation.sql)
    - [`supabase/migrations/20260926143000_offline_outbox.sql`](supabase/migrations/20260926143000_offline_outbox.sql)
    - [`supabase/migrations/20260926160000_deletion.sql`](supabase/migrations/20260926160000_deletion.sql)
+   - [`supabase/migrations/20260928120000_ride_summary.sql`](supabase/migrations/20260928120000_ride_summary.sql)
+   - [`supabase/migrations/20261116120000_delete_account_edge.sql`](supabase/migrations/20261116120000_delete_account_edge.sql)
 3. In Project Settings → API, copy the project URL and the publishable key.
 4. Copy `.env.example` to `.env.local` and paste the two values:
 
@@ -125,7 +127,9 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 
 5. Restart Expo (`npx expo start -c`).
 
-Optional sign-in: in the Supabase dashboard, enable Google and Facebook, and allow the redirect `thirtyfifteen://auth-callback`. Settings → Account. Home → Start does not use it.
+Optional sign-in: Google, and on iOS Sign in with Apple beside it. Apple Developer and Supabase provider steps are in [docs/APPLE-SIGN-IN.md](docs/APPLE-SIGN-IN.md). Allow the redirect `thirtyfifteen://auth-callback` for Google. Settings → Account. Home → Start does not use it.
+
+Account deletion from the phone goes through the `delete-account` Edge Function. Deploy it with [supabase/functions/delete-account/README.md](supabase/functions/delete-account/README.md). The first TestFlight upload is [docs/APP-STORE-SUBMISSION.md](docs/APP-STORE-SUBMISSION.md). `.env.local` is not uploaded to EAS. The build reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from EAS environment variables.
 
 What the script creates:
 
@@ -141,7 +145,7 @@ What the script creates:
 
 `app_events.properties` holds sparse facts (watts, counts, provider, delivery). It rejects email, names, and feedback text.
 
-Riders can delete their own profile, sessions, events, signed-in notes, connections, and imports. `delete_my_account()` does that in one transaction and then removes the auth user. `delete_my_sessions(cutoff)` deletes sessions that ended at or before a history wipe. `delete_my_device(id)` removes one install row.
+Riders can delete their own profile, sessions, events, signed-in notes, connections, and imports. The app calls the `delete-account` Edge Function, which runs `delete_user_cloud_data` with the service role and then removes the auth user. `delete_my_account()` still does that data delete and the auth-user delete in one SQL transaction for a session opened in the SQL editor. The app does not call it, because a permission failure on `auth.users` would roll the data delete back. `delete_my_sessions(cutoff)` deletes sessions that ended at or before a history wipe. `delete_my_device(id)` removes one install row.
 
 `connections.metadata` rejects token-like keys. Real tokens belong in an Edge Function and Supabase Vault, not in a client-readable column.
 

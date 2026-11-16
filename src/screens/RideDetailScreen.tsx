@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { ZoneCard } from '../components/ZoneCard';
@@ -57,7 +57,7 @@ export function RideDetailScreen() {
   const shareThisRide = () => {
     if (!summary) return;
     if (!auth.user) {
-      const prompt = shareSignInAlert(auth);
+      const prompt = shareSignInAlert(auth, Platform.OS);
       Alert.alert(prompt.title, prompt.message, prompt.buttons);
       return;
     }

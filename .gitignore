@@ -42,6 +42,9 @@ yarn-error.*
 /ios
 /android
 
+# Supabase CLI cache
+supabase/.temp/
+
 # Photo originals and scratch grabs: only graded copies ship (see CREDITS.md)
 assets/photos/vecteezy_*
 assets/photos/Screenshot*

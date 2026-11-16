@@ -5,6 +5,8 @@ import { Screen } from '../components/Screen';
 import { Footer, Group, IconTile, LargeTitle, NavBack, Row, SectionHeader, Stepper, Toggle } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
 import { useAuth } from '../auth/AuthContext';
+import { providerLabel, signInLabel } from '../auth/providers';
+import { AppleSignInButton } from '../components/AppleSignInButton';
 import type { PowerConnectionState } from '../ble/cps';
 import { useHistory } from '../state/HistoryContext';
 import { useHeartRate } from '../state/HeartRateContext';
@@ -12,11 +14,12 @@ import { usePowerMeter } from '../state/PowerMeterContext';
 import { syncProfile } from '../storage/cloud';
 import { eraseThisDevice, requestAccountDelete, clearQueuedOutboxes } from '../storage/deletion';
 import {
-  accountDeleteNote,
+  accountWipeNote,
   deviceEraseNote,
   historyDeleteNote,
   outboxClearNote,
   settingsResetNote,
+  type AccountWipe,
 } from '../storage/deletionState';
 import { useSettings } from '../state/SettingsContext';
 import { ink, type } from '../theme/tokens';
@@ -52,7 +55,7 @@ export function SettingsScreen() {
     if (auth.needsSetup && !sawNeedsSetup.current) {
       Alert.alert(
         'Sign-in unavailable',
-        'This install has no 30/15 cloud project connected, so Google sign-in is off. Rides still save on this iPhone.',
+        'This install has no 30/15 cloud project connected, so sign-in is off. Rides still save on this iPhone.',
       );
     }
     sawNeedsSetup.current = auth.needsSetup;
@@ -169,21 +172,34 @@ export function SettingsScreen() {
   const deleteAccount = () => {
     Alert.alert(
       'Delete account?',
-      'This removes your cloud profile, sessions, analytics, and notes, then signs you out. Sessions still on this phone stay until you delete workout history. If the phone is offline, you stay signed in until the delete finishes.',
+      'This permanently deletes your 30/15 account and the cloud copy of your rides, profile, notes, and analytics. The second button also erases rides and settings on this iPhone. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete account',
           style: 'destructive',
-          onPress: () =>
-            void guard(async () => {
-              const cloud = await requestAccountDelete();
-              setDataNote(accountDeleteNote(cloud));
-            }),
+          onPress: () => void runAccountDelete('cloud'),
+        },
+        {
+          text: 'Delete account and iPhone data',
+          style: 'destructive',
+          onPress: () => void runAccountDelete('cloud-and-phone'),
         },
       ],
     );
   };
+
+  const runAccountDelete = (choice: AccountWipe) =>
+    guard(async () => {
+      if (choice === 'cloud-and-phone') {
+        await meter.forget();
+        await heart.forget();
+        await update({ ...DEFAULT_SETTINGS });
+        await auth.setLocalName('');
+      }
+      const result = await requestAccountDelete(choice);
+      setDataNote(accountWipeNote(result.account, result.phone));
+    });
 
   const editorMeta =
     editor === 'ftp'
@@ -402,22 +418,29 @@ export function SettingsScreen() {
           <Group inset={58}>
             <Row
               label={auth.user.name ?? 'Signed in'}
-              detail={`${auth.user.provider}${auth.user.email ? ` · ${auth.user.email}` : ''}`}
+              detail={`${providerLabel(auth.user.provider)}${auth.user.email ? ` · ${auth.user.email}` : ''}`}
               leading={<IconTile name="person" bg="#3A3A3C" fg="#AEAEB2" />}
             />
             <Row label="Sign out" tint={ink.emberText} onPress={() => void auth.signOut()} chevron={false} testID="sign-out" />
           </Group>
         ) : (
-          <Group>
-            <Row
-              label={auth.busy === 'google' ? 'Opening…' : 'Continue with Google'}
-              tint={ink.emberText}
-              onPress={() => void auth.signIn('google')}
+          <>
+            <AppleSignInButton
               disabled={auth.busy != null}
-              chevron={false}
-              testID="sign-in-google"
+              onPress={() => void auth.signIn('apple')}
+              testID="sign-in-apple"
             />
-          </Group>
+            <Group>
+              <Row
+                label={signInLabel('google', auth.busy)}
+                tint={ink.emberText}
+                onPress={() => void auth.signIn('google')}
+                disabled={auth.busy != null}
+                chevron={false}
+                testID="sign-in-google"
+              />
+            </Group>
+          </>
         )}
         <Footer>
           {auth.needsSetup && !auth.user

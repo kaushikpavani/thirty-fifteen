@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { bleGate, bleGateCopy, type BleGate } from '../ble/availability';
+import { shouldOpenRadio } from '../ble/radioGate';
 import { bleLog } from '../ble/log';
 import { HrClientError, createHrClient, type FoundHeartRate } from '../ble/hrClient';
 import { connectionStateFor, type PowerConnectionState } from '../ble/cps';
@@ -221,6 +222,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
       if (cancelled || !mountedRef.current) return;
       savedRef.current = saved;
       bleLog('hr-saved', saved?.id ?? 'none');
+      if (!shouldOpenRadio({ savedId: saved?.id ?? null, userAsked: false })) return;
       if (!saved || bleGate() || userHeldRef.current) return;
       if (phaseRef.current.phase !== 'idle') return;
       await connectDeviceRef.current(saved.id, saved.name, true);

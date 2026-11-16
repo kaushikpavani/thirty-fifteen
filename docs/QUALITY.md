@@ -51,6 +51,10 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 - [ ] Settings → Sound: tap each music style. About seven seconds of that style plays and fades; tapping another replaces it; leaving the screen or turning music Off stops it.
 - [ ] With a power meter, ride a hard rep well under target: after about 13 s the coach pushes in the recorded voice (needs the `power…` clips generated). Without a meter it stays quiet.
 - [ ] Pause in the first set, hold to end: Save / Delete / Keep riding appear; Delete leaves nothing in Past rides.
+- [ ] First launch does not ask for Bluetooth or for notifications. The Bluetooth sheet appears only after a tap on Connect for the power meter or heart rate.
+- [ ] With a power meter connected, start a ride and open YouTube: live watts keep updating when you return, and the ride was recording while YouTube was in front. Same with a heart-rate strap.
+- [ ] Settings → Account on iOS shows Continue with Apple and Continue with Google. Start still works with neither.
+- [ ] Settings → Your data → Delete account removes the cloud account. Delete account and iPhone data also clears rides on the phone.
 - [ ] Sign in on a fresh install: FTP, profile and coach choice come back from the account.
 - [ ] Start a ride, lock the phone for five minutes: cues keep coming, clock is right on unlock.
 - [ ] Start a ride, force-quit the app at ~3 minutes, reopen: the ride is in Past rides as "Ended early".
@@ -75,5 +79,6 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
   up again; it stays deleted on the phone that deleted it.
 - **Rides never backed up are not restorable.** A ride done signed out or offline lives only on the phone until a
   sync succeeds. Deleting the app before then loses it. Past rides shows how many are still waiting.
+- **Bluetooth after a force-quit.** Background mode keeps a connected meter and strap delivering while another app is in front. Force-quitting 30/15 ends that radio session until the app is opened again.
 - **Screens and gestures** have no automated tests. They are checked by hand in the web preview and on device.
 - **The audio generators** are tested with a simulated ElevenLabs API, not the live one.

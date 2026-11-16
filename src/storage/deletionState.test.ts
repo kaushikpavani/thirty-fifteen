@@ -5,7 +5,10 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { PII_PROPERTY_KEYS } from './analytics.ts';
 import {
+  accountDeleteAccepted,
   accountDeleteNote,
+  accountWipeClearsPhone,
+  accountWipeNote,
   deviceEraseNote,
   EMPTY_DELETION,
   enqueueCloudJob,
@@ -78,6 +81,36 @@ test('queued deletes do not claim the cloud is already gone', () => {
   assert.doesNotMatch(deviceEraseNote('queued'), /was removed/i);
   assert.match(deviceEraseNote('done'), /was removed/i);
   assert.doesNotMatch(deviceEraseNote('skipped'), /cloud/i);
+});
+
+test('account delete can include this phone, and a lost response is not treated as success', () => {
+  assert.equal(accountWipeClearsPhone('cloud'), false);
+  assert.equal(accountWipeClearsPhone('cloud-and-phone'), true);
+  assert.equal(accountDeleteAccepted({ invokeOk: false, sessionError: null }), false);
+  assert.equal(accountDeleteAccepted({ invokeOk: false, sessionError: 'JWT expired' }), false);
+  assert.equal(accountDeleteAccepted({ invokeOk: true, sessionError: null }), true);
+  assert.equal(
+    accountDeleteAccepted({
+      invokeOk: false,
+      sessionError: 'User from sub claim in JWT does not exist',
+    }),
+    true,
+  );
+  assert.match(accountWipeNote('queued', null), /still signed in/i);
+  assert.match(accountWipeNote('queued', null), /still there/i);
+  assert.doesNotMatch(accountWipeNote('queued', 'done'), /Cloud account data was deleted/);
+  assert.match(accountWipeNote('queued', 'done'), /erased/i);
+  assert.match(accountWipeNote('queued', 'done'), /still there/i);
+  assert.match(accountWipeNote('done', 'done'), /signed out/i);
+  assert.match(accountWipeNote('done', null), /signed out/i);
+  assert.doesNotMatch(accountWipeNote('done', null), /erased/i);
+  const source = fs.readFileSync(path.join(root, 'src/storage/deletion.ts'), 'utf8');
+  const body = source.slice(source.indexOf('export async function requestAccountDelete'));
+  const phone = body.indexOf('eraseThisDevice');
+  const job = body.indexOf("kind: 'account'");
+  assert.ok(phone > -1 && phone < job);
+  assert.match(source, /functions\.invoke\('delete-account'/);
+  assert.doesNotMatch(source, /delete_my_account/);
 });
 
 test('account delete SQL removes rider data before the auth user', () => {

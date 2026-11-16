@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "thirtyfifteen",
+    "owner": "pavanikaushik",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -18,10 +19,23 @@
         "dark": "./assets/icon-ios-dark.png",
         "tinted": "./assets/icon-ios-tinted.png"
       },
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.kaushikpavani.thirtyfifteen",
+      "usesAppleSignIn": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      },
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": ["audio", "bluetooth-central"],
         "NSBluetoothAlwaysUsageDescription": "30/15 reads cycling power and heart rate from your sensors."
       }
     },
@@ -48,6 +62,7 @@
     "plugins": [
       "expo-splash-screen",
       "expo-router",
+      "expo-apple-authentication",
       "expo-asset",
       [
         "expo-audio",
@@ -62,6 +77,8 @@
       [
         "react-native-ble-plx",
         {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
           "bluetoothAlwaysPermission": "30/15 reads cycling power and heart rate from your sensors.",
           "neverForLocation": true
         }

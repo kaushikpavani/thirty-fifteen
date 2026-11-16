@@ -8,6 +8,9 @@ import { loadCachedAuthUser } from '../auth/sessionCache';
 import { getSupabase } from '../auth/supabase';
 import { clearEventOutbox, localDeviceId, forgetDeviceId } from './cloud';
 import {
+  accountDeleteAccepted,
+  accountWipeClearsPhone,
+  type AccountWipe,
   type CloudAttempt,
   enqueueCloudJob,
   markHistoryDeleted,
@@ -16,6 +19,7 @@ import {
 } from './deletionState';
 import { loadDeletionState, primeHistoryWipe, saveDeletionState } from './deletionStore';
 import { clearFeedbackOutbox } from './feedback';
+import { clearSavedHeartRate } from './heartRate';
 import { clearHistory } from './history';
 import { createId } from './id';
 import { saveLocalName } from './profile';
@@ -23,6 +27,7 @@ import { clearSavedPowerMeter } from './powerMeter';
 import { clearStoredSettings } from './settings';
 
 const ATTEMPT_MS = 4000;
+const ACCOUNT_ATTEMPT_MS = 15000;
 
 export type FlushReport = {
   sessions: CloudAttempt;
@@ -57,6 +62,29 @@ function withTimeout<T>(work: PromiseLike<T>, ms: number): Promise<T> {
       },
     );
   });
+}
+
+async function attemptAccountDelete(): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  let invokeOk = false;
+  try {
+    const result = await withTimeout(supabase.functions.invoke('delete-account', { body: {} }), ACCOUNT_ATTEMPT_MS);
+    const data = result.data as { ok?: boolean } | null;
+    invokeOk = !result.error && data?.ok === true;
+  } catch {
+    invokeOk = false;
+  }
+  if (invokeOk) return true;
+  let sessionError: string | null = null;
+  try {
+    const { data, error } = await withTimeout(supabase.auth.getUser(), ATTEMPT_MS);
+    if (error) sessionError = error.message;
+    else if (!data.user) sessionError = 'User from sub claim in JWT does not exist';
+  } catch {
+    sessionError = null;
+  }
+  return accountDeleteAccepted({ invokeOk: false, sessionError });
 }
 
 async function attemptRpc(name: string, args: Record<string, unknown>): Promise<boolean> {
@@ -111,7 +139,7 @@ async function flushUnsafe(): Promise<FlushReport> {
       if (!configured || !user) {
         report.account = 'queued';
       } else {
-        const ok = await attemptRpc('delete_my_account', {});
+        const ok = await attemptAccountDelete();
         if (ok) {
           const latest = await loadDeletionState();
           await saveDeletionState(withoutJobs(latest, ['account']));
@@ -177,6 +205,7 @@ export async function eraseThisDevice(): Promise<CloudAttempt> {
   await saveLocalName(null);
   await clearStoredSettings();
   await clearSavedPowerMeter();
+  await clearSavedHeartRate();
   await forgetDeviceId();
   if (deviceId && isSupabaseConfigured()) {
     const current = await loadDeletionState();
@@ -194,13 +223,20 @@ export async function eraseThisDevice(): Promise<CloudAttempt> {
 }
 
 /**
- * Queue a full cloud wipe and try it now. Does not clear sessions stored on
- * the phone. Signs out only after the server accepts the delete.
+ * Queue a full cloud wipe and try it now. `cloud` leaves sessions stored on
+ * the phone. `cloud-and-phone` clears this install first, then the account.
+ * Signs out only after the server accepts the delete.
  */
-export async function requestAccountDelete(): Promise<'done' | 'queued' | 'unconfigured'> {
-  if (!isSupabaseConfigured()) return 'unconfigured';
+export async function requestAccountDelete(
+  choice: AccountWipe = 'cloud',
+): Promise<{ account: 'done' | 'queued' | 'unconfigured'; phone: CloudAttempt | null }> {
+  let phone: CloudAttempt | null = null;
+  if (accountWipeClearsPhone(choice)) {
+    phone = await eraseThisDevice();
+  }
+  if (!isSupabaseConfigured()) return { account: 'unconfigured', phone };
   const user = await loadCachedAuthUser();
-  if (!user) return 'unconfigured';
+  if (!user) return { account: 'unconfigured', phone };
   const current = await loadDeletionState();
   await saveDeletionState(
     enqueueCloudJob(current, {
@@ -211,5 +247,5 @@ export async function requestAccountDelete(): Promise<'done' | 'queued' | 'uncon
     }),
   );
   const report = await flushCloudDeletes();
-  return report.account === 'done' ? 'done' : 'queued';
+  return { account: report.account === 'done' ? 'done' : 'queued', phone };
 }

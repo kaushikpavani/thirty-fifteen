@@ -24,7 +24,7 @@ Offline. No login wall. No watts on the notification.
 | `src/workout/cueCatchup.ts` | Which cues a jump from `fromMs` to `toMs` may play. `takeCue` is the double-fire lock. |
 | `src/hooks/useWorkoutEngine.ts` | Wires the clock, the cues, and notification pause/resume. |
 | `src/hooks/useAppActive.ts` | Foreground flag. Animations stop off-screen. The workout does not. |
-| `app.json` | `UIBackgroundModes: ["audio"]`, `enableBackgroundPlayback: true`. |
+| `app.json` | `UIBackgroundModes`: `audio` and `bluetooth-central`. `enableBackgroundPlayback: true`. The BLE plugin adds `central` and a restore identifier on the radio (`thirtyfifteen-ble`) so watts and heart rate keep arriving while YouTube is in front. |
 | `eas.json` | `development` profile (`developmentClient`, internal). |
 
 `ios/` and `android/` are generated. Do not edit them for this.

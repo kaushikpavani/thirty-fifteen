@@ -126,7 +126,7 @@ export function DoneSummary({
 
   const shareThisRide = () => {
     if (!auth.user) {
-      const prompt = shareSignInAlert(auth);
+      const prompt = shareSignInAlert(auth, Platform.OS);
       Alert.alert(prompt.title, prompt.message, prompt.buttons);
       return;
     }

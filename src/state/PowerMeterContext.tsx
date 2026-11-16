@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { bleGate, bleGateCopy, type BleGate } from '../ble/availability';
+import { shouldOpenRadio } from '../ble/radioGate';
 import { bleLog } from '../ble/log';
 import { BleClientError, createBleClient, type FoundDevice } from '../ble/client';
 import { connectionStateFor, type PowerConnectionState } from '../ble/cps';
@@ -228,6 +229,7 @@ export function PowerMeterProvider({ children }: { children: React.ReactNode }) 
       if (cancelled || !mountedRef.current) return;
       savedRef.current = saved;
       bleLog('saved', saved?.id ?? 'none');
+      if (!shouldOpenRadio({ savedId: saved?.id ?? null, userAsked: false })) return;
       if (!saved || bleGate() || userHeldRef.current) return;
       if (phaseRef.current.phase !== 'idle') return;
       await connectDeviceRef.current(saved.id, saved.name, true);
