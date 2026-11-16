@@ -22,6 +22,12 @@ npx eas-cli build:version:set
 
 You do not need that for the first build. EAS starts at 1.
 
+## Home screen name
+
+`expo.name` is `ThirtyFifteen`. Prebuild uses that string for the Xcode project and target. The iPhone home screen name is `ios.infoPlist.CFBundleDisplayName`, which is `30/15`. The Android launcher label is `30/15`, set by `plugins/withAndroidLabel`. The bundle id stays `com.kaushikpavani.thirtyfifteen`.
+
+Do not set `expo.name` back to `30/15`. Prebuild would name the target `3015`. That value is written unquoted in `project.pbxproj`, the Xcode parser reads it as a number, and the production build fails in Configure Xcode project with `Could not find target '3015'`.
+
 ## Install on EAS
 
 This repo uses npm and `package-lock.json`. Do not add a `packageManager` field. EAS would follow that field and ignore the lockfile.
@@ -70,13 +76,7 @@ Use the Expo account **pavanikaushik**.
 
 ## 4. Link this repo to the Expo project
 
-Skip this if `app.json` already has `extra.eas.projectId`.
-
-```bash
-npx eas-cli init
-```
-
-Accept the slug `thirty-fifteen` and the owner `pavanikaushik`. This writes `extra.eas.projectId` into `app.json`. Keep that change.
+`app.json` already has `extra.eas.projectId` set to `5fe5855e-1f9e-417f-b31d-abf10c597958` (owner `pavanikaushik`, slug `thirty-fifteen`). Leave it. Skip `eas init`.
 
 ## 5. Put the Supabase URL and key on EAS
 
@@ -98,11 +98,14 @@ npx eas-cli env:list --environment production
 
 Both names should be listed. The same two commands with `preview` or `development` in place of `production` are only needed if you build those profiles.
 
-## 6. Let the first submit create the App Store Connect app
+## 6. App Store Connect app
 
-`eas.json` has `submit.production.ios.ascAppId` set to `REPLACE_WITH_ASC_APP_ID` so the slot is obvious. That string is not an App Store Connect id. If it is still there, this first submit will look up an app that does not exist.
+`eas.json` `submit.production.ios` already points at the 30/15 app:
 
-Open `eas.json`. Delete the `ascAppId` line. Leave `appleTeamId` as `9R7M4ATZJ8`. Save.
+- `ascAppId`: `6835283825` (App Store Connect → the 30/15 app → App Information → Apple ID)
+- `appleTeamId`: `9R7M4ATZJ8`
+
+Leave both. A submit uploads to that existing app.
 
 ## 7. Build and submit
 
@@ -114,10 +117,10 @@ When the CLI asks:
 
 - Sign in with your Apple ID and complete 2FA.
 - Choose team **9R7M4ATZJ8**.
-- Let EAS create the distribution certificate, the provisioning profile, the App Store Connect app record, and the App Store Connect API key.
+- Let EAS create the distribution certificate, the provisioning profile, and the App Store Connect API key if they are missing. The app record already exists (`ascAppId` `6835283825`).
 - The profile includes Sign in with Apple because `ios.usesAppleSignIn` is true.
 
-Do not pass `--non-interactive` on this first run. A later build can, once the API key and `ascAppId` exist.
+Do not pass `--non-interactive` on this first run. A later build can, once the App Store Connect API key exists. `ascAppId` is already set.
 
 `ios.supportsTablet` is false, so App Store Connect will not ask for iPad screenshots.
 
@@ -127,17 +130,9 @@ The privacy manifest sets tracking to false and declares UserDefaults reason `CA
 
 Bluetooth permission text is one line: `30/15 reads cycling power and heart rate from your sensors.` The sheet is not shown on first launch. It is shown when the rider taps Connect on a meter or heart-rate strap. There is no notification permission prompt.
 
-## 8. Write the real ascAppId back
+## 8. Keep the Apple ID in eas.json
 
-In App Store Connect, open the 30/15 app → App Information → General Information → **Apple ID**. It is a number.
-
-Put that number back into `eas.json`:
-
-```json
-"ascAppId": "1234567890"
-```
-
-Use the real number. Commit that change when you want later submits to find the app without a prompt. Leave `appleTeamId` as `9R7M4ATZJ8`.
+`ascAppId` is already `6835283825`. If App Store Connect ever shows a different Apple ID for this app, replace that value and leave `appleTeamId` as `9R7M4ATZJ8`.
 
 ## 9. Install it yourself from TestFlight
 
