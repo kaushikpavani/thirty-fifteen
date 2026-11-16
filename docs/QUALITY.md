@@ -69,6 +69,7 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 - [ ] Install a new build over an old one: every past ride is still there.
 - [ ] Delete the app, reinstall, sign in: every ride that showed as backed up is back, with its charts.
 - [ ] Airplane mode for a whole ride: it saves, and backs up when the connection returns.
+- [ ] The iPhone home screen and the Android launcher show 30/15. The Xcode project is named ThirtyFifteen.
 
 ## Known gaps
 

@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const { IOSConfig } = require('@expo/config-plugins') as {
+  IOSConfig: { XcodeUtils: { sanitizedName: (name: string) => string } };
+};
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -92,5 +98,44 @@ test('EAS keeps the iOS build number remotely and submits to team 9R7M4ATZJ8', (
   assert.equal(eas.build?.production?.environment, 'production');
   assert.equal(eas.build?.production?.autoIncrement, true);
   assert.equal(eas.submit?.production?.ios?.appleTeamId, '9R7M4ATZJ8');
-  assert.equal(eas.submit?.production?.ios?.ascAppId, 'REPLACE_WITH_ASC_APP_ID');
+  assert.equal(eas.submit?.production?.ios?.ascAppId, '6835283825');
+});
+
+test('the Xcode target is a non-numeric name and the home screen stays 30/15', () => {
+  const app = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')) as {
+    expo: {
+      name?: string;
+      extra?: { eas?: { projectId?: string } };
+      web?: { name?: string };
+      splash?: unknown;
+      ios?: { bundleIdentifier?: string; infoPlist?: { CFBundleDisplayName?: string } };
+      android?: { package?: string };
+      plugins?: unknown[];
+    };
+  };
+  const name = app.expo.name ?? '';
+  const nativeName = IOSConfig.XcodeUtils.sanitizedName(name);
+  assert.equal(nativeName, 'ThirtyFifteen');
+  assert.match(nativeName, /^[A-Za-z][A-Za-z0-9]*$/);
+  assert.equal(/^\d+$/.test(nativeName), false);
+  assert.equal(app.expo.ios?.infoPlist?.CFBundleDisplayName, '30/15');
+  assert.equal(app.expo.ios?.bundleIdentifier, 'com.kaushikpavani.thirtyfifteen');
+  assert.equal(app.expo.android?.package, 'com.kaushikpavani.thirtyfifteen');
+  assert.equal(app.expo.web?.name, '30/15');
+  assert.equal(app.expo.extra?.eas?.projectId, '5fe5855e-1f9e-417f-b31d-abf10c597958');
+  assert.equal(app.expo.splash, undefined);
+
+  const plugins = app.expo.plugins ?? [];
+  const label = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === './plugins/withAndroidLabel');
+  assert.deepEqual(label, ['./plugins/withAndroidLabel', '30/15']);
+
+  const splash = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-splash-screen') as
+    | [string, { image?: string; resizeMode?: string; backgroundColor?: string; imageWidth?: number; enableFullScreenImage_legacy?: boolean }]
+    | undefined;
+  assert.ok(splash);
+  assert.equal(splash[1].image, './assets/splash-icon.png');
+  assert.equal(splash[1].resizeMode, 'contain');
+  assert.equal(splash[1].backgroundColor, '#070708');
+  assert.equal(splash[1].imageWidth, 200);
+  assert.equal(splash[1].enableFullScreenImage_legacy, true);
 });

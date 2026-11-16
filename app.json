@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "30/15",
+    "name": "ThirtyFifteen",
     "slug": "thirty-fifteen",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,11 +8,6 @@
     "userInterfaceStyle": "dark",
     "scheme": "thirtyfifteen",
     "owner": "pavanikaushik",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#070708"
-    },
     "ios": {
       "icon": {
         "light": "./assets/icon.png",
@@ -35,6 +30,7 @@
         ]
       },
       "infoPlist": {
+        "CFBundleDisplayName": "30/15",
         "UIBackgroundModes": ["audio", "bluetooth-central"],
         "NSBluetoothAlwaysUsageDescription": "30/15 reads cycling power and heart rate from your sensors."
       }
@@ -57,10 +53,25 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "name": "30/15"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5fe5855e-1f9e-417f-b31d-abf10c597958"
+      }
     },
     "plugins": [
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#070708",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "imageWidth": 200,
+          "enableFullScreenImage_legacy": true
+        }
+      ],
       "expo-router",
       "expo-apple-authentication",
       "expo-asset",
@@ -82,7 +93,8 @@
           "bluetoothAlwaysPermission": "30/15 reads cycling power and heart rate from your sensors.",
           "neverForLocation": true
         }
-      ]
+      ],
+      ["./plugins/withAndroidLabel", "30/15"]
     ]
   }
 }
