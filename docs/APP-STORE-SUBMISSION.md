@@ -107,6 +107,16 @@ Both names should be listed. The same two commands with `preview` or `developmen
 
 Leave both. A submit uploads to that existing app.
 
+App Store Connect URLs, from `site/` once GitHub Pages is publishing:
+
+| Field | URL |
+|---|---|
+| Support URL | `https://kaushikpavani.github.io/thirty-fifteen/support/` |
+| Marketing URL | `https://kaushikpavani.github.io/thirty-fifteen/` |
+| Privacy Policy URL | `https://kaushikpavani.github.io/thirty-fifteen/privacy/` |
+
+`.github/workflows/pages.yml` publishes `site/` and asks `actions/configure-pages` to enable Pages (`enablement: true`). The default Actions token cannot create the Pages site. If that step fails, set Settings → Pages → Build and deployment → Source to GitHub Actions, then re-run the workflow.
+
 ## 7. Build and submit
 
 ```bash
