@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AndroidManifest } from '@expo/config-plugins';
+import { AUTH_CALLBACK_URI } from '../auth/redirect.ts';
 
 const require = createRequire(import.meta.url);
 const { AndroidConfig } = require('@expo/config-plugins') as typeof import('@expo/config-plugins');
@@ -16,7 +17,6 @@ const { shapeAndroidReleaseManifest, shapeAndroidSystemBars } = require('../../p
     parent: { name: string },
   ) => T;
 };
-import { AUTH_CALLBACK_URI } from '../auth/redirect.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
