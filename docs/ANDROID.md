@@ -138,6 +138,8 @@ Do these by hand. The repo cannot create the Play listing.
 3. Finish the dashboard tasks Play lists before you can release: App content (privacy policy, ads, content rating, target audience, news, data safety), store listing, and countries.
 4. Privacy policy URL: `https://kaushikpavani.github.io/thirty-fifteen/privacy/`
 5. Support URL: `https://kaushikpavani.github.io/thirty-fifteen/support/`
+   Data deletion URL, in the Data safety form: `https://kaushikpavani.github.io/thirty-fifteen/support/#delete-your-data`
+   That section names 30/15 Coach and Kaushik Pavani, the in-app steps for one ride, all rides, and the account, what is deleted and what is kept, and a GitHub issue path for someone who uninstalled the app.
 6. Declare that the app does not contain ads and has no in-app purchases.
 7. Content rating: fitness / health-style activity, no violence, no user-generated public sharing, no location sharing. Answer the questionnaire from the real app. It is a workout timer with optional Bluetooth sensors and optional sign-in.
 8. Upload the production AAB to the **closed testing** track first, not straight to production. Create a closed testing release, add the AAB, and roll it out to a tester list.
