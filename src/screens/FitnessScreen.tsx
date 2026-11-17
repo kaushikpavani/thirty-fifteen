@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Stepper } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
 import { Vo2Histogram } from '../components/kit/Vo2Histogram';
+import { deviceCopy } from '../platform/deviceCopy';
 import { useHeartRate } from '../state/HeartRateContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
@@ -184,7 +185,7 @@ export function FitnessScreen() {
             <Footer>Only works if you&apos;re actually resting — sit still for a minute first, then tap.</Footer>
           </>
         ) : (
-          <Footer>Only used to estimate VO₂max. Never shared, never leaves this iPhone.</Footer>
+          <Footer>{deviceCopy(Platform.OS, 'Only used to estimate VO₂max. Never shared, never leaves this iPhone.')}</Footer>
         )}
 
         <SectionHeader>How this works</SectionHeader>

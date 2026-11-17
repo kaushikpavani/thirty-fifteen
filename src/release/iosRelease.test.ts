@@ -127,7 +127,7 @@ test('the Xcode target is a non-numeric name and the home screen stays 30/15', (
 
   const plugins = app.expo.plugins ?? [];
   const label = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === './plugins/withAndroidLabel');
-  assert.deepEqual(label, ['./plugins/withAndroidLabel', '30/15']);
+  assert.deepEqual(label, ['./plugins/withAndroidLabel', '30/15 Coach']);
 
   const splash = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-splash-screen') as
     | [string, { image?: string; resizeMode?: string; backgroundColor?: string; imageWidth?: number; enableFullScreenImage_legacy?: boolean }]

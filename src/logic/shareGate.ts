@@ -15,7 +15,10 @@ export function shareSignInAlert(auth: SignInActions, platform: string): {
 } {
   return {
     title: 'Sign in to share',
-    message: 'Sign in so a shared ride card can say whose it is — then share it anywhere from your iPhone.',
+    message:
+      platform === 'ios'
+        ? 'Sign in so a shared ride card can say whose it is — then share it anywhere from your iPhone.'
+        : 'Sign in so a shared ride card can say whose it is — then share it anywhere from your phone.',
     buttons: [
       { text: 'Cancel', style: 'cancel' },
       ...signInProviders(platform).map((provider) => ({

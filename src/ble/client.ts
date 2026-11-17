@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { ensureAndroidBlePermission } from './androidAccess';
 import {
   POWER_SCAN_UUIDS,
   characteristicMatches,
@@ -64,27 +64,6 @@ export class BleClientError extends Error {
   }
 }
 
-async function ensureAndroidPermission(): Promise<void> {
-  if (Platform.OS !== 'android') return;
-  const api = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
-  if (api >= 31) {
-    const result = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-    ]);
-    const scan = result['android.permission.BLUETOOTH_SCAN'];
-    const connect = result['android.permission.BLUETOOTH_CONNECT'];
-    if (scan !== PermissionsAndroid.RESULTS.GRANTED || connect !== PermissionsAndroid.RESULTS.GRANTED) {
-      throw new BleClientError('permission');
-    }
-    return;
-  }
-  const fine = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-  if (fine !== PermissionsAndroid.RESULTS.GRANTED) {
-    throw new BleClientError('permission');
-  }
-}
-
 function asBleError(error: unknown): BleClientError {
   if (error instanceof BleClientError) return error;
   const message = error instanceof Error ? error.message : String(error);
@@ -96,7 +75,7 @@ function asBleError(error: unknown): BleClientError {
   return new BleClientError('not-found');
 }
 
-export async function createBleClient(): Promise<{
+export async function createBleClient(options?: { prompt?: boolean }): Promise<{
   scan: (onDevice: (device: FoundDevice) => void) => Promise<void>;
   stopScan: () => void;
   connect: (id: string, onSample: (reading: PowerReading) => void, onLost: () => void) => Promise<string>;
@@ -104,7 +83,12 @@ export async function createBleClient(): Promise<{
   disconnect: () => Promise<void>;
   destroy: () => void;
 }> {
-  await ensureAndroidPermission();
+  try {
+    await ensureAndroidBlePermission({ prompt: options?.prompt });
+  } catch (error) {
+    if (error instanceof BleClientError) throw error;
+    throw new BleClientError('permission');
+  }
   let manager: ManagerLike;
   try {
     manager = await acquireBleManager<ManagerLike>();

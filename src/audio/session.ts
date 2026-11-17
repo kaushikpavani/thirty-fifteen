@@ -1,27 +1,20 @@
 import { Platform } from 'react-native';
+import { workoutInterruptionMode } from './focus';
 import { kickBed, setSessionHold } from './music';
 
 /**
  * Audio session for a running ride.
  *
- * Checked against expo-audio SDK 57 `setAudioModeAsync` / `InterruptionMode`
- * and the iOS implementation (`AVAudioSession` category `.playback`):
- *
- * - `mixWithOthers` plays alongside other apps. On Android it requests no focus.
- * - `duckOthers` keeps other apps playing, quieter, while our session plays.
- *   iOS sets `.duckOthers`. The bed loops for the whole ride, so leaving this
- *   on would duck YouTube from Start until the end.
- * - `doNotMix` pauses other apps. `setActiveForLockScreen` requires it, and
- *   Android needs that lock-screen session or background playback stops after
- *   about three minutes.
+ * Checked against expo-audio SDK 57 `setAudioModeAsync`. The mode itself is
+ * `workoutInterruptionMode` in `focus.ts`.
  *
  * iOS rests on `mixWithOthers` and uses `duckOthers` only while a cue is already
- * silencing the bed. Android stays on `doNotMix` for the whole ride.
+ * silencing the bed. Android holds `duckOthers` for the whole ride so the media
+ * foreground service keeps focus without pausing other apps.
  * `playsInSilentMode` uses the playback category, so the iOS silent switch
- * does not mute the ride.
+ * does not mute the ride. Android silent and vibrate do not either.
  */
 
-type InterruptionMode = 'mixWithOthers' | 'doNotMix' | 'duckOthers';
 type ExpoAudioModule = Pick<typeof import('expo-audio'), 'setAudioModeAsync'>;
 
 let expoAudio: ExpoAudioModule | null | undefined;
@@ -42,10 +35,12 @@ function loadExpoAudio(): ExpoAudioModule | null {
   return expoAudio;
 }
 
-function interruptionMode(background: boolean): InterruptionMode {
-  if (!background) return 'mixWithOthers';
-  if (Platform.OS === 'android') return 'doNotMix';
-  return foreignDucks > 0 ? 'duckOthers' : 'mixWithOthers';
+function interruptionMode(background: boolean) {
+  return workoutInterruptionMode({
+    platform: Platform.OS,
+    background,
+    foreignDucks,
+  });
 }
 
 function enqueueSession(background: boolean): Promise<void> {
@@ -108,7 +103,7 @@ export function leaveWorkoutAudio(): void {
 
 /**
  * iOS only. Duck other apps for this cue, then mix again.
- * Android stays on `doNotMix` so the media session is left alone.
+ * Android is already on `duckOthers` for the whole ride, so the session is left alone.
  */
 export function holdForeignDuck(ms: number): void {
   if (Platform.OS !== 'ios' || !workoutAudio || ms <= 0) return;

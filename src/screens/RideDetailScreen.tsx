@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
 import { insightStats } from '../logic/rideSummary';
+import { deviceCopy } from '../platform/deviceCopy';
 import { confirmDeleteRide, dayTitle, rideTime } from './HistoryScreen';
 import { ink, radius, type, surface } from '../theme/tokens';
 import { emailRideSummary } from '../logic/rideEmail';
@@ -31,7 +32,7 @@ export function RideDetailScreen() {
         <ScrollView contentContainerStyle={styles.scroll}>
           <NavBack inset={0} label="Past rides" testID="ride-detail-back" />
           <LargeTitle inset={4}>Ride</LargeTitle>
-          <Text style={styles.missing}>This ride is not on this iPhone anymore.</Text>
+          <Text style={styles.missing}>{deviceCopy(Platform.OS, 'This ride is not on this iPhone anymore.')}</Text>
         </ScrollView>
       </Screen>
     );

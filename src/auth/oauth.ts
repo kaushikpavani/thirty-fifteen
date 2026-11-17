@@ -1,13 +1,14 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import { AUTH_CALLBACK_PATH, AUTH_SCHEME } from './redirect';
 import { getSupabase } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function authRedirectUri(): string {
   return makeRedirectUri({
-    scheme: 'thirtyfifteen',
-    path: 'auth-callback',
+    scheme: AUTH_SCHEME,
+    path: AUTH_CALLBACK_PATH,
   });
 }
 

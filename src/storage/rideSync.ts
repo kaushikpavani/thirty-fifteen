@@ -80,21 +80,22 @@ export type BackupState =
   | { kind: 'backed-up'; total: number }
   | { kind: 'pending'; total: number; pending: number; reason: 'offline' | 'error' };
 
-/** One line for the rider. Every state says where the rides are. */
-export function backupLine(state: BackupState): string {
+/** One line for the rider. Every state says where the rides are. iOS keeps "iPhone". */
+export function backupLine(state: BackupState, platform = 'ios'): string {
+  const device = platform === 'ios' ? 'this iPhone' : 'this phone';
   const rides = (n: number) => (n === 1 ? '1 ride' : `${n} rides`);
   switch (state.kind) {
     case 'signed-out':
       return state.total === 0
-        ? 'Rides save on this iPhone. Sign in to back them up.'
-        : `${rides(state.total)} saved on this iPhone. Sign in to back them up.`;
+        ? `Rides save on ${device}. Sign in to back them up.`
+        : `${rides(state.total)} saved on ${device}. Sign in to back them up.`;
     case 'syncing':
       return 'Backing up your rides…';
     case 'backed-up':
       return state.total === 0 ? 'Signed in. New rides back up automatically.' : `All ${rides(state.total)} backed up.`;
     case 'pending':
       return state.reason === 'offline'
-        ? `${rides(state.pending)} waiting to back up. They're safe on this iPhone and will upload when you're online.`
-        : `${rides(state.pending)} not backed up yet. They're safe on this iPhone; 30/15 will keep retrying.`;
+        ? `${rides(state.pending)} waiting to back up. They're safe on ${device} and will upload when you're online.`
+        : `${rides(state.pending)} not backed up yet. They're safe on ${device}; 30/15 will keep retrying.`;
   }
 }

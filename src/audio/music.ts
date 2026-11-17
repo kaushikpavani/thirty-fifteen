@@ -193,8 +193,9 @@ function clearLockScreen(): void {
 }
 
 /**
- * Android sustained background audio needs a media session. Expo's docs require
- * setActiveForLockScreen, which itself requires doNotMix. iOS does not: the
+ * Android sustained background audio needs the media foreground service.
+ * `setActiveForLockScreen` starts it. Focus stays on duck rather than exclusive,
+ * so other apps keep playing. iOS does not publish a lock-screen session: the
  * playback category plus the looping bed is enough, and lock-screen controls
  * would force exclusive focus and pause the rider's other audio.
  */
@@ -215,7 +216,7 @@ function publishLockScreen(): void {
   try {
     player.setActiveForLockScreen(
       true,
-      { title: nowTitle, artist: '30/15' },
+      { title: nowTitle, artist: '30/15 Coach' },
       { showSeekForward: false, showSeekBackward: false },
     );
     lockKey = key;

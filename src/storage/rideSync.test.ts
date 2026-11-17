@@ -78,6 +78,8 @@ test('uploads go out in small batches', () => {
 
 test('every backup line tells the rider where their rides are', () => {
   assert.match(backupLine({ kind: 'signed-out', total: 10 }), /10 rides saved on this iPhone\. Sign in to back them up/);
+  assert.match(backupLine({ kind: 'signed-out', total: 10 }, 'android'), /10 rides saved on this phone\. Sign in to back them up/);
+  assert.doesNotMatch(backupLine({ kind: 'pending', total: 2, pending: 1, reason: 'offline' }, 'android'), /iPhone/);
   assert.match(backupLine({ kind: 'backed-up', total: 10 }), /All 10 rides backed up/);
   assert.match(backupLine({ kind: 'pending', total: 10, pending: 3, reason: 'offline' }), /3 rides waiting.*safe on this iPhone/);
   assert.match(backupLine({ kind: 'pending', total: 10, pending: 1, reason: 'error' }), /1 ride not backed up yet.*safe on this iPhone/);

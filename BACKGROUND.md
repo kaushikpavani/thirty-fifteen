@@ -64,13 +64,13 @@ Checked against expo-audio SDK 57 `setAudioModeAsync` and the iOS `AVAudioSessio
 | --- | --- |
 | `mixWithOthers` | Keep playing. Android requests no audio focus. |
 | `duckOthers` | Keep playing, quieter, for as long as our session is playing. |
-| `doNotMix` | Pause. Required for `setActiveForLockScreen`. |
+| `doNotMix` | Pause. Expo's sample uses this with `setActiveForLockScreen`. This app does not. |
 
 The bed loops for the whole ride. Leaving `duckOthers` on would duck YouTube from Start until the end, so iOS does not do that.
 
 **iOS, ride running.** `mixWithOthers`, plus `shouldPlayInBackground`. For the same window that already ducks our bed (T−3 through the first second of HARD, a beep, a Rocky line), the session switches to `duckOthers`, then back to mix. YouTube keeps playing and dips for that window. Lock-screen controls stay off: `setActiveForLockScreen` requires `doNotMix`, which would pause YouTube for the whole ride.
 
-**Android, ride running.** `doNotMix` and `setActiveForLockScreen` (seek hidden). Expo's docs say that without the media session, background playback stops after about three minutes. A 30/15 is longer than that. YouTube pauses while the ride is running. The notification title is the segment label (`Hard 1/13`), artist `30/15`. No watts.
+**Android, ride running.** `duckOthers` and `setActiveForLockScreen` (seek hidden). The lock-screen call starts `AudioControlsService`, a foreground service with `foregroundServiceType="mediaPlayback"`. Expo's docs say that without that service, background playback stops after about three minutes. A 30/15 is longer than that. `duckOthers` requests `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`, so YouTube keeps playing, quieter, for the whole ride. It is not paused. The notification title is the segment label (`Hard 1/13`), artist `30/15 Coach`. No watts. The ongoing notification is that media session. There is no separate notification permission prompt.
 
 **Paused.** Background mode turns off and the bed pauses, so a paused ride is not holding the session just to stay alive. On Android the notification stays registered, so Play can resume the workout. Stop and finish clear it. If the OS removes the notification when focus is released, resume from the in-app Pause glass.
 
@@ -152,9 +152,9 @@ Run this on a development build. CI cannot hear the phone.
 1. Install the development build on iOS and, if you can, Android.
 2. Start a workout. The bed is audible. The silent switch (iOS) or silent/vibrate (Android) does not mute it.
 3. Switch to YouTube, or lock the screen, for several HARD/EASY pairs. Stay away for more than a minute, and on Android for more than three.
-4. Hear T−3, T−2, T−1, the phase chirp, and Rocky on time. On iOS, YouTube keeps playing and dips under each cue. On Android, YouTube stays paused while the ride is running.
+4. Hear T−3, T−2, T−1, the phase chirp, and Rocky on time. On iOS, YouTube keeps playing and dips under each cue. On Android, YouTube keeps playing and stays quieter for the whole ride. An ongoing notification is visible. The screen can be off.
 5. Return to 30/15. The countdown matches the time you were away. The ride is not paused. Cues that already played do not play again.
 6. Pause in the app. Cues and the bed stop. Wait through a moment where a chirp would have fired. Resume. That chirp does not fire late. The next one does, on time.
-7. Android: pause from the notification. Cues stop. Play from the notification. They continue from that second. iOS: the lock screen has no play/pause for this app, and YouTube was not forced silent for the whole ride.
+7. Android: pause from the notification. Cues stop. Play from the notification. They continue from that second. YouTube was quieter, not stopped. iOS: the lock screen has no play/pause for this app, and YouTube was not forced silent for the whole ride.
 8. Music off. Start again. Leave the app. Cues still arrive. No bed tone.
 9. Place a phone call during a ride, hang up, and return to the app. The clock has moved. The bed is audible again after you are back.

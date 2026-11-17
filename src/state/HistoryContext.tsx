@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../storage/cloud';
 import { deleteWorkoutHistory } from '../storage/deletion';
@@ -203,7 +203,7 @@ export function HistoryProvider({ children }: { children: React.ReactNode }) {
   }, [sessions.length, userId, status]);
 
   const value = useMemo(
-    () => ({ ready, sessions, backup, cloudNote: backupLine(backup), addSession, clearSessions, deleteSession, discardRide }),
+    () => ({ ready, sessions, backup, cloudNote: backupLine(backup, Platform.OS), addSession, clearSessions, deleteSession, discardRide }),
     [ready, sessions, backup, addSession, clearSessions, deleteSession, discardRide],
   );
 
