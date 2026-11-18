@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EMPTY_PHOTO } from '../content/photos';
 import { router } from 'expo-router';
@@ -10,6 +10,7 @@ import { useWorkout } from '../state/WorkoutContext';
 import { useAuth } from '../auth/AuthContext';
 import { tapHaptic } from '../components/kit/press';
 import { useHistory } from '../state/HistoryContext';
+import { deviceCopy } from '../platform/deviceCopy';
 import { ink, type } from '../theme/tokens';
 import type { WorkoutRecord } from '../types';
 import { clockText } from '../logic/rideView';
@@ -64,7 +65,10 @@ export function rideDetail(session: WorkoutRecord, ctx?: TrendContext): string {
 export function confirmDeleteRide(session: WorkoutRecord, signedIn: boolean, onDelete: () => void): void {
   Alert.alert(
     'Delete this ride?',
-    `${dayTitle(session.endedAt)}, ${rideTime(session)}. This permanently removes it from this iPhone${signedIn ? ' and your cloud account' : ''}. It cannot be undone.`,
+    deviceCopy(
+      Platform.OS,
+      `${dayTitle(session.endedAt)}, ${rideTime(session)}. This permanently removes it from this iPhone${signedIn ? ' and your cloud account' : ''}. It cannot be undone.`,
+    ),
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete ride', style: 'destructive', onPress: onDelete },

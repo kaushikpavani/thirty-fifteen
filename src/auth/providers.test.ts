@@ -55,6 +55,14 @@ test('share sign-in offers the same providers and does not gate a ride', () => {
   alert.buttons[1]?.onPress?.();
   alert.buttons[2]?.onPress?.();
   assert.deepEqual(calls, ['apple', 'google']);
+  const android = shareSignInAlert({ signIn: () => undefined }, 'android');
+  assert.deepEqual(
+    android.buttons.map((button) => button.text),
+    ['Cancel', 'Continue with Google'],
+  );
+  assert.match(android.message, /from your phone/);
+  assert.doesNotMatch(android.message, /iPhone/);
+  assert.match(alert.message, /from your iPhone/);
   const web = shareSignInAlert({ signIn: () => undefined }, 'web');
   assert.deepEqual(
     web.buttons.map((button) => button.text),

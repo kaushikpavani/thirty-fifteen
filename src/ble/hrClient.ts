@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { ensureAndroidBlePermission } from './androidAccess';
 import { acquireBleManager, releaseBleManager } from './manager';
 import { bleLog } from './log';
 import { base64ToBytes, bytesToHex, parseHeartRate } from './parse';
@@ -63,25 +63,6 @@ export class HrClientError extends Error {
   }
 }
 
-async function ensureAndroidPermission(): Promise<void> {
-  if (Platform.OS !== 'android') return;
-  const api = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
-  if (api >= 31) {
-    const result = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-    ]);
-    const scan = result['android.permission.BLUETOOTH_SCAN'];
-    const connect = result['android.permission.BLUETOOTH_CONNECT'];
-    if (scan !== PermissionsAndroid.RESULTS.GRANTED || connect !== PermissionsAndroid.RESULTS.GRANTED) {
-      throw new HrClientError('permission');
-    }
-    return;
-  }
-  const fine = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-  if (fine !== PermissionsAndroid.RESULTS.GRANTED) throw new HrClientError('permission');
-}
-
 function asHrError(error: unknown): HrClientError {
   if (error instanceof HrClientError) return error;
   const message = error instanceof Error ? error.message : String(error);
@@ -90,7 +71,7 @@ function asHrError(error: unknown): HrClientError {
   return new HrClientError('not-found');
 }
 
-export async function createHrClient(): Promise<{
+export async function createHrClient(options?: { prompt?: boolean }): Promise<{
   scan: (onDevice: (device: FoundHeartRate) => void) => Promise<void>;
   stopScan: () => void;
   connect: (id: string, onBpm: (bpm: number) => void, onLost: () => void) => Promise<string>;
@@ -98,7 +79,12 @@ export async function createHrClient(): Promise<{
   disconnect: () => Promise<void>;
   destroy: () => void;
 }> {
-  await ensureAndroidPermission();
+  try {
+    await ensureAndroidBlePermission({ prompt: options?.prompt });
+  } catch (error) {
+    if (error instanceof HrClientError) throw error;
+    throw new HrClientError('permission');
+  }
   let manager: ManagerLike;
   try {
     manager = await acquireBleManager<ManagerLike>();

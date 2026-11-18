@@ -12,6 +12,7 @@ import { PhaseField } from '../components/ride/PhaseField';
 import { PowerGauge } from '../components/ride/PowerGauge';
 import { RideVideo } from '../components/ride/RideVideo';
 import { RIDE_VIDEO } from '../content/videos';
+import { deviceCopy } from '../platform/deviceCopy';
 import { BIKE_TONES, RoadBike, RoadStream } from '../components/bike/RoadBike';
 import { useHistory } from '../state/HistoryContext';
 import { useHeartRate } from '../state/HeartRateContext';
@@ -193,7 +194,7 @@ export function ActiveScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Delete ride"
-                accessibilityHint="Deletes this ride from this iPhone and from your account. This can't be undone."
+                accessibilityHint={deviceCopy(Platform.OS, "Deletes this ride from this iPhone and from your account. This can't be undone.")}
                 testID="end-delete"
                 onPress={deleteAndLeave}
                 style={styles.askRow}

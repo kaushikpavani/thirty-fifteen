@@ -43,12 +43,26 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.kaushikpavani.thirtyfifteen",
+      "versionCode": 1,
+      "backgroundColor": "#070708",
+      "allowBackup": false,
       "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_SCAN"
+      "blockedPermissions": [
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "thirtyfifteen",
+              "host": "auth-callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {
@@ -94,7 +108,8 @@
           "neverForLocation": true
         }
       ],
-      ["./plugins/withAndroidLabel", "30/15"]
+      ["./plugins/withAndroidLabel", "30/15 Coach"],
+      "./plugins/withAndroidRelease"
     ]
   }
 }

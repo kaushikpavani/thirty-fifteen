@@ -142,10 +142,12 @@ export function Row({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? [label, detail, value].filter(Boolean).join(', ')}
+      android_ripple={Platform.OS === 'android' ? { color: 'rgba(255,255,255,0.14)' } : undefined}
       style={({ pressed }) => [
         styles.row,
         detail ? styles.rowTall : null,
-        (pressed || highlighted) && styles.rowPressed,
+        Platform.OS !== 'android' && (pressed || highlighted) && styles.rowPressed,
+        Platform.OS === 'android' && highlighted && styles.rowPressed,
       ]}
     >
       {body}

@@ -53,8 +53,8 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
   const scanGen = useRef(0);
   const mountedRef = useRef(true);
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectDeviceRef = useRef<(id: string, name: string, known: boolean) => Promise<void>>(async () => {});
-  const beginScanRef = useRef<(autoConnectSaved: boolean) => Promise<void>>(async () => {});
+  const connectDeviceRef = useRef<(id: string, name: string, known: boolean, prompt?: boolean) => Promise<void>>(async () => {});
+  const beginScanRef = useRef<(autoConnectSaved: boolean, prompt?: boolean) => Promise<void>>(async () => {});
 
   const [phase, setPhase] = useState<HeartPhase>({ phase: 'idle' });
   const [devices, setDevices] = useState<FoundHeartRate[]>([]);
@@ -108,16 +108,16 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     lostRetryAtRef.current = stamp;
-    void connectDeviceRef.current(saved.id, saved.name, true);
+    void connectDeviceRef.current(saved.id, saved.name, true, false);
   }, [setHeartPhase]);
 
-  const ensureClient = useCallback(async () => {
-    if (!clientRef.current) clientRef.current = await createHrClient();
+  const ensureClient = useCallback(async (prompt: boolean) => {
+    if (!clientRef.current) clientRef.current = await createHrClient({ prompt });
     return clientRef.current;
   }, []);
 
   const connectDevice = useCallback(
-    async (id: string, name: string, known: boolean) => {
+    async (id: string, name: string, known: boolean, prompt = true) => {
       const op = ++opRef.current;
       scanGen.current += 1;
       clearScanTimer();
@@ -126,7 +126,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
       try {
         await clientRef.current?.disconnect();
         if (op !== opRef.current) return;
-        const client = await ensureClient();
+        const client = await ensureClient(prompt);
         if (op !== opRef.current) return;
         const linked = known
           ? await client.connectKnown(id, handleSample, handleLost)
@@ -151,7 +151,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
         ) {
           fallbackLockRef.current = true;
           bleLog('hr-reconnect-failed', id);
-          await beginScanRef.current(true);
+          await beginScanRef.current(true, prompt);
           return;
         }
         if (known && code === 'not-found') {
@@ -166,7 +166,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const beginScan = useCallback(
-    async (autoConnectSaved: boolean) => {
+    async (autoConnectSaved: boolean, prompt = true) => {
       const gate = bleGate();
       if (gate) {
         setDevices([]);
@@ -177,7 +177,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
       if (mountedRef.current) setDevices([]);
       setHeartPhase({ phase: 'scanning' });
       try {
-        const client = await ensureClient();
+        const client = await ensureClient(prompt);
         if (gen !== scanGen.current) return;
         const found = new Map<string, FoundHeartRate>();
         await client.scan((device) => {
@@ -188,7 +188,7 @@ export function HeartRateProvider({ children }: { children: React.ReactNode }) {
           if (autoConnectSaved && savedId && device.id === savedId && !userHeldRef.current) {
             scanGen.current += 1;
             clearScanTimer();
-            void connectDeviceRef.current(device.id, device.name, false);
+            void connectDeviceRef.current(device.id, device.name, false, prompt);
           }
         });
         if (gen !== scanGen.current) return;

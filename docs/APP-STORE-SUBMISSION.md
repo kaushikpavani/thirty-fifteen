@@ -24,7 +24,7 @@ You do not need that for the first build. EAS starts at 1.
 
 ## Home screen name
 
-`expo.name` is `ThirtyFifteen`. Prebuild uses that string for the Xcode project and target. The iPhone home screen name is `ios.infoPlist.CFBundleDisplayName`, which is `30/15`. The Android launcher label is `30/15`, set by `plugins/withAndroidLabel`. The bundle id stays `com.kaushikpavani.thirtyfifteen`.
+`expo.name` is `ThirtyFifteen`. Prebuild uses that string for the Xcode project and target. The iPhone home screen name is `ios.infoPlist.CFBundleDisplayName`, which is `30/15`. The Android launcher label is `30/15 Coach`, set by `plugins/withAndroidLabel`. The bundle id stays `com.kaushikpavani.thirtyfifteen`. Android shipping steps are in [ANDROID.md](ANDROID.md).
 
 Do not set `expo.name` back to `30/15`. Prebuild would name the target `3015`. That value is written unquoted in `project.pbxproj`, the Xcode parser reads it as a number, and the production build fails in Configure Xcode project with `Could not find target '3015'`.
 

@@ -26,8 +26,9 @@
 
       <h2>Who this covers</h2>
       <p>
-        This policy describes the iPhone app 30/15 (bundle id <code>com.kaushikpavani.thirtyfifteen</code>), made by
-        Sri Kaushik Pavani. It explains what the app stores on the phone and what can be sent to the app’s own backend.
+        This policy describes the 30/15 app (bundle id <code>com.kaushikpavani.thirtyfifteen</code>) on iPhone and on
+        Android, made by Sri Kaushik Pavani. It explains what the app stores on the phone and what can be sent to the
+        app’s own backend. The iPhone home screen name is 30/15. The Android launcher name is 30/15 Coach.
       </p>
       <p>
         That backend is hosted by Supabase. Supabase stores the database and runs sign-in for 30/15. Apple and Google
@@ -57,7 +58,8 @@
 
       <h2>If you sign in</h2>
       <p>
-        Sign-in is optional. On iPhone, Settings → Account offers Continue with Apple and Continue with Google. Apple
+        Sign-in is optional. On iPhone, Settings → Account offers Continue with Apple and Continue with Google. On
+        Android, the same screen offers Continue with Google only. Apple
         or Google, through Supabase Auth, gives the app a user id and an email address. Apple may supply a private
         relay address instead of your personal mailbox. The name the provider supplies, when there is one, is stored
         as the display name on your profile (the first word of that name).
@@ -107,8 +109,11 @@
         launch.
       </p>
       <p>
-        Readings are used on the phone during the ride. They are not a location scan. The app does not request
-        location permission. The name and id of the last sensor you paired stay on the phone so it can reconnect.
+        Readings are used on the phone during the ride. They are not a location scan. The iPhone app does not request
+        location permission. On Android 12 and newer the Bluetooth scan is marked never-for-location, so that scan
+        does not request location permission either. Android 11 and older still require a location permission before
+        a Bluetooth scan; the app does not read your location, and that permission is limited to those older versions.
+        The name and id of the last sensor you paired stay on the phone so it can reconnect.
         Those sensor names are not a column on the workout summary. During a ride, Bluetooth may keep delivering
         power and heart rate while another app is in front.
       </p>

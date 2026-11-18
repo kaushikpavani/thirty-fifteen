@@ -15,6 +15,7 @@ import { emailRideSummary } from '../logic/rideEmail';
 import { shareRidePdf } from '../logic/rideShare';
 import { shareSignInAlert } from '../logic/shareGate';
 import { currentVo2Section } from '../logic/vo2max';
+import { deviceCopy } from '../platform/deviceCopy';
 import { useAuth } from '../auth/AuthContext';
 import { useHistory } from '../state/HistoryContext';
 import { useSettings } from '../state/SettingsContext';
@@ -227,7 +228,7 @@ export function DoneSummary({
         <View style={styles.flex} />
         <View style={styles.saved}>
           <Icon name="check" size={14} color={ink.signal} />
-          <Text style={styles.savedText}>Saved on this iPhone</Text>
+          <Text style={styles.savedText}>{deviceCopy(Platform.OS, 'Saved on this iPhone')}</Text>
         </View>
         <View style={styles.actions}>
           <Pill label="Share" variant="glass" icon="share" onPress={shareThisRide} testID="done-share" style={styles.action} />

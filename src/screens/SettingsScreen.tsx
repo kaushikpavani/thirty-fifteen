@@ -1,11 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, Group, IconTile, LargeTitle, NavBack, Row, SectionHeader, Stepper, Toggle } from '../components/kit/Grouped';
 import { Pill } from '../components/kit/Pill';
 import { useAuth } from '../auth/AuthContext';
-import { providerLabel, signInLabel } from '../auth/providers';
+import { providerLabel, signInLabel, signInProviders } from '../auth/providers';
+import { deviceCopy, deleteAccountPhoneButton } from '../platform/deviceCopy';
 import { AppleSignInButton } from '../components/AppleSignInButton';
 import type { PowerConnectionState } from '../ble/cps';
 import { useHistory } from '../state/HistoryContext';
@@ -55,7 +56,7 @@ export function SettingsScreen() {
     if (auth.needsSetup && !sawNeedsSetup.current) {
       Alert.alert(
         'Sign-in unavailable',
-        'This install has no 30/15 cloud project connected, so sign-in is off. Rides still save on this iPhone.',
+        deviceCopy(Platform.OS, 'This install has no 30/15 cloud project connected, so sign-in is off. Rides still save on this iPhone.'),
       );
     }
     sawNeedsSetup.current = auth.needsSetup;
@@ -133,7 +134,10 @@ export function SettingsScreen() {
     const count = history.sessions.length;
     Alert.alert(
       'Delete ride history?',
-      `This permanently removes ${count === 1 ? 'your 1 ride' : `all ${count} rides`} from this iPhone${auth.user ? ' and your cloud account' : ''}. It cannot be undone.`,
+      deviceCopy(
+        Platform.OS,
+        `This permanently removes ${count === 1 ? 'your 1 ride' : `all ${count} rides`} from this iPhone${auth.user ? ' and your cloud account' : ''}. It cannot be undone.`,
+      ),
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete rides', style: 'destructive', onPress: () => void runDeleteHistory() },
@@ -149,8 +153,8 @@ export function SettingsScreen() {
 
   const erasePhone = () => {
     Alert.alert(
-      'Erase this iPhone?',
-      'This permanently removes every ride, your settings, and saved sensors from this iPhone. It cannot be undone.',
+      deviceCopy(Platform.OS, 'Erase this iPhone?'),
+      deviceCopy(Platform.OS, 'This permanently removes every ride, your settings, and saved sensors from this iPhone. It cannot be undone.'),
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Erase', style: 'destructive', onPress: () => void runErasePhone() },
@@ -172,7 +176,10 @@ export function SettingsScreen() {
   const deleteAccount = () => {
     Alert.alert(
       'Delete account?',
-      'This permanently deletes your 30/15 account and the cloud copy of your rides, profile, notes, and analytics. The second button also erases rides and settings on this iPhone. This cannot be undone.',
+      deviceCopy(
+        Platform.OS,
+        'This permanently deletes your 30/15 account and the cloud copy of your rides, profile, notes, and analytics. The second button also erases rides and settings on this iPhone. This cannot be undone.',
+      ),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -181,7 +188,7 @@ export function SettingsScreen() {
           onPress: () => void runAccountDelete('cloud'),
         },
         {
-          text: 'Delete account and iPhone data',
+          text: deleteAccountPhoneButton(Platform.OS),
           style: 'destructive',
           onPress: () => void runAccountDelete('cloud-and-phone'),
         },
@@ -425,11 +432,13 @@ export function SettingsScreen() {
           </Group>
         ) : (
           <>
-            <AppleSignInButton
-              disabled={auth.busy != null}
-              onPress={() => void auth.signIn('apple')}
-              testID="sign-in-apple"
-            />
+            {signInProviders(Platform.OS).includes('apple') ? (
+              <AppleSignInButton
+                disabled={auth.busy != null}
+                onPress={() => void auth.signIn('apple')}
+                testID="sign-in-apple"
+              />
+            ) : null}
             <Group>
               <Row
                 label={signInLabel('google', auth.busy)}
@@ -444,7 +453,7 @@ export function SettingsScreen() {
         )}
         <Footer>
           {auth.needsSetup && !auth.user
-            ? 'Cloud is not set up on this install. Rides stay on this iPhone.'
+            ? deviceCopy(Platform.OS, 'Cloud is not set up on this install. Rides stay on this iPhone.')
             : history.cloudNote}
         </Footer>
         {auth.error ? <Text style={styles.error}>{auth.error}</Text> : null}
@@ -453,13 +462,16 @@ export function SettingsScreen() {
         <Group>
           <Row label="Delete ride history" tint={ink.danger} onPress={() => void deleteHistory()} disabled={acting} chevron={false} testID="delete-history" />
           <Row label="Clear queued notes and analytics" tint={ink.danger} onPress={() => void clearQueues()} disabled={acting} chevron={false} testID="clear-outbox" />
-          <Row label="Erase data on this iPhone" tint={ink.danger} onPress={() => void erasePhone()} disabled={acting} chevron={false} testID="erase-device" />
+          <Row label={deviceCopy(Platform.OS, 'Erase data on this iPhone')} tint={ink.danger} onPress={() => void erasePhone()} disabled={acting} chevron={false} testID="erase-device" />
           {auth.user ? (
             <Row label="Delete account and cloud data" tint={ink.danger} onPress={deleteAccount} disabled={acting} chevron={false} testID="delete-account" />
           ) : null}
           <Row label="Reset to defaults" onPress={() => void resetSettings()} chevron={false} testID="reset-settings" />
         </Group>
-        <Footer>{dataNote ?? 'Rides, FTP and notes live on this iPhone. An account only copies finished rides when you are online.'}</Footer>
+        <Footer>
+          {dataNote ??
+            deviceCopy(Platform.OS, 'Rides, FTP and notes live on this iPhone. An account only copies finished rides when you are online.')}
+        </Footer>
 
         <Text style={styles.free}>30/15 is free. Forever.</Text>
       </ScrollView>

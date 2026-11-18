@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../components/Screen';
 import { Footer, LargeTitle, NavBack } from '../components/kit/Grouped';
@@ -7,7 +7,8 @@ import { Pill } from '../components/kit/Pill';
 import { Sparkline, TrendChart } from '../components/kit/TrendChart';
 import { WeekBars } from '../components/kit/WeekBars';
 import { useAuth } from '../auth/AuthContext';
-import { signInLabel } from '../auth/providers';
+import { signInLabel, signInProviders } from '../auth/providers';
+import { deviceCopy } from '../platform/deviceCopy';
 import { AppleSignInButton } from '../components/AppleSignInButton';
 import { useHistory } from '../state/HistoryContext';
 import { ink, radius, type, surface } from '../theme/tokens';
@@ -92,15 +93,20 @@ export function ProgressScreen() {
             ))}
             <Text style={styles.lockNote}>
               {rides.length > 0
-                ? `Your ${rides.length === 1 ? 'ride is' : `${rides.length} rides are`} already on this iPhone. Sign in and they back up and show up here.`
+                ? deviceCopy(
+                    Platform.OS,
+                    `Your ${rides.length === 1 ? 'ride is' : `${rides.length} rides are`} already on this iPhone. Sign in and they back up and show up here.`,
+                  )
                 : 'Free with an account. Your rides back up too.'}
             </Text>
-            <AppleSignInButton
-              inset={false}
-              disabled={auth.busy != null}
-              onPress={() => void auth.signIn('apple')}
-              testID="progress-sign-in-apple"
-            />
+            {signInProviders(Platform.OS).includes('apple') ? (
+              <AppleSignInButton
+                inset={false}
+                disabled={auth.busy != null}
+                onPress={() => void auth.signIn('apple')}
+                testID="progress-sign-in-apple"
+              />
+            ) : null}
             <Pill
               label={signInLabel('google', auth.busy)}
               variant="light"
@@ -266,8 +272,10 @@ export function ProgressScreen() {
         ) : null}
 
         <Footer>
-          Calculated on this iPhone from your {rides.length === 1 ? 'ride' : `${rides.length} rides`}. Power metrics need a power meter;
-          efficiency and drift also need a heart-rate strap.
+          {deviceCopy(
+            Platform.OS,
+            `Calculated on this iPhone from your ${rides.length === 1 ? 'ride' : `${rides.length} rides`}. Power metrics need a power meter; efficiency and drift also need a heart-rate strap.`,
+          )}
         </Footer>
       </ScrollView>
     </Screen>

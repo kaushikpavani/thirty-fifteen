@@ -22,7 +22,8 @@
       </header>
 
       <h1>Support</h1>
-      <p class="lede">Help for the 30/15 iPhone app.</p>
+      <p class="lede">Help for the 30/15 iPhone app and for 30/15 Coach on Android.</p>
+      <p><a href="#delete-your-data">Delete your data</a> is the way to remove one ride, every ride, or the account.</p>
 
       <h2>What the app is</h2>
       <p>
@@ -103,35 +104,120 @@
         while the app is in the background. The clock does not need a network to keep time.
       </p>
 
-      <h2>Delete your data</h2>
-      <p>These are the controls in the app.</p>
+      <h2 id="delete-your-data">Delete your data</h2>
+      <p>
+        <strong>30/15 Coach</strong> is published by <strong>Kaushik Pavani</strong> (Sri Kaushik Pavani). On iPhone the
+        same app’s home-screen name is 30/15. The steps below work in either app. You can delete one ride, or all of
+        your rides, without deleting the account. You can also delete the account. If the app is not installed, use
+        the request at the end of this section. You do not have to reinstall it to ask.
+      </p>
+
+      <h3>Delete one ride, and keep the account</h3>
+      <ol>
+        <li>Open Settings → Past rides.</li>
+        <li>Press and hold the ride, then confirm Delete ride. Or open the ride and tap Delete this ride.</li>
+        <li>If you stop a ride before the sets are finished, choose Delete ride. That removes that ride the same way.</li>
+      </ol>
+      <p>
+        The ride leaves this phone immediately. If you are signed in, the cloud copy is removed the next time the app
+        reaches the server. If it cannot, the delete stays recorded and is tried again. The account, the email
+        address, and the user id stay.
+      </p>
+
+      <h3>Delete all rides, and keep the account</h3>
+      <ol>
+        <li>Open Settings → Your data.</li>
+        <li>Tap Delete ride history.</li>
+        <li>Confirm Delete rides.</li>
+      </ol>
+      <p>
+        This removes the rides from this phone. If you are signed in, it also deletes the cloud copy of rides that
+        had already ended. It does not delete the account, the email address, the user id, the profile, or feedback
+        notes already stored with the account.
+      </p>
+
+      <h3>Delete other data on this phone, and keep the account</h3>
+      <ol>
+        <li>
+          Settings → Your data → Clear queued notes and analytics drops notes and product events that have not been
+          sent yet. Notes already delivered stay until you delete the account, or stay unlinked if they were sent
+          with no account.
+        </li>
+        <li>
+          Settings → Your data → Erase data on this iPhone removes rides, settings, and saved sensors from this
+          phone, and asks the backend to delete this install’s device row. On Android that row is Erase data on this
+          phone. The account stays. Settings stored on the account can return the next time this phone syncs, unless
+          you delete the account.
+        </li>
+      </ol>
+      <p>Reset to defaults, in the same Your data section, restores workout settings. It does not delete ride history.</p>
+
+      <h3>Delete the account</h3>
+      <ol>
+        <li>
+          Sign in. On iPhone, Settings → Account shows Continue with Apple and Continue with Google. On Android,
+          Continue with Apple is not shown, and Continue with Google is.
+        </li>
+        <li>Open Settings → Your data → Delete account and cloud data.</li>
+        <li>
+          Confirm with Delete account to remove the cloud account and the cloud copy of your rides, profile, account
+          notes, and account product events. Rides on this phone stay. On iPhone, confirm with Delete account and iPhone data to do that and also erase rides and settings on this iPhone. On Android the phone button says
+          Delete account and phone data.
+        </li>
+      </ol>
+      <p>
+        If the phone cannot reach the server, the account delete stays queued and is tried again. You are signed out
+        after the server accepts it. There is no extra waiting period after that.
+      </p>
+
+      <h3>What is deleted</h3>
+      <p>When the server accepts Delete account, 30/15 Coach deletes these from the account:</p>
+      <ul>
+        <li>Email address, including an Apple private-relay address when that is the one on the account.</li>
+        <li>User id.</li>
+        <li>Display name on the profile.</li>
+        <li>Ride summaries: times, duration, FTP, target watts, completion, and any watts or heart-rate summary stored with the ride.</li>
+        <li>Fitness data stored on the account: FTP, age, sex, weight, resting heart rate, and the other workout settings copied with the account.</li>
+        <li>Feedback notes stored with the user id.</li>
+        <li>Product events stored with the user id.</li>
+      </ul>
+      <p>The sign-in account itself is deleted. Install rows are unlinked from the account. The user id on those rows is cleared.</p>
+
+      <h3>What is kept</h3>
       <ul>
         <li>
-          <strong>One ride.</strong> Settings → Past rides, then press and hold the ride and confirm Delete ride. On
-          the ride’s own page, tap Delete this ride. If you are signed in, that ride is also removed from the account.
-          If you end a ride before the sets are finished, Delete ride does the same for that ride.
+          Rides and settings on the phone, when you chose Delete account and did not also erase the phone. They stay
+          until you delete them in the app or delete the app. If you create an account again later, rides still on
+          the phone can be copied up again.
         </li>
         <li>
-          <strong>All rides.</strong> Settings → Your data → Delete ride history. This removes the rides from this
-          iPhone. If you are signed in, it also deletes the cloud copy of rides that had already ended.
+          Product events and feedback notes sent with no user id. They are not linked to an account, so deleting an
+          account does not select them. There is no timed purge of those rows.
         </li>
         <li>
-          <strong>Notes and product events still on the phone.</strong> Settings → Your data → Clear queued notes and
-          analytics. This drops notes and product events that have not been sent yet.
+          A feedback note may already have been sent to the developer so it can be read. That mailbox copy is not
+          removed by the in-app delete. The request below covers it.
         </li>
         <li>
-          <strong>This iPhone.</strong> Settings → Your data → Erase data on this iPhone. This removes rides, settings,
-          and saved sensors from this phone, and asks the backend to delete this install’s device row.
-        </li>
-        <li>
-          <strong>The account.</strong> Sign in, then Settings → Your data → Delete account and cloud data. Confirm
-          with Delete account to remove the cloud account and the cloud copy of your rides, profile, account notes,
-          and account product events. Rides on this iPhone stay. Confirm with Delete account and iPhone data to do
-          that and also erase rides and settings on this iPhone. If the phone cannot reach the server, the account
-          delete stays queued and is tried again. You are signed out after the server accepts it.
+          This project does not keep its own archive of a deleted account, and it does not restore one. Android
+          backup of the app is off, so a signed-out ride is not copied to a Google account by Android backup.
         </li>
       </ul>
-      <p>Reset to defaults, in the same Your data section, restores workout settings. It does not delete ride history.</p>
+
+      <h3>If you cannot open the app</h3>
+      <p>
+        Write to Kaushik Pavani on GitHub Issues. You do not need the app installed.
+        <a href="https://github.com/kaushikpavani/thirty-fifteen/issues">github.com/kaushikpavani/thirty-fifteen/issues</a>
+      </p>
+      <ol>
+        <li>Open a new issue.</li>
+        <li>Title it “Delete my 30/15 Coach account”.</li>
+        <li>In the issue, include the email address on the account. Do not attach a ride file.</li>
+      </ol>
+      <p>
+        Kaushik Pavani deletes that account and the data listed under What is deleted, and deletes any mailbox copy
+        of your feedback notes. Use the same issue if an in-app delete did not finish.
+      </p>
 
       <footer class="foot">
         <p>30/15 for iPhone. Sri Kaushik Pavani.</p>

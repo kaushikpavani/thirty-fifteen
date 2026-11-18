@@ -64,7 +64,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'fade',
+        animation: Platform.OS === 'android' ? 'slide_from_right' : 'fade',
         contentStyle: { backgroundColor: colors.bg },
       }}
     >

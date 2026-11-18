@@ -69,3 +69,30 @@ test('the public site is static, relative, and free of banned copy', () => {
   assert.match(submission, /https:\/\/kaushikpavani\.github\.io\/thirty-fifteen\/support\//);
   assert.match(submission, /https:\/\/kaushikpavani\.github\.io\/thirty-fifteen\/privacy\//);
 });
+
+test('the support page has a data-deletion section for the store listing', () => {
+  const support = read('site/support/index.html');
+  const start = support.indexOf('id="delete-your-data"');
+  assert.ok(start > 0);
+  const section = support.slice(start);
+  assert.match(support, /href="#delete-your-data"/);
+  assert.match(support, /<h2 id="delete-your-data">Delete your data<\/h2>/);
+  assert.match(section, /30\/15 Coach/);
+  assert.match(section, /Kaushik Pavani/);
+  assert.match(section, /Delete this ride/);
+  assert.match(section, /Delete ride history/);
+  assert.match(section, /keep the account/);
+  assert.match(section, /Delete account and cloud data/);
+  assert.match(section, /Delete account and iPhone data/);
+  assert.match(section, /Email address/);
+  assert.match(section, /User id/);
+  assert.match(section, /Ride summaries/);
+  assert.match(section, /Fitness data/);
+  assert.match(section, /Feedback notes/);
+  assert.match(section, /What is kept/);
+  assert.match(section, /no timed purge/);
+  assert.match(section, /mailbox copy/);
+  assert.match(section, /If you cannot open the app/);
+  assert.match(section, /https:\/\/github\.com\/kaushikpavani\/thirty-fifteen\/issues/);
+  assert.doesNotMatch(section, /mailto:/i);
+});

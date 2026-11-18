@@ -70,7 +70,19 @@ These depend on iOS, Bluetooth or audio hardware and cannot run in the test suit
 - [ ] Install a new build over an old one: every past ride is still there.
 - [ ] Delete the app, reinstall, sign in: every ride that showed as backed up is back, with its charts.
 - [ ] Airplane mode for a whole ride: it saves, and backs up when the connection returns.
-- [ ] The iPhone home screen and the Android launcher show 30/15. The Xcode project is named ThirtyFifteen.
+- [ ] The iPhone home screen shows 30/15. The Android launcher shows 30/15 Coach. The Xcode project is named ThirtyFifteen.
+
+## Not simulated: check on a real Android phone before the Play release
+
+These depend on Android, Bluetooth, or audio hardware. The automated checks cover the permission plan, the audio-focus choice, and the manifest. They cannot hear a cue or see a Play listing.
+
+- [ ] The launcher says 30/15 Coach. The splash is the existing mark on `#070708`. Start works with no account, no sensor, and no network.
+- [ ] First launch does not ask for Bluetooth. Connect on a meter or strap explains why, then the system dialog. Not now, and a denial, leave the ride startable. Android 12+ asks for nearby-devices Bluetooth, not location. Android 11 and older ask for location and the app does not read a position.
+- [ ] A paired power meter (Cycling Power) and heart-rate strap reconnect after the app is opened again, including after the screen was off during a ride.
+- [ ] Start a ride, open YouTube, and turn the screen off for more than three minutes. Cues stay on time. YouTube keeps playing, quieter. An ongoing notification is visible. Pause and play from that notification match the in-app Pause glass.
+- [ ] Settings → Account shows Continue with Google and does not show Continue with Apple. The redirect returns to the app. Guests still start.
+- [ ] Settings → Your data → Delete account and cloud data removes the cloud account. Delete account and phone data also clears this phone.
+- [ ] The system Back button leaves a normal screen and does not abandon an active ride.
 
 ## Known gaps
 

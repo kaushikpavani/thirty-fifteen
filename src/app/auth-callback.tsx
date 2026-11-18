@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AUTH_CALLBACK_URI } from '../auth/redirect';
 import { createSessionFromUrl } from '../auth/oauth';
 import { colors } from '../theme/colors';
 
@@ -15,7 +16,7 @@ export default function AuthCallbackRoute() {
           throw new Error(params.error_description);
         }
         if (typeof params.code === 'string') {
-          const query = `thirtyfifteen://auth-callback?code=${encodeURIComponent(params.code)}`;
+          const query = `${AUTH_CALLBACK_URI}?code=${encodeURIComponent(params.code)}`;
           await createSessionFromUrl(query);
         }
       } catch {

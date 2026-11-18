@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Footer, Group, LargeTitle, NavBack, Row, SectionHeader, Toggle } from '../components/kit/Grouped';
 import { Icon } from '../components/kit/Icon';
@@ -8,6 +8,7 @@ import { previewMusic, previewVoice, voiceIssue } from '../audio/cues';
 import { musicGenres, PULSE, resolveGenre, stopGenrePreview } from '../audio/music';
 import { COACH_LANGUAGES } from '../audio/coachLines';
 import { coachLanguage, languageName, voiceName } from '../audio/voices';
+import { silentRideNote } from '../platform/deviceCopy';
 import { useSettings } from '../state/SettingsContext';
 import { ink, radius, type } from '../theme/tokens';
 import type { CoachVoice, WorkoutSettings } from '../types';
@@ -217,7 +218,7 @@ export function SoundScreen() {
             trailing={<Toggle label="Haptics" value={settings.hapticsEnabled} onChange={(hapticsEnabled) => patch({ hapticsEnabled })} />}
           />
         </Group>
-        <Footer>The iPhone silent switch never mutes a ride.</Footer>
+        <Footer>{silentRideNote(Platform.OS)}</Footer>
       </ScrollView>
     </Screen>
   );
